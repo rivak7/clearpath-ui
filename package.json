@@ -1,0 +1,38 @@
+{
+  "name": "rishabh-piyush",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "expose": "ENABLE_TUNNEL=1 node server.js",
+    "lint": "echo 'No linter configured'",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/VerisimilitudeX/rishabh-piyush-placeholder/issues"
+  },
+  "homepage": "https://github.com/VerisimilitudeX/rishabh-piyush-placeholder#readme",
+  "dependencies": {
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "localtunnel": "^2.0.2",
+    "morgan": "^1.10.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

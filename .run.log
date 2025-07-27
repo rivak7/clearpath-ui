@@ -1,0 +1,5 @@
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+Server listening on http://0.0.0.0:8080
+Public URL: https://great-frogs-smoke.loca.lt
+GET /ping 200 32 - 3.394 ms
+GET /ping 200 32 - 0.448 ms
