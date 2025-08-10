@@ -49,6 +49,7 @@ Environment variables (can be placed in a `.env` file). See `env.sample` for a t
 - `TRUST_PROXY` (default `1`) – trust proxy hops for correct client IPs behind tunnels
 - `ENABLE_TUNNEL` (default `0`) – set to `1` to enable localtunnel
 - `TUNNEL_SUBDOMAIN` – optional preferred subdomain
+- `GEOCODER_BASE_URL` – base URL for a Nominatim-compatible geocoder used by `/geocode/bbox` (default `https://nominatim.openstreetmap.org`)
 
 ## Example responses
 
@@ -69,3 +70,34 @@ Environment variables (can be placed in a `.env` file). See `env.sample` for a t
 - `npm run dev` – start with auto-reload
 - `npm run expose` – start and open a public tunnel
 
+## Geocoding Endpoint
+
+- `GET /geocode/bbox?q=<address>`: Returns the latitude/longitude for the best match and the bounding box for the address.
+
+Example:
+
+```sh
+# URL-encoded address (works in any shell)
+curl "http://localhost:8080/geocode/bbox?q=1600%20Pennsylvania%20Ave%20NW%2C%20Washington%2C%20DC"
+
+# or let curl encode it for you
+curl -G --data-urlencode "q=1600 Pennsylvania Ave NW, Washington, DC" http://localhost:8080/geocode/bbox
+```
+
+Response:
+
+```json
+{
+  "query": "1600 Pennsylvania Ave NW, Washington, DC",
+  "provider": "nominatim",
+  "center": { "lat": 38.897675, "lon": -77.036547 },
+  "bbox": { "south": 38.897, "west": -77.037, "north": 38.898, "east": -77.036 }
+}
+```
+
+Notes:
+
+- The default provider is OpenStreetMap Nominatim. You can point to your own Nominatim instance by setting `GEOCODER_BASE_URL`.
+- If `AUTH_TOKEN` is set, include `Authorization: Bearer <token>` in requests.
+- Default CORS allows only GET/HEAD from anywhere. This endpoint is GET-only and works with the default.
+- Errors: `400` for missing/too-long query, `404` if not found, `502` if provider is unavailable, `504` for timeouts.

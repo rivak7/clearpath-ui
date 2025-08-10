@@ -95,6 +95,72 @@ app.get(['/health', '/_health', '/ping'], (req, res) => {
   res.status(200).json({ status: 'ok', message: 'ping' });
 });
 
+// Geocode bounding box endpoint
+// GET /geocode/bbox?q=<human address>
+// Returns: { query, provider, center: { lat, lon }, bbox: { south, west, north, east } }
+const GEOCODER_BASE_URL = process.env.GEOCODER_BASE_URL || 'https://nominatim.openstreetmap.org';
+app.get('/geocode/bbox', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) return res.status(400).json({ error: 'missing_query', message: 'Provide address with ?q=' });
+    if (q.length > 256) return res.status(400).json({ error: 'query_too_long' });
+
+    const url = new URL('/search', GEOCODER_BASE_URL);
+    url.searchParams.set('q', q);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('addressdetails', '0');
+
+    const headers = {
+      'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)',
+      'Accept': 'application/json',
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      if (typeof fetch !== 'function') throw new Error('fetch_unavailable');
+      response = await fetch(url, { headers, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response || !response.ok) {
+      return res.status(502).json({ error: 'geocoder_unavailable' });
+    }
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    const first = data[0];
+    // Nominatim boundingbox is [south, north, west, east] as strings
+    const bb = first.boundingbox || [];
+    const south = Number(bb[0]);
+    const north = Number(bb[1]);
+    const west = Number(bb[2]);
+    const east = Number(bb[3]);
+
+    if ([south, west, north, east].some((v) => Number.isNaN(v))) {
+      return res.status(500).json({ error: 'invalid_bbox' });
+    }
+
+    const lat = Number(first.lat);
+    const lon = Number(first.lon);
+    return res.status(200).json({
+      query: q,
+      provider: 'nominatim',
+      center: { lat, lon },
+      bbox: { south, west, north, east },
+    });
+  } catch (e) {
+    const isAbort = e && (e.name === 'AbortError' || e.code === 'ABORT_ERR');
+    if (isAbort) return res.status(504).json({ error: 'timeout' });
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // Generic handler: respond "ping" for any route/method, echoing safe info
 app.use((req, res) => {
   const safeQuery = { ...req.query };
@@ -148,5 +214,4 @@ if (ENABLE_TUNNEL) {
     }
   })();
 }
-
 
