@@ -6,6 +6,9 @@
 */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
@@ -90,6 +93,11 @@ app.use(cors(corsOptions));
 // Compression after security/logging
 app.use(compression());
 
+// Serve session artifacts (HTML/JSON) for debugging
+const SESSIONS_DIR = path.resolve(__dirname, 'sessions');
+try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch {}
+app.use('/sessions', express.static(SESSIONS_DIR, { fallthrough: true, etag: true }));
+
 // Health check
 app.get(['/health', '/_health', '/ping'], (req, res) => {
   res.status(200).json({ status: 'ok', message: 'ping' });
@@ -148,11 +156,83 @@ app.get('/geocode/bbox', async (req, res) => {
 
     const lat = Number(first.lat);
     const lon = Number(first.lon);
+
+    // Create a session folder per request and save artifacts
+    const sessionId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const sessionDir = path.join(SESSIONS_DIR, sessionId);
+    try { fs.mkdirSync(sessionDir, { recursive: true }); } catch {}
+
+    // Persist request + result JSON
+    const sessionJson = {
+      sessionId,
+      receivedAt: new Date().toISOString(),
+      request: {
+        method: req.method,
+        path: req.path,
+        originalUrl: req.originalUrl,
+        ip: req.ip,
+        query: req.query,
+        headers: req.headers,
+      },
+      result: {
+        query: q,
+        provider: 'nominatim',
+        center: { lat, lon },
+        bbox: { south, west, north, east },
+        raw: first,
+      },
+    };
+    try {
+      fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2));
+    } catch {}
+
+    // Generate a minimal Leaflet-based HTML with Esri World Imagery and bbox overlay
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Session ${sessionId} – Geocode Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>html,body,#map{height:100%;margin:0;padding:0}</style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https://unpkg.com https://server.arcgisonline.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:," />
+  </head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const south = ${south};
+    const west = ${west};
+    const north = ${north};
+    const east = ${east};
+    const center = [${lat}, ${lon}];
+
+    const map = L.map('map', { zoomControl: true });
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+    }).addTo(map);
+    const bounds = L.latLngBounds([ [south, west], [north, east] ]);
+    map.fitBounds(bounds, { padding: [20, 20] });
+    L.rectangle(bounds, { color: 'blue', weight: 2, fillOpacity: 0.15 }).addTo(map);
+    L.marker(center).addTo(map).bindPopup('Center').openPopup();
+  </script>
+</body>
+</html>`;
+    try {
+      fs.writeFileSync(path.join(sessionDir, 'map.html'), html);
+    } catch {}
+
+    const mapUrl = `/sessions/${sessionId}/map.html`;
     return res.status(200).json({
       query: q,
       provider: 'nominatim',
       center: { lat, lon },
       bbox: { south, west, north, east },
+      sessionId,
+      sessionDir: `/sessions/${sessionId}/`,
+      mapUrl,
     });
   } catch (e) {
     const isAbort = e && (e.name === 'AbortError' || e.code === 'ABORT_ERR');
