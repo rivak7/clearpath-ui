@@ -101,3 +101,41 @@ Notes:
 - If `AUTH_TOKEN` is set, include `Authorization: Bearer <token>` in requests.
 - Default CORS allows only GET/HEAD from anywhere. This endpoint is GET-only and works with the default.
 - Errors: `400` for missing/too-long query, `404` if not found, `502` if provider is unavailable, `504` for timeouts.
+
+---
+
+# satdist: Satellite BBox Utilities
+
+Production-grade utilities for working with satellite imagery of a geographic bounding box:
+
+- Fetch static satellite images for a WGS84 bbox via ArcGIS endpoints.
+- Compute distances between points using haversine or mapped image pixels.
+- Generate an interactive Folium map with an on-map measurement tool.
+
+Contents:
+- src/satdist: Python package with distance, fetch, and map modules, plus a CLI.
+- plot_bbox.py: Example that generates a map and saves a satellite image.
+- compute_distance_example.py: Example CLI for quick distance calculations.
+- config/cache: Default output directory for fetched images.
+
+Quick start:
+
+1. Install (dev):
+   - pip install -e .[dev]
+2. Build a map with measurement:
+   - python -m satdist.cli map --south 47.6006395 --west -122.139536 --north 47.6008162 --east -122.1392861
+   - Outputs building_bbox.html with an interactive measure tool.
+3. Fetch a static image for the bbox:
+   - python -m satdist.cli fetch --south 47.6006395 --west -122.139536 --north 47.6008162 --east -122.1392861 --width 1024 --height 1024
+4. Compute distance:
+   - Lat/Lon: python -m satdist.cli distance --lat1 47.6007247 --lon1 -122.139411 --lat2 47.6007247 --lon2 -122.139300
+   - Pixels: python -m satdist.cli distance --south 47.6006395 --west -122.139536 --north 47.6008162 --east -122.1392861 --width 1024 --height 1024 --x1 512 --y1 512 --x2 522 --y2 512
+
+Dev tools:
+- Tests: pytest -q
+- Lint: ruff check src tests
+- Format: black src tests
+
+Notes:
+- External imagery Terms of Use apply to ArcGIS services. Intended for debug/development usage.
+- The pixel-to-lat/lon mapping linearly interpolates across the bbox and is accurate for small areas.

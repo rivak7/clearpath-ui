@@ -3,3 +3,22 @@ node_modules/
 npm-debug.log*
 .DS_Store
 
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+src/*.egg-info/
+
+# Local/cache outputs
+sessions/
+config/cache/
+*.png
+building_bbox.html
+run.log
+.run.log
