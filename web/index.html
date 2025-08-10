@@ -30,8 +30,8 @@
   <body>
     <header>
       <div class="row">
-        <strong>Geocode Bounding Box</strong>
-        <span class="small">– Enter an address, get bbox + map</span>
+        <strong>Find Building Entrance</strong>
+        <span class="small">– Enter an address, get entrance + map</span>
       </div>
     </header>
     <main>
@@ -39,9 +39,9 @@
         <form id="form">
           <input id="q" type="text" placeholder="1600 Amphitheatre Pkwy, Mountain View, CA" autocomplete="off" />
           <input id="token" type="password" placeholder="Optional Bearer token" autocomplete="off" />
-          <button id="btn" type="submit">Search</button>
+          <button id="btn" type="submit">Find Entrance</button>
         </form>
-        <div class="small">Requests GET <code>/geocode/bbox?q=...</code> on this server.</div>
+        <div class="small">Requests GET <code>/entrance?q=...</code> on this server.</div>
         <div id="status" class="small"></div>
       </section>
 
@@ -75,7 +75,7 @@
         if (!query) { q.focus(); return; }
         const headers = { 'Accept': 'application/json' };
         if (token.value.trim()) headers['Authorization'] = 'Bearer ' + token.value.trim();
-        const url = '/geocode/bbox?q=' + encodeURIComponent(query);
+        const url = '/entrance?q=' + encodeURIComponent(query);
         setBusy(true);
         out.textContent = '';
         map.src = 'about:blank';
@@ -102,4 +102,3 @@
     </script>
   </body>
   </html>
-

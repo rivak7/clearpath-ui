@@ -1,34 +1,27 @@
-# Minimal secure public "ping" API
+# Building Entrance Finder – One‑Command App
 
-This project runs a small Express server that responds with `ping` for any route and method. It includes safe defaults (Helmet, CORS, rate limiting, small body limits, logging, compression) and can optionally expose a public URL using a tunnel so others on the internet can query it while it runs on your Mac.
+This project serves a minimal web UI and API to:
+- Geocode an address to its bounding box and center, and
+- Estimate the most likely building entrance by projecting the nearest road point to the bbox edge,
+- Show an interactive satellite map with the result.
 
-## Quick start
+It runs with a single command and auto‑installs a local Node.js runtime and dependencies if needed. By default, it exposes a public URL so anyone on the internet can access it while it runs on your Mac.
 
-1. Install dependencies:
+## One Command
 
-   ```sh
-   npm install
-   ```
+Run from the repo root:
 
-2. Start locally (backend + minimal web UI):
+```sh
+./run
+```
 
-   ```sh
-   npm run dev
-   # or
-   npm start
-   ```
+What `./run` does:
+- Ensures a local Node.js 20 runtime under `.runtime/` (downloaded if missing or system Node < 18).
+- Installs Node dependencies into `node_modules/` (only if missing).
+- Creates `.env` with defaults on first run and starts the server.
+- Opens a public tunnel URL by default via Localtunnel so the app is reachable on the internet while it runs.
 
-   Visit `http://localhost:8080/` for the web UI or `http://localhost:8080/ping` for JSON.
-   - The web page lets you enter an address and calls `GET /geocode/bbox?q=...`.
-   - Results are shown as JSON along with a map preview (saved to `/sessions/.../map.html`).
-
-3. Expose publicly (optional):
-
-   ```sh
-   npm run expose
-   ```
-
-   The console will print a `Public URL:`. Share that URL. While the server runs, anyone can query it.
+Open the printed Public URL (or `http://localhost:8080/`) and use the web UI to enter an address and view the entrance map.
 
 ## Security notes
 
@@ -49,11 +42,18 @@ Environment variables (can be placed in a `.env` file). See `env.sample` for a t
 - `BODY_LIMIT` (default `10kb`)
 - `AUTH_TOKEN` – if set, require `Authorization: Bearer <token>` for all requests
 - `TRUST_PROXY` (default `1`) – trust proxy hops for correct client IPs behind tunnels
-- `ENABLE_TUNNEL` (default `0`) – set to `1` to enable localtunnel
+- `ENABLE_TUNNEL` (default `1` via `./run`) – set to `0` to disable the public tunnel
 - `TUNNEL_SUBDOMAIN` – optional preferred subdomain
 - `GEOCODER_BASE_URL` – base URL for a Nominatim-compatible geocoder used by `/geocode/bbox` (default `https://nominatim.openstreetmap.org`)
 
-## Example responses
+## API Overview
+
+- `GET /entrance?q=<address>`: returns the geocoded center, bbox, a derived entrance candidate, and a link to an HTML map saved under `/sessions/<id>/map.html`.
+- `GET /geocode/bbox?q=<address>`: returns center and bbox only.
+- `GET /`: static web UI to query `/entrance` and preview the map.
+- `GET /ping` or `/health`: health checks.
+
+Example `/ping` response:
 
 ```json
 {
@@ -66,18 +66,19 @@ Environment variables (can be placed in a `.env` file). See `env.sample` for a t
 }
 ```
 
-## Scripts
+## Scripts (optional)
 
-- `npm start` – start server
-- `npm run dev` – start with auto-reload
+If you want to manage Node yourself instead of using `./run`:
+- `npm install` – install deps
+- `npm start` – start server locally
 - `npm run expose` – start and open a public tunnel
 
 ## Repo Layout
 
-- `server.js`: Express API with `/ping` and `/geocode/bbox`.
+- `server.js`: Express API with `/ping`, `/geocode/bbox`, and `/entrance`.
+- `web/index.html`: Minimal web UI for querying `/entrance` and previewing the session map.
+- `run`: One‑command bootstrapper and launcher.
 - `src/satdist`: Python package for bbox distance, imagery fetch, and map helpers.
-- `examples/`: Small Python scripts showing how to use `satdist`.
-- `tests/`: Minimal Python tests (distance utilities).
 - Generated artifacts (e.g., `sessions/`, `config/cache/`, `*.png`) are ignored.
 
 ## Geocoding Endpoint
