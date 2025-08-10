@@ -1,34 +1,19 @@
-import folium
+from satdist.map import save_map_html
+from satdist.fetch import save_satellite_bbox
 
-# Center coordinates from your result
+# Example center and bbox
 center_lat = 47.6007247
 center_lon = -122.139411
-
-# Bounding box from your result
 south = 47.6006395
 west = -122.139536
 north = 47.6008162
 east = -122.1392861
 
-# Create map centered at the building
-m = folium.Map(location=[center_lat, center_lon], zoom_start=20)
+html_path = save_map_html(center_lat, center_lon, south, west, north, east, out_html="building_bbox.html", zoom_start=20)
+print(f"Map saved to {html_path}")
 
-# Add center marker
-folium.Marker(
-    [center_lat, center_lon],
-    popup="Center Point",
-    icon=folium.Icon(color="red", icon="info-sign")
-).add_to(m)
-
-# Add bounding box rectangle
-folium.Rectangle(
-    bounds=[[south, west], [north, east]],
-    color="blue",
-    weight=2,
-    fill=True,
-    fill_opacity=0.2
-).add_to(m)
-
-# Save and open map
-m.save("building_bbox.html")
-print("Map saved to building_bbox.html")
+try:
+    img_path = save_satellite_bbox(south, west, north, east, width=1024, height=1024, out="building_bbox_satellite.png")
+    print(f"Satellite image saved to {img_path}")
+except Exception as e:
+    print(f"Could not save satellite image: {e}")
