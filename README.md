@@ -10,7 +10,7 @@ This project runs a small Express server that responds with `ping` for any route
    npm install
    ```
 
-2. Start locally:
+2. Start locally (backend + minimal web UI):
 
    ```sh
    npm run dev
@@ -18,7 +18,9 @@ This project runs a small Express server that responds with `ping` for any route
    npm start
    ```
 
-   Visit `http://localhost:8080/ping`.
+   Visit `http://localhost:8080/` for the web UI or `http://localhost:8080/ping` for JSON.
+   - The web page lets you enter an address and calls `GET /geocode/bbox?q=...`.
+   - Results are shown as JSON along with a map preview (saved to `/sessions/.../map.html`).
 
 3. Expose publicly (optional):
 
@@ -69,6 +71,14 @@ Environment variables (can be placed in a `.env` file). See `env.sample` for a t
 - `npm start` – start server
 - `npm run dev` – start with auto-reload
 - `npm run expose` – start and open a public tunnel
+
+## Repo Layout
+
+- `server.js`: Express API with `/ping` and `/geocode/bbox`.
+- `src/satdist`: Python package for bbox distance, imagery fetch, and map helpers.
+- `examples/`: Small Python scripts showing how to use `satdist`.
+- `tests/`: Minimal Python tests (distance utilities).
+- Generated artifacts (e.g., `sessions/`, `config/cache/`, `*.png`) are ignored.
 
 ## Geocoding Endpoint
 
@@ -139,3 +149,16 @@ Dev tools:
 Notes:
 - External imagery Terms of Use apply to ArcGIS services. Intended for debug/development usage.
 - The pixel-to-lat/lon mapping linearly interpolates across the bbox and is accurate for small areas.
+
+## Examples
+
+Moved to `examples/`:
+- `examples/plot_bbox.py` – builds an interactive map and saves HTML.
+- `examples/fetch_satellite_bbox.py` – fetches and saves a satellite image for a bbox.
+- `examples/compute_distance_example.py` – computes distances via pixels or lat/lon.
+
+Run an example (from repo root):
+
+```sh
+python examples/plot_bbox.py
+```

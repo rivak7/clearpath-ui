@@ -98,6 +98,14 @@ const SESSIONS_DIR = path.resolve(__dirname, 'sessions');
 try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch {}
 app.use('/sessions', express.static(SESSIONS_DIR, { fallthrough: true, etag: true }));
 
+// Serve minimal web UI (static)
+const WEB_DIR = path.resolve(__dirname, 'web');
+try { fs.mkdirSync(WEB_DIR, { recursive: true }); } catch {}
+app.use(express.static(WEB_DIR, { index: 'index.html', fallthrough: true, etag: true }));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(WEB_DIR, 'index.html'));
+});
+
 // Health check
 app.get(['/health', '/_health', '/ping'], (req, res) => {
   res.status(200).json({ status: 'ok', message: 'ping' });
@@ -294,4 +302,3 @@ if (ENABLE_TUNNEL) {
     }
   })();
 }
-
