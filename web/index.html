@@ -12,7 +12,7 @@
       body { margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
       header { padding: 14px 16px; border-bottom: 1px solid #ccc; }
       main { padding: 16px; display: grid; gap: 16px; grid-template-columns: 1fr; }
-      form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: relative; }
       input[type="text"], input[type="password"] { flex: 1 1 420px; padding: 10px 12px; border: 1px solid #888; border-radius: 8px; }
       input[type="text"] { min-width: 260px; }
       button { padding: 10px 14px; border-radius: 8px; border: 1px solid #555; background: #0b5; color: #fff; cursor: pointer; }
@@ -24,6 +24,12 @@
       .error { color: #b00; }
       pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
       iframe { width: 100%; height: 420px; border: 1px solid #ccc; border-radius: 10px; }
+      /* Autocomplete */
+      .ac-wrap { position: relative; flex: 1 1 420px; min-width: 260px; }
+      .ac-list { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; background: var(--ac-bg, #fff); border: 1px solid #aaa; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08); max-height: 280px; overflow: auto; padding: 6px 0; }
+      .ac-item { padding: 8px 12px; cursor: pointer; }
+      .ac-item:hover, .ac-item[aria-selected="true"] { background: rgba(0,0,0,.08); }
+      .hidden { display: none; }
       @media (min-width: 980px) { main { grid-template-columns: 1fr 1fr; } }
     </style>
   </head>
@@ -37,7 +43,10 @@
     <main>
       <section class="card">
         <form id="form">
-          <input id="q" type="text" placeholder="1600 Amphitheatre Pkwy, Mountain View, CA" autocomplete="off" />
+          <div class="ac-wrap">
+            <input id="q" type="text" placeholder="1600 Amphitheatre Pkwy, Mountain View, CA" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-owns="ac-list" />
+            <div id="ac-list" class="ac-list hidden" role="listbox" aria-label="Suggestions"></div>
+          </div>
           <input id="token" type="password" placeholder="Optional Bearer token" autocomplete="off" />
           <button id="btn" type="submit">Find Entrance</button>
         </form>
@@ -66,8 +75,139 @@
       const out = el('out');
       const map = el('map');
       const status = el('status');
+      const acList = el('ac-list');
 
       function setBusy(b) { btn.disabled = b; status.textContent = b ? 'Loading…' : ''; }
+      function mapHtml(lat, lon, name) {
+        return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Map – ${name.replace(/[&<>"']/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]))}</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+<style>html,body,#map{height:100%;margin:0} body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}</style>
+</head><body><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"><\/script>
+<script>const lat=${lat},lon=${lon},name=${JSON.stringify(name)};const m=L.map('map').setView([lat,lon],18);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'&copy; OpenStreetMap'}).addTo(m);L.marker([lat,lon]).addTo(m).bindPopup(name).openPopup();<\/script>
+</body></html>`;
+      }
+
+
+      // --- Autocomplete (fast, cached, abortable) ---
+      const acCache = new Map(); // query -> results
+      let acIndex = -1; // active index
+      let acAbort = null; // AbortController
+      let acTimer = null; // debounce timer
+
+      function hideAC() {
+        acList.classList.add('hidden');
+        q.setAttribute('aria-expanded', 'false');
+        acList.innerHTML = '';
+        acIndex = -1;
+      }
+
+      function showAC(items) {
+        if (!items || !items.length) { hideAC(); return; }
+        acList.innerHTML = '';
+        items.forEach((t, i) => {
+          const div = document.createElement('div');
+          div.className = 'ac-item';
+          div.setAttribute('role', 'option');
+          div.setAttribute('id', 'ac-item-' + i);
+          div.textContent = t;
+          div.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // avoid blurring input
+            applySelection(i);
+          });
+          acList.appendChild(div);
+        });
+        acList.classList.remove('hidden');
+        q.setAttribute('aria-expanded', 'true');
+        acIndex = -1;
+      }
+
+      function highlightAC(idx) {
+        const children = [...acList.children];
+        children.forEach((c, i) => c.setAttribute('aria-selected', String(i === idx)));
+        if (idx >= 0 && children[idx]) {
+          const el = children[idx];
+          const r = el.getBoundingClientRect();
+          const pr = acList.getBoundingClientRect();
+          if (r.top < pr.top || r.bottom > pr.bottom) el.scrollIntoView({ block: 'nearest' });
+        }
+      }
+
+      function applySelection(idx) {
+        const children = [...acList.children];
+        if (!children[idx]) return;
+        const value = children[idx].textContent || '';
+        q.value = value;
+        hideAC();
+        // Do not auto-submit; user can hit Enter.
+        q.focus();
+      }
+
+      async function fetchSuggest(query) {
+        // Photon API (Komoot) – fast, no key required
+        const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=8';
+        if (acAbort) acAbort.abort();
+        acAbort = new AbortController();
+        const t0 = performance.now();
+        const resp = await fetch(url, { signal: acAbort.signal });
+        const data = await resp.json();
+        const names = (data && data.features ? data.features : [])
+          .map(f => f && f.properties ? f.properties.name || f.properties.label : '')
+          .filter(Boolean);
+        // Simple speed metric to keep UX snappy
+        // console.debug('Suggest latency:', Math.round(performance.now() - t0), 'ms');
+        return Array.from(new Set(names)); // dedupe
+      }
+
+      function scheduleSuggest() {
+        const query = q.value.trim();
+        if (acTimer) clearTimeout(acTimer);
+        if (query.length < 3) { hideAC(); return; }
+        // Debounce lightly
+        acTimer = setTimeout(async () => {
+          // Cache first
+          if (acCache.has(query)) { showAC(acCache.get(query)); return; }
+          try {
+            const results = await fetchSuggest(query);
+            acCache.set(query, results);
+            showAC(results);
+          } catch (e) {
+            // Swallow aborts/network errors silently for UX
+            hideAC();
+          }
+        }, 120);
+      }
+
+      q.addEventListener('input', scheduleSuggest);
+      q.addEventListener('focus', scheduleSuggest);
+      q.addEventListener('blur', () => setTimeout(hideAC, 120));
+      q.addEventListener('keydown', (e) => {
+        const open = !acList.classList.contains('hidden');
+        const count = acList.children.length;
+        if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+          scheduleSuggest();
+          return;
+        }
+        if (!open || !count) return;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          acIndex = (acIndex + 1) % count;
+          highlightAC(acIndex);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          acIndex = (acIndex - 1 + count) % count;
+          highlightAC(acIndex);
+        } else if (e.key === 'Enter') {
+          if (acIndex >= 0) {
+            e.preventDefault();
+            applySelection(acIndex);
+          }
+        } else if (e.key === 'Escape') {
+          hideAC();
+        }
+      });
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -83,6 +223,24 @@
           const resp = await fetch(url, { headers });
           const data = await resp.json().catch(() => ({}));
           if (!resp.ok) {
+            // Fallback: do client-side geocode if upstream fails
+            if ((data && data.error) === 'geocode_failed' || resp.status === 502) {
+              try {
+                const g = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=1');
+                const gj = await g.json();
+                const feat = (gj.features || [])[0];
+                if (feat && feat.geometry && feat.geometry.coordinates) {
+                  const [lon, lat] = feat.geometry.coordinates;
+                  const name = (feat.properties && (feat.properties.label || feat.properties.name)) || query;
+                  const fallback = { query, name, entrance: { lat, lon }, mapUrl: '(inline)' };
+                  out.textContent = JSON.stringify(fallback, null, 2);
+                  map.removeAttribute('src');
+                  map.srcdoc = mapHtml(lat, lon, name);
+                  status.textContent = 'Done. (fallback geocoder)';
+                  return;
+                }
+              } catch {}
+            }
             out.textContent = JSON.stringify({ error: data.error || 'request_failed', status: resp.status }, null, 2);
             status.innerHTML = '<span class="error">Error ' + resp.status + '</span>';
             return;
