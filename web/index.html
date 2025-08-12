@@ -13,7 +13,7 @@
       header { padding: 14px 16px; border-bottom: 1px solid #ccc; }
       main { padding: 16px; display: grid; gap: 16px; grid-template-columns: 1fr; }
       form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: relative; }
-      input[type="text"], input[type="password"] { flex: 1 1 420px; padding: 10px 12px; border: 1px solid #888; border-radius: 8px; }
+      input[type="text"] { flex: 1 1 420px; padding: 10px 12px; border: 1px solid #888; border-radius: 8px; }
       input[type="text"] { min-width: 260px; }
       button { padding: 10px 14px; border-radius: 8px; border: 1px solid #555; background: #0b5; color: #fff; cursor: pointer; }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -47,7 +47,6 @@
             <input id="q" type="text" placeholder="1600 Amphitheatre Pkwy, Mountain View, CA" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-owns="ac-list" />
             <div id="ac-list" class="ac-list hidden" role="listbox" aria-label="Suggestions"></div>
           </div>
-          <input id="token" type="password" placeholder="Optional Bearer token" autocomplete="off" />
           <button id="btn" type="submit">Find Entrance</button>
         </form>
         <div class="small">Requests GET <code>/entrance?q=...</code> on this server.</div>
@@ -70,7 +69,6 @@
       const el = (id) => document.getElementById(id);
       const form = el('form');
       const q = el('q');
-      const token = el('token');
       const btn = el('btn');
       const out = el('out');
       const map = el('map');
@@ -214,7 +212,6 @@
         const query = q.value.trim();
         if (!query) { q.focus(); return; }
         const headers = { 'Accept': 'application/json' };
-        if (token.value.trim()) headers['Authorization'] = 'Bearer ' + token.value.trim();
         const url = '/entrance?q=' + encodeURIComponent(query);
         setBusy(true);
         out.textContent = '';
