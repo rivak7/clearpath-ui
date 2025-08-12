@@ -32,6 +32,8 @@ const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 60);
 const BODY_LIMIT = process.env.BODY_LIMIT || '10kb';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 const TRUST_PROXY = process.env.TRUST_PROXY || '1';
+// Fallback bbox size in meters when geocoder does not return bounding box
+const DEFAULT_BBOX_METERS = Number(process.env.DEFAULT_BBOX_METERS || 60);
 
 // Security middlewares
 app.disable('x-powered-by');
@@ -127,49 +129,9 @@ app.get('/geocode/bbox', async (req, res) => {
     if (!q) return res.status(400).json({ error: 'missing_query', message: 'Provide address with ?q=' });
     if (q.length > 256) return res.status(400).json({ error: 'query_too_long' });
 
-    const url = new URL('/search', GEOCODER_BASE_URL);
-    url.searchParams.set('q', q);
-    url.searchParams.set('format', 'json');
-    url.searchParams.set('limit', '1');
-    url.searchParams.set('addressdetails', '0');
-
-    const headers = {
-      'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)',
-      'Accept': 'application/json',
-    };
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    let response;
-    try {
-      if (typeof fetch !== 'function') throw new Error('fetch_unavailable');
-      response = await fetch(url, { headers, signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response || !response.ok) {
-      return res.status(502).json({ error: 'geocoder_unavailable' });
-    }
-    const data = await response.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      return res.status(404).json({ error: 'not_found' });
-    }
-
-    const first = data[0];
-    // Nominatim boundingbox is [south, north, west, east] as strings
-    const bb = first.boundingbox || [];
-    const south = Number(bb[0]);
-    const north = Number(bb[1]);
-    const west = Number(bb[2]);
-    const east = Number(bb[3]);
-
-    if ([south, west, north, east].some((v) => Number.isNaN(v))) {
-      return res.status(500).json({ error: 'invalid_bbox' });
-    }
-
-    const lat = Number(first.lat);
-    const lon = Number(first.lon);
+    const geo = await geocodeAddress(q);
+    if (!geo) return res.status(404).json({ error: 'not_found' });
+    const { lat, lon, bbox: { south, west, north, east }, raw } = geo;
 
     // Create a session folder per request and save artifacts
     const sessionId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -190,10 +152,10 @@ app.get('/geocode/bbox', async (req, res) => {
       },
       result: {
         query: q,
-        provider: 'nominatim',
+        provider: raw && raw.__provider ? raw.__provider : 'nominatim',
         center: { lat, lon },
         bbox: { south, west, north, east },
-        raw: first,
+        raw,
       },
     };
     try {
@@ -241,7 +203,7 @@ app.get('/geocode/bbox', async (req, res) => {
     const mapUrl = `/sessions/${sessionId}/map.html`;
     return res.status(200).json({
       query: q,
-      provider: 'nominatim',
+      provider: raw && raw.__provider ? raw.__provider : 'nominatim',
       center: { lat, lon },
       bbox: { south, west, north, east },
       sessionId,
@@ -252,6 +214,36 @@ app.get('/geocode/bbox', async (req, res) => {
     const isAbort = e && (e.name === 'AbortError' || e.code === 'ABORT_ERR');
     if (isAbort) return res.status(504).json({ error: 'timeout' });
     return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Autocomplete suggestions endpoint using Photon (no API key) with small timeout
+// GET /geocode/suggest?q=...&limit=8
+app.get('/geocode/suggest', async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    const limit = String(req.query.limit || '8');
+    if (!q || q.length < 2) return res.status(200).json({ provider: 'photon', suggestions: [] });
+    const url = new URL('https://photon.komoot.io/api/');
+    url.searchParams.set('q', q);
+    url.searchParams.set('limit', limit);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    let suggestions = [];
+    try {
+      const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' } });
+      if (r && r.ok) {
+        const j = await r.json();
+        suggestions = (j.features || [])
+          .map((f) => (f && f.properties && (f.properties.label || f.properties.name)) || '')
+          .filter(Boolean);
+        const seen = new Set();
+        suggestions = suggestions.filter((s) => (seen.has(s) ? false : (seen.add(s), true)));
+      }
+    } finally { clearTimeout(timer); }
+    return res.status(200).json({ provider: 'photon', suggestions });
+  } catch {
+    return res.status(200).json({ provider: 'photon', suggestions: [] });
   }
 });
 
@@ -340,32 +332,10 @@ app.get('/entrance', async (req, res) => {
     if (!q) return res.status(400).json({ error: 'missing_query', message: 'Provide address with ?q=' });
     if (q.length > 256) return res.status(400).json({ error: 'query_too_long' });
 
-    // Step 1: geocode via Nominatim
-    const geoUrl = new URL('/search', GEOCODER_BASE_URL);
-    geoUrl.searchParams.set('q', q);
-    geoUrl.searchParams.set('format', 'json');
-    geoUrl.searchParams.set('limit', '1');
-    geoUrl.searchParams.set('addressdetails', '0');
-
-    const headers = {
-      'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)',
-      'Accept': 'application/json',
-    };
-    const gcCtrl = new AbortController();
-    const gcTimer = setTimeout(() => gcCtrl.abort(), 8000);
-    let gcResp; try { gcResp = await fetch(geoUrl, { headers, signal: gcCtrl.signal }); } finally { clearTimeout(gcTimer); }
-    if (!gcResp || !gcResp.ok) return res.status(502).json({ error: 'geocoder_unavailable' });
-    const arr = await gcResp.json();
-    if (!Array.isArray(arr) || arr.length === 0) return res.status(404).json({ error: 'not_found' });
-    const first = arr[0];
-    const bb = first.boundingbox || [];
-    const south = Number(bb[0]);
-    const north = Number(bb[1]);
-    const west = Number(bb[2]);
-    const east = Number(bb[3]);
-    if ([south, west, north, east].some((v) => Number.isNaN(v))) return res.status(500).json({ error: 'invalid_bbox' });
-    const lat = Number(first.lat);
-    const lon = Number(first.lon);
+    // Step 1: geocode robustly with fallback
+    const geo = await geocodeAddress(q);
+    if (!geo) return res.status(404).json({ error: 'not_found' });
+    const { lat, lon, bbox: { south, west, north, east }, raw } = geo;
 
     // Step 2: query nearby roads via Overpass
     // Use around:150m on the geocode center for highway ways
@@ -415,7 +385,7 @@ app.get('/entrance', async (req, res) => {
       request: { method: req.method, path: req.path, originalUrl: req.originalUrl, ip: req.ip, query: req.query, headers: req.headers },
       result: {
         query: q,
-        provider: 'nominatim',
+        provider: raw && raw.__provider ? raw.__provider : 'nominatim',
         center: { lat, lon },
         bbox,
         roadPoint,
@@ -468,7 +438,7 @@ app.get('/entrance', async (req, res) => {
     const mapUrl = `/sessions/${sessionId}/map.html`;
     return res.status(200).json({
       query: q,
-      provider: 'nominatim',
+      provider: raw && raw.__provider ? raw.__provider : 'nominatim',
       center: { lat, lon },
       bbox,
       roadPoint,
@@ -582,4 +552,82 @@ if (ENABLE_TUNNEL) {
     // eslint-disable-next-line no-console
     console.warn(`Unknown TUNNEL_PROVIDER=${TUNNEL_PROVIDER}. No tunnel started.`);
   }
+}
+
+// Compute a small bbox centered on a point when missing from providers
+function computeFallbackBBox(lat, lon, meters) {
+  const m = Math.max(5, Number(meters) || DEFAULT_BBOX_METERS);
+  const dLat = m / 111320; // degrees per meter latitude
+  const dLon = m / (111320 * Math.cos((lat * Math.PI) / 180) || 1e-6);
+  return { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + dLon };
+}
+
+// Unified geocoder with Nominatim primary, Photon fallback, guaranteed bbox
+async function geocodeAddress(query) {
+  const headers = { 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' };
+
+  // Try Nominatim
+  try {
+    const url = new URL('/search', GEOCODER_BASE_URL);
+    url.searchParams.set('q', query);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('addressdetails', '0');
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal, headers });
+      if (r && r.ok) {
+        const arr = await r.json();
+        if (Array.isArray(arr) && arr.length) {
+          const first = arr[0];
+          const lat = Number(first.lat);
+          const lon = Number(first.lon);
+          let bbox = null;
+          const bb = first.boundingbox || [];
+          if (Array.isArray(bb) && bb.length >= 4) {
+            const south = Number(bb[0]);
+            const north = Number(bb[1]);
+            const west = Number(bb[2]);
+            const east = Number(bb[3]);
+            if (![south, west, north, east].some((v) => Number.isNaN(v))) bbox = { south, west, north, east };
+          }
+          if (!bbox && Number.isFinite(lat) && Number.isFinite(lon)) bbox = computeFallbackBBox(lat, lon, DEFAULT_BBOX_METERS);
+          if (bbox) return { lat, lon, bbox, raw: { ...first, __provider: 'nominatim' } };
+        }
+      }
+    } finally { clearTimeout(t); }
+  } catch {}
+
+  // Fallback: Photon (Komoot)
+  try {
+    const url = new URL('https://photon.komoot.io/api/');
+    url.searchParams.set('q', query);
+    url.searchParams.set('limit', '1');
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal, headers });
+      if (r && r.ok) {
+        const j = await r.json();
+        const f = (j.features || [])[0];
+        if (f && f.geometry && Array.isArray(f.geometry.coordinates)) {
+          const [lon, lat] = f.geometry.coordinates;
+          let bbox = null;
+          const b = f.bbox || (f.properties && f.properties.extent);
+          if (Array.isArray(b) && b.length >= 4) {
+            const west = Number(b[0]);
+            const south = Number(b[1]);
+            const east = Number(b[2]);
+            const north = Number(b[3]);
+            if (![south, west, north, east].some((v) => Number.isNaN(v))) bbox = { south, west, north, east };
+          }
+          if (!bbox && Number.isFinite(lat) && Number.isFinite(lon)) bbox = computeFallbackBBox(lat, lon, DEFAULT_BBOX_METERS);
+          if (bbox) return { lat, lon, bbox, raw: { ...f, __provider: 'photon' } };
+        }
+      }
+    } finally { clearTimeout(t); }
+  } catch {}
+
+  return null;
 }

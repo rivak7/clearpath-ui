@@ -146,19 +146,14 @@
       }
 
       async function fetchSuggest(query) {
-        // Photon API (Komoot) – fast, no key required
-        const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=8';
+        // Call our server (which fans out to providers) to keep CORS + UA consistent
+        const url = '/geocode/suggest?q=' + encodeURIComponent(query) + '&limit=8';
         if (acAbort) acAbort.abort();
         acAbort = new AbortController();
-        const t0 = performance.now();
         const resp = await fetch(url, { signal: acAbort.signal });
-        const data = await resp.json();
-        const names = (data && data.features ? data.features : [])
-          .map(f => f && f.properties ? f.properties.name || f.properties.label : '')
-          .filter(Boolean);
-        // Simple speed metric to keep UX snappy
-        // console.debug('Suggest latency:', Math.round(performance.now() - t0), 'ms');
-        return Array.from(new Set(names)); // dedupe
+        const data = await resp.json().catch(() => ({}));
+        const list = (data && Array.isArray(data.suggestions)) ? data.suggestions : [];
+        return list;
       }
 
       function scheduleSuggest() {
@@ -224,7 +219,7 @@
           const data = await resp.json().catch(() => ({}));
           if (!resp.ok) {
             // Fallback: do client-side geocode if upstream fails
-            if ((data && data.error) === 'geocode_failed' || resp.status === 502) {
+            if (resp.status >= 500 || resp.status === 404 || (data && (data.error === 'geocoder_unavailable' || data.error === 'invalid_bbox'))) {
               try {
                 const g = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=1');
                 const gj = await g.json();
