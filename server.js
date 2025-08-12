@@ -16,12 +16,9 @@ const app = express();
 // Configuration with sensible defaults
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0'; // listen on all ifaces
-const ENABLE_TUNNEL = String(process.env.ENABLE_TUNNEL || '').toLowerCase() === 
-'1';
-const TUNNEL_PROVIDER = (process.env.TUNNEL_PROVIDER || 'cloudflared').toLowerCa
-se();
-const TUNNEL_SUBDOMAIN = process.env.TUNNEL_SUBDOMAIN || undefined; // optional 
-for localtunnel
+const ENABLE_TUNNEL = String(process.env.ENABLE_TUNNEL || '').toLowerCase() === '1';
+const TUNNEL_PROVIDER = (process.env.TUNNEL_PROVIDER || 'cloudflared').toLowerCase();
+const TUNNEL_SUBDOMAIN = process.env.TUNNEL_SUBDOMAIN || undefined; // optional for localtunnel
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'GET_ONLY';
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX || 60);
@@ -100,14 +97,12 @@ app.use(compression());
 // Serve session artifacts (HTML/JSON) for debugging
 const SESSIONS_DIR = path.resolve(__dirname, 'sessions');
 try { fs.mkdirSync(SESSIONS_DIR, { recursive: true }); } catch {}
-app.use('/sessions', express.static(SESSIONS_DIR, { fallthrough: true, etag: tru
-e }));
+app.use('/sessions', express.static(SESSIONS_DIR, { fallthrough: true, etag: true }));
 
 // Serve minimal web UI (static)
 const WEB_DIR = path.resolve(__dirname, 'web');
 try { fs.mkdirSync(WEB_DIR, { recursive: true }); } catch {}
-app.use(express.static(WEB_DIR, { index: 'index.html', fallthrough: true, etag: 
-true }));
+app.use(express.static(WEB_DIR, { index: 'index.html', fallthrough: true, etag: true }));
 app.get('/', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'index.html'));
 });
@@ -119,23 +114,18 @@ app.get(['/health', '/_health', '/ping'], (req, res) => {
 
 // Geocode endpoint with optional footprint polygon
 // GET /geocode/bbox?q=<human address>
-// Returns: { query, provider, center: { lat, lon }, bbox: { south, west, north,
- east }, footprint?: GeoJSON }
-const GEOCODER_BASE_URL = process.env.GEOCODER_BASE_URL || 'https://nominatim.op
-enstreetmap.org';
+// Returns: { query, provider, center: { lat, lon }, bbox: { south, west, north, east }, footprint?: GeoJSON }
+const GEOCODER_BASE_URL = process.env.GEOCODER_BASE_URL || 'https://nominatim.openstreetmap.org';
 app.get('/geocode/bbox', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
-    if (!q) return res.status(400).json({ error: 'missing_query', message: 'Prov
-ide address with ?q=' });
-    if (q.length > 256) return res.status(400).json({ error: 'query_too_long' })
-;
+    if (!q) return res.status(400).json({ error: 'missing_query', message: 'Provide address with ?q=' });
+    if (q.length > 256) return res.status(400).json({ error: 'query_too_long' });
 
     // Unified geocoder with fallback and footprint support
     const geo = await geocodeAddress(q);
     if (!geo) return res.status(404).json({ error: 'not_found' });
-    const { lat, lon, bbox: { south, west, north, east }, footprint = null, raw 
-} = geo;
+    const { lat, lon, bbox: { south, west, north, east }, footprint = null, raw } = geo;
 
     // Create a session folder per request and save artifacts
     const sessionId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -164,32 +154,25 @@ ide address with ?q=' });
       },
     };
     try {
-      fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(ses
-sionJson, null, 2));
+      fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2));
     } catch {}
 
-    // Generate a minimal Leaflet-based HTML with Esri World Imagery and footpri
-nt overlay
+    // Generate a minimal Leaflet-based HTML with Esri World Imagery and footprint overlay
     const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Session ${sessionId} – Geocode Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
- integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" 
-/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>html,body,#map{height:100%;margin:0;padding:0}</style>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe
--inline' data: blob: https://unpkg.com https://server.arcgisonline.com; style-sr
-c 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https://unpkg.com https://server.arcgisonline.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
   <meta name="robots" content="noindex" />
   <link rel="icon" href="data:," />
   </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha25
-6-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const south = ${south};
     const west = ${west};
@@ -199,16 +182,12 @@ c 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
     const footprint = ${JSON.stringify(footprint || null)};
 
     const map = L.map('map', { zoomControl: true });
-    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/servic
-es/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Communi
-ty'
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
     }).addTo(map);
     if (footprint) {
-      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2,
- fillOpacity: 0.15 } }).addTo(map);
-      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { m
-ap.setView(center, 19); }
+      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { map.setView(center, 19); }
     } else {
       const bounds = L.latLngBounds([ [south, west], [north, east] ]);
       map.fitBounds(bounds, { padding: [20, 20] });
@@ -239,15 +218,13 @@ ap.setView(center, 19); }
   }
 });
 
-// Autocomplete suggestions endpoint using Photon (no API key) with small timeou
-t
+// Autocomplete suggestions endpoint using Photon (no API key) with small timeout
 // GET /geocode/suggest?q=...&limit=8
 app.get('/geocode/suggest', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
     const limit = String(req.query.limit || '8');
-    if (!q || q.length < 2) return res.status(200).json({ provider: 'photon', su
-ggestions: [] });
+    if (!q || q.length < 2) return res.status(200).json({ provider: 'photon', suggestions: [] });
     const url = new URL('https://photon.komoot.io/api/');
     url.searchParams.set('q', q);
     url.searchParams.set('limit', limit);
@@ -255,18 +232,14 @@ ggestions: [] });
     const timer = setTimeout(() => ctrl.abort(), 6000);
     let suggestions = [];
     try {
-      const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent':
- 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeho
-lder)', 'Accept': 'application/json' } });
+      const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' } });
       if (r && r.ok) {
         const j = await r.json();
         suggestions = (j.features || [])
-          .map((f) => (f && f.properties && (f.properties.label || f.properties.
-name)) || '')
+          .map((f) => (f && f.properties && (f.properties.label || f.properties.name)) || '')
           .filter(Boolean);
         const seen = new Set();
-        suggestions = suggestions.filter((s) => (seen.has(s) ? false : (seen.add
-(s), true)));
+        suggestions = suggestions.filter((s) => (seen.has(s) ? false : (seen.add(s), true)));
       }
     } finally { clearTimeout(timer); }
     return res.status(200).json({ provider: 'photon', suggestions });
@@ -284,36 +257,28 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat
-2)) * Math.sin(dLon / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
   return R * c;
 }
 
-// Helper: project a lat/lon point to the nearest point on the bbox rectangle pe
-rimeter
+// Helper: project a lat/lon point to the nearest point on the bbox rectangle perimeter
 function projectToBBoxEdge(lat, lon, bbox) {
   const { south, west, north, east } = bbox;
   const inside = lat >= south && lat <= north && lon >= west && lon <= east;
-  // Nearest point on (clamped) rectangle
   let pLat = clamp(lat, south, north);
   let pLon = clamp(lon, west, east);
   if (!inside) {
-    // If outside, nearest point is the clamped corner/edge
-    // Snap to perimeter if landed in interior
     if (pLat > south && pLat < north && pLon > west && pLon < east) {
-      // Choose the nearest side
       const dS = Math.abs(pLat - south);
       const dN = Math.abs(north - pLat);
       const dW = Math.abs(pLon - west);
       const dE = Math.abs(east - pLon);
       const m = Math.min(dS, dN, dW, dE);
-      if (m === dS) pLat = south; else if (m === dN) pLat = north; else if (m ==
-= dW) pLon = west; else pLon = east;
+      if (m === dS) pLat = south; else if (m === dN) pLat = north; else if (m === dW) pLon = west; else pLon = east;
     }
     return { lat: pLat, lon: pLon };
   }
-  // Inside: choose the nearest side
   const dS = Math.abs(lat - south);
   const dN = Math.abs(north - lat);
   const dW = Math.abs(lon - west);
@@ -325,32 +290,23 @@ function projectToBBoxEdge(lat, lon, bbox) {
   return { lat, lon: east };
 }
 
-// Helper: nearest point on a polyline segment list to a given lat/lon (planar a
-pprox)
+// Helper: nearest point on a polyline segment list to a given lat/lon (planar approx)
 function nearestPointOnPolyline(lat, lon, lines) {
-  // Convert to local meters using equirectangular approximation near reference 
-lat
   const refLat = lat;
-  const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * Math.PI * refLat / 180) +
- 1.175 * Math.cos(4 * Math.PI * refLat / 180) - 0.0023 * Math.cos(6 * Math.PI * 
-refLat / 180);
-  const mPerDegLon = 111412.84 * Math.cos(Math.PI * refLat / 180) - 93.5 * Math.
-cos(3 * Math.PI * refLat / 180) + 0.118 * Math.cos(5 * Math.PI * refLat / 180);
-  const toXY = (la, lo) => ({ x: (lo - lon) * mPerDegLon, y: (la - lat) * mPerDe
-gLat });
-  const toLatLon = (x, y) => ({ lat: lat + y / mPerDegLat, lon: lon + x / mPerDe
-gLon });
+  const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * Math.PI * refLat / 180) + 1.175 * Math.cos(4 * Math.PI * refLat / 180) - 0.0023 * Math.cos(6 * Math.PI * refLat / 180);
+  const mPerDegLon = 111412.84 * Math.cos(Math.PI * refLat / 180) - 93.5 * Math.cos(3 * Math.PI * refLat / 180) + 0.118 * Math.cos(5 * Math.PI * refLat / 180);
+  const toXY = (la, lo) => ({ x: (lo - lon) * mPerDegLon, y: (la - lat) * mPerDegLat });
+  const toLatLon = (x, y) => ({ lat: lat + y / mPerDegLat, lon: lon + x / mPerDegLon });
 
   let best = null;
   for (const line of lines) {
     for (let i = 0; i + 1 < line.length; i++) {
       const a = toXY(line[i][0], line[i][1]);
       const b = toXY(line[i + 1][0], line[i + 1][1]);
-      const ap = { x: 0, y: 0 }; // query is origin
+      const ap = { x: 0, y: 0 };
       const ab = { x: b.x - a.x, y: b.y - a.y };
       const ab2 = ab.x * ab.x + ab.y * ab.y || 1e-9;
-      const t = Math.max(0, Math.min(1, ( (ap.x - a.x) * ab.x + (ap.y - a.y) * a
-b.y ) / ab2));
+      const t = Math.max(0, Math.min(1, ((ap.x - a.x) * ab.x + (ap.y - a.y) * ab.y) / ab2));
       const proj = { x: a.x + t * ab.x, y: a.y + t * ab.y };
       const d2 = proj.x * proj.x + proj.y * proj.y;
       if (!best || d2 < best.d2) {
@@ -359,24 +315,21 @@ b.y ) / ab2));
       }
     }
   }
-  return best; // may be null
+  return best;
 }
 
-// Helper: convert GeoJSON Polygon/MultiPolygon to array of polylines [[ [lat,lo
-n], ... ], ...]
+// Helper: convert GeoJSON Polygon/MultiPolygon to array of polylines [[ [lat,lon], ... ], ...]
 function footprintToPolylines(geojson) {
   if (!geojson) return [];
   const out = [];
   if (geojson.type === 'Polygon') {
     for (const ring of geojson.coordinates || []) {
-      if (Array.isArray(ring) && ring.length >= 2) out.push(ring.map(([lo, la]) 
-=> [la, lo]));
+      if (Array.isArray(ring) && ring.length >= 2) out.push(ring.map(([lo, la]) => [la, lo]));
     }
   } else if (geojson.type === 'MultiPolygon') {
     for (const poly of geojson.coordinates || []) {
       for (const ring of poly || []) {
-        if (Array.isArray(ring) && ring.length >= 2) out.push(ring.map(([lo, la]
-) => [la, lo]));
+        if (Array.isArray(ring) && ring.length >= 2) out.push(ring.map(([lo, la]) => [la, lo]));
       }
     }
   }
@@ -385,27 +338,21 @@ function footprintToPolylines(geojson) {
 
 // Find most-likely entrance by projecting nearest road point to bbox edge
 // GET /entrance?q=<address>
-// Returns: { center, bbox, roadPoint, entrance, candidates[], session artifacts
- }
+// Returns: { center, bbox, roadPoint, entrance, candidates[], session artifacts }
 app.get('/entrance', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
-    if (!q) return res.status(400).json({ error: 'missing_query', message: 'Prov
-ide address with ?q=' });
-    if (q.length > 256) return res.status(400).json({ error: 'query_too_long' })
-;
+    if (!q) return res.status(400).json({ error: 'missing_query', message: 'Provide address with ?q=' });
+    if (q.length > 256) return res.status(400).json({ error: 'query_too_long' });
 
     // Step 1: geocode robustly with fallback and footprint
     const geo = await geocodeAddress(q);
     if (!geo) return res.status(404).json({ error: 'not_found' });
-    const { lat, lon, bbox: { south, west, north, east }, footprint = null, raw 
-} = geo;
+    const { lat, lon, bbox: { south, west, north, east }, footprint = null, raw } = geo;
 
     // Step 2: query nearby roads via Overpass
-    // Use around:150m on the geocode center for highway ways
     const overpassUrl = 'https://overpass-api.de/api/interpreter';
-    const ql = `[out:json][timeout:10];way(around:150,${lat},${lon})[highway];(.
-_;>;);out geom;`;
+    const ql = `[out:json][timeout:10];way(around:150,${lat},${lon})[highway];(._;>;);out geom;`;
     let roadPoint = null;
     try {
       const opCtrl = new AbortController();
@@ -413,21 +360,16 @@ _;>;);out geom;`;
       let opResp; try {
         opResp = await fetch(overpassUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-
-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-
-placeholder)' },
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)' },
           body: new URLSearchParams({ data: ql }),
           signal: opCtrl.signal
         });
       } finally { clearTimeout(opTimer); }
       if (opResp && opResp.ok) {
         const data = await opResp.json();
-        const ways = (data.elements || []).filter((e) => e.type === 'way' && Arr
-ay.isArray(e.geometry) && e.geometry.length >= 2);
-        const polylines = ways.map((w) => w.geometry.map((g) => [g.lat, g.lon]))
-;
-        const nearest = polylines.length ? nearestPointOnPolyline(lat, lon, poly
-lines) : null;
+        const ways = (data.elements || []).filter((e) => e.type === 'way' && Array.isArray(e.geometry) && e.geometry.length >= 2);
+        const polylines = ways.map((w) => w.geometry.map((g) => [g.lat, g.lon]));
+        const nearest = polylines.length ? nearestPointOnPolyline(lat, lon, polylines) : null;
         if (nearest) roadPoint = { lat: nearest.lat, lon: nearest.lon };
       }
     } catch {
@@ -442,19 +384,15 @@ lines) : null;
     if (roadPoint) {
       if (fpLines.length) {
         const p = nearestPointOnPolyline(roadPoint.lat, roadPoint.lon, fpLines);
-        if (p) { entrance = { lat: p.lat, lon: p.lon }; method = 'nearest_road_p
-rojection_polygon'; }
+        if (p) { entrance = { lat: p.lat, lon: p.lon }; method = 'nearest_road_projection_polygon'; }
       }
-      if (!entrance) { entrance = projectToBBoxEdge(roadPoint.lat, roadPoint.lon
-, bbox); method = 'nearest_road_projection_bbox'; }
+      if (!entrance) { entrance = projectToBBoxEdge(roadPoint.lat, roadPoint.lon, bbox); method = 'nearest_road_projection_bbox'; }
     } else {
       if (fpLines.length) {
         const p = nearestPointOnPolyline(lat, lon, fpLines);
-        if (p) { entrance = { lat: p.lat, lon: p.lon }; method = 'center_project
-ion_polygon'; }
+        if (p) { entrance = { lat: p.lat, lon: p.lon }; method = 'center_projection_polygon'; }
       }
-      if (!entrance) { entrance = projectToBBoxEdge(lat, lon, bbox); method = 'c
-enter_projection_bbox'; }
+      if (!entrance) { entrance = projectToBBoxEdge(lat, lon, bbox); method = 'center_projection_bbox'; }
     }
 
     if (!entrance) { entrance = { lat, lon }; method = 'center_fallback'; }
@@ -468,8 +406,7 @@ enter_projection_bbox'; }
     const sessionJson = {
       sessionId,
       receivedAt: new Date().toISOString(),
-      request: { method: req.method, path: req.path, originalUrl: req.originalUr
-l, ip: req.ip, query: req.query, headers: req.headers },
+      request: { method: req.method, path: req.path, originalUrl: req.originalUrl, ip: req.ip, query: req.query, headers: req.headers },
       result: {
         query: q,
         provider: raw && raw.__provider ? raw.__provider : 'nominatim',
@@ -478,12 +415,10 @@ l, ip: req.ip, query: req.query, headers: req.headers },
         footprint,
         roadPoint,
         entrance: { ...entrance, method, distance_m },
-        candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ]
-,
+        candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ],
       },
     };
-    try { fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify
-(sessionJson, null, 2)); } catch {}
+    try { fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2)); } catch {}
 
     // Build HTML map with markers
     const html = `<!doctype html>
@@ -492,20 +427,15 @@ l, ip: req.ip, query: req.query, headers: req.headers },
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Session ${sessionId} – Entrance Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
- integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" 
-/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>html,body,#map{height:100%;margin:0;padding:0}</style>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe
--inline' data: blob: https://unpkg.com https://server.arcgisonline.com; style-sr
-c 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https://unpkg.com https://server.arcgisonline.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
   <meta name="robots" content="noindex" />
   <link rel="icon" href="data:," />
   </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha25
-6-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const south = ${south};
     const west = ${west};
@@ -513,32 +443,23 @@ c 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
     const east = ${east};
     const center = [${lat}, ${lon}];
     const entrance = [${entrance.lat}, ${entrance.lon}];
-    ${roadPoint ? `const road = [${roadPoint.lat}, ${roadPoint.lon}];` : 'const 
-road = null;'}
+    ${roadPoint ? `const road = [${roadPoint.lat}, ${roadPoint.lon}];` : 'const road = null;'}
 
     const map = L.map('map', { zoomControl: true });
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imag
-ery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Communi
-ty'
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
     }).addTo(map);
     const footprint = ${JSON.stringify(footprint || null)};
     if (footprint) {
-      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2,
- fillOpacity: 0.15 } }).addTo(map);
-      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { m
-ap.setView(center, 19); }
+      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { map.setView(center, 19); }
     } else {
       const bounds = L.latLngBounds([ [south, west], [north, east] ]);
       map.fitBounds(bounds, { padding: [20, 20] });
     }
     L.marker(center, { title: 'Center' }).addTo(map).bindPopup('Center');
-    if (road) L.marker(road, { title: 'Nearest road', icon: L.divIcon({className
-:'', html:'<div style="width:12px;height:12px;background:gold;border:2px solid #
-333;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Nearest road point');
-    L.marker(entrance, { title: 'Entrance', icon: L.divIcon({className:'', html:
-'<div style="width:14px;height:14px;background:#e33;border:2px solid #600;border
--radius:50%\"></div>'}) }).addTo(map).bindPopup('Most likely entrance');
+    if (road) L.marker(road, { title: 'Nearest road', icon: L.divIcon({className:'', html:'<div style="width:12px;height:12px;background:gold;border:2px solid #333;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Nearest road point');
+    L.marker(entrance, { title: 'Entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#e33;border:2px solid #600;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Most likely entrance');
   </script>
  </body>
  </html>`;
@@ -601,8 +522,7 @@ if (ENABLE_TUNNEL) {
     const localtunnel = require('localtunnel');
     (async () => {
       try {
-        const tunnel = await localtunnel({ port: PORT, subdomain: TUNNEL_SUBDOMA
-IN });
+        const tunnel = await localtunnel({ port: PORT, subdomain: TUNNEL_SUBDOMAIN });
         // eslint-disable-next-line no-console
         console.log(`Public URL: ${tunnel.url}`);
         tunnel.on('close', () => {
@@ -622,8 +542,7 @@ IN });
     // Launch a Cloudflare Quick Tunnel (no auth, no interstitial)
     // Requires 'cloudflared' binary in PATH (./run ensures this)
     const { spawn } = require('child_process');
-    const args = ['tunnel', '--url', `http://127.0.0.1:${PORT}`, '--no-autoupdat
-e'];
+    const args = ['tunnel', '--url', `http://127.0.0.1:${PORT}`, '--no-autoupdate'];
     let child;
     try {
       child = spawn('cloudflared', args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -661,8 +580,7 @@ e'];
     }
   } else {
     // eslint-disable-next-line no-console
-    console.warn(`Unknown TUNNEL_PROVIDER=${TUNNEL_PROVIDER}. No tunnel started.
-`);
+    console.warn(`Unknown TUNNEL_PROVIDER=${TUNNEL_PROVIDER}. No tunnel started.`);
   }
 }
 
@@ -671,15 +589,12 @@ function computeFallbackBBox(lat, lon, meters) {
   const m = Math.max(5, Number(meters) || DEFAULT_BBOX_METERS);
   const dLat = m / 111320; // degrees per meter latitude
   const dLon = m / (111320 * Math.cos((lat * Math.PI) / 180) || 1e-6);
-  return { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + d
-Lon };
+  return { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + dLon };
 }
 
-// Unified geocoder with Nominatim primary (with polygon), Photon fallback, guar
-anteed bbox
+// Unified geocoder with Nominatim primary (with polygon), Photon fallback, guaranteed bbox
 async function geocodeAddress(query) {
-  const headers = { 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/Veris
-imilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' };
+  const headers = { 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' };
 
   // Try Nominatim
   try {
@@ -688,7 +603,7 @@ imilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' };
     url.searchParams.set('format', 'json');
     url.searchParams.set('limit', '1');
     url.searchParams.set('addressdetails', '0');
-    url.searchParams.set('polygon_geojson', '1'); // request footprint
+    url.searchParams.set('polygon_geojson', '1');
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
     try {
@@ -706,15 +621,11 @@ imilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' };
             const north = Number(bb[1]);
             const west = Number(bb[2]);
             const east = Number(bb[3]);
-            if (![south, west, north, east].some((v) => Number.isNaN(v))) bbox =
- { south, west, north, east };
+            if (![south, west, north, east].some((v) => Number.isNaN(v))) bbox = { south, west, north, east };
           }
-          if (!bbox && Number.isFinite(lat) && Number.isFinite(lon)) bbox = comp
-uteFallbackBBox(lat, lon, DEFAULT_BBOX_METERS);
-          const footprint = (first && first.geojson && (first.geojson.type === '
-Polygon' || first.geojson.type === 'MultiPolygon')) ? first.geojson : null;
-          if (bbox) return { lat, lon, bbox, footprint, raw: { ...first, __provi
-der: 'nominatim' } };
+          if (!bbox && Number.isFinite(lat) && Number.isFinite(lon)) bbox = computeFallbackBBox(lat, lon, DEFAULT_BBOX_METERS);
+          const footprint = (first && first.geojson && (first.geojson.type === 'Polygon' || first.geojson.type === 'MultiPolygon')) ? first.geojson : null;
+          if (bbox) return { lat, lon, bbox, footprint, raw: { ...first, __provider: 'nominatim' } };
         }
       }
     } finally { clearTimeout(t); }
@@ -741,12 +652,10 @@ der: 'nominatim' } };
             const south = Number(b[1]);
             const east = Number(b[2]);
             const north = Number(b[3]);
-            if (![south, west, north, east].some((v) => Number.isNaN(v))) bbox =
- { south, west, north, east };
+            if (![south, west, north, east].some((v) => Number.isNaN(v))) bbox = { south, west, north, east };
           }
-          if (!bbox && Number.isFinite(lat) && Number.isFinite(lon)) bbox = comp
-          if (bbox) return { lat, lon, bbox, footprint: null, raw: { ...f, __pro
-vider: 'photon' } };
+          if (!bbox && Number.isFinite(lat) && Number.isFinite(lon)) bbox = computeFallbackBBox(lat, lon, DEFAULT_BBOX_METERS);
+          if (bbox) return { lat, lon, bbox, footprint: null, raw: { ...f, __provider: 'photon' } };
         }
       }
     } finally { clearTimeout(t); }
@@ -754,3 +663,4 @@ vider: 'photon' } };
 
   return null;
 }
+
