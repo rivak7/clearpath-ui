@@ -12,7 +12,7 @@ It runs with a single command and auto‑installs a local Node.js runtime and de
 Run from the repo root:
 
 - macOS/Linux: `./run`
-- Windows (PowerShell or CMD): `run`
+ - Windows (PowerShell or CMD): `.\run`
 
 What the runner does:
 - Ensures a local Node.js 20 runtime under `.runtime/` (downloaded if missing or system Node < 18).
