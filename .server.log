@@ -1,0 +1,4 @@
+[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+cloudflared error: spawn cloudflared ENOENT
+Server listening on http://0.0.0.0:8099
+GET /entrance?q=3511%20167th%20pl%20ne%20bellevue%20wa%2098008 200 612 - 1065.546 ms
