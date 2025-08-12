@@ -289,14 +289,10 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
 function projectToBBoxEdge(lat, lon, bbox) {
   const { south, west, north, east } = bbox;
   const inside = lat >= south && lat <= north && lon >= west && lon <= east;
-  // Nearest point on (clamped) rectangle
   let pLat = clamp(lat, south, north);
   let pLon = clamp(lon, west, east);
   if (!inside) {
-    // If outside, nearest point is the clamped corner/edge
-    // Snap to perimeter if landed in interior
     if (pLat > south && pLat < north && pLon > west && pLon < east) {
-      // Choose the nearest side
       const dS = Math.abs(pLat - south);
       const dN = Math.abs(north - pLat);
       const dW = Math.abs(pLon - west);
@@ -306,7 +302,6 @@ function projectToBBoxEdge(lat, lon, bbox) {
     }
     return { lat: pLat, lon: pLon };
   }
-  // Inside: choose the nearest side
   const dS = Math.abs(lat - south);
   const dN = Math.abs(north - lat);
   const dW = Math.abs(lon - west);
@@ -332,7 +327,7 @@ function nearestPointOnPolyline(lat, lon, lines) {
     for (let i = 0; i + 1 < line.length; i++) {
       const a = toXY(line[i][0], line[i][1]);
       const b = toXY(line[i + 1][0], line[i + 1][1]);
-      const ap = { x: 0, y: 0 }; // query is origin
+      const ap = { x: 0, y: 0 };
       const ab = { x: b.x - a.x, y: b.y - a.y };
       const ab2 = ab.x * ab.x + ab.y * ab.y || 1e-9;
       const t = Math.max(0, Math.min(1, (((ap.x - a.x) * ab.x + (ap.y - a.y) * ab.y) / ab2)));
@@ -344,7 +339,7 @@ function nearestPointOnPolyline(lat, lon, lines) {
       }
     }
   }
-  return best; // may be null
+  return best;
 }
 
 // Helper: convert GeoJSON Polygon/MultiPolygon to array of polylines [[ [lat,lon], ... ], ...]
@@ -380,7 +375,6 @@ app.get('/entrance', async (req, res) => {
     const { lat, lon, bbox: { south, west, north, east }, footprint = null, raw } = geo;
 
     // Step 2: query nearby roads via Overpass
-    // Use around:150m on the geocode center for highway ways
     const overpassUrl = 'https://overpass-api.de/api/interpreter';
     const ql = `[out:json][timeout:10];way(around:150,${lat},${lon})[highway];(._;>;);out geom;`;
     let roadPoint = null;
@@ -444,12 +438,10 @@ app.get('/entrance', async (req, res) => {
         footprint,
         roadPoint,
         entrance: { ...entrance, method, distance_m },
-        candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ]
-,
+        candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ],
       },
     };
-    try { fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify
-(sessionJson, null, 2)); } catch {}
+    try { fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2)); } catch {}
 
     // Build HTML map with markers
     const html = `<!doctype html>
@@ -611,8 +603,7 @@ if (ENABLE_TUNNEL) {
     }
   } else {
     // eslint-disable-next-line no-console
-    console.warn(`Unknown TUNNEL_PROVIDER=${TUNNEL_PROVIDER}. No tunnel started.
-`);
+    console.warn(`Unknown TUNNEL_PROVIDER=${TUNNEL_PROVIDER}. No tunnel started.`);
   }
 }
 
@@ -685,3 +676,4 @@ async function geocodeAddress(query) {
 
   return null;
 }
+
