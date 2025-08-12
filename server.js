@@ -117,9 +117,9 @@ app.get(['/health', '/_health', '/ping'], (req, res) => {
   res.status(200).json({ status: 'ok', message: 'ping' });
 });
 
-// Geocode bounding box endpoint
+// Geocode endpoint with optional footprint polygon
 // GET /geocode/bbox?q=<human address>
-// Returns: { query, provider, center: { lat, lon }, bbox: { south, west, north, east } }
+// Returns: { query, provider, center: { lat, lon }, bbox: { south, west, north, east }, footprint?: GeoJSON }
 const GEOCODER_BASE_URL = process.env.GEOCODER_BASE_URL || 'https://nominatim.openstreetmap.org';
 app.get('/geocode/bbox', async (req, res) => {
   try {
@@ -132,6 +132,8 @@ app.get('/geocode/bbox', async (req, res) => {
     url.searchParams.set('format', 'json');
     url.searchParams.set('limit', '1');
     url.searchParams.set('addressdetails', '0');
+    // Ask for a detailed polygon footprint when available
+    url.searchParams.set('polygon_geojson', '1');
 
     const headers = {
       'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)',
@@ -170,6 +172,8 @@ app.get('/geocode/bbox', async (req, res) => {
 
     const lat = Number(first.lat);
     const lon = Number(first.lon);
+    // Optional building/feature footprint as GeoJSON from Nominatim
+    const footprint = (first && first.geojson && (first.geojson.type === 'Polygon' || first.geojson.type === 'MultiPolygon')) ? first.geojson : null;
 
     // Create a session folder per request and save artifacts
     const sessionId = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -193,6 +197,7 @@ app.get('/geocode/bbox', async (req, res) => {
         provider: 'nominatim',
         center: { lat, lon },
         bbox: { south, west, north, east },
+        footprint,
         raw: first,
       },
     };
@@ -200,7 +205,7 @@ app.get('/geocode/bbox', async (req, res) => {
       fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2));
     } catch {}
 
-    // Generate a minimal Leaflet-based HTML with Esri World Imagery and bbox overlay
+    // Generate a minimal Leaflet-based HTML with Esri World Imagery and footprint overlay
     const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -222,14 +227,19 @@ app.get('/geocode/bbox', async (req, res) => {
     const north = ${north};
     const east = ${east};
     const center = [${lat}, ${lon}];
+    const footprint = ${JSON.stringify(footprint || null)};
 
     const map = L.map('map', { zoomControl: true });
     const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
     }).addTo(map);
-    const bounds = L.latLngBounds([ [south, west], [north, east] ]);
-    map.fitBounds(bounds, { padding: [20, 20] });
-    L.rectangle(bounds, { color: 'blue', weight: 2, fillOpacity: 0.15 }).addTo(map);
+    if (footprint) {
+      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { map.setView(center, 19); }
+    } else {
+      const bounds = L.latLngBounds([ [south, west], [north, east] ]);
+      map.fitBounds(bounds, { padding: [20, 20] });
+    }
     L.marker(center).addTo(map).bindPopup('Center').openPopup();
   </script>
 </body>
@@ -244,6 +254,7 @@ app.get('/geocode/bbox', async (req, res) => {
       provider: 'nominatim',
       center: { lat, lon },
       bbox: { south, west, north, east },
+      footprint,
       sessionId,
       sessionDir: `/sessions/${sessionId}/`,
       mapUrl,
@@ -331,6 +342,24 @@ function nearestPointOnPolyline(lat, lon, lines) {
   return best; // may be null
 }
 
+// Helper: convert GeoJSON Polygon/MultiPolygon to array of polylines [[ [lat,lon], ... ], ...]
+function footprintToPolylines(geojson) {
+  if (!geojson) return [];
+  const out = [];
+  if (geojson.type === 'Polygon') {
+    for (const ring of geojson.coordinates || []) {
+      if (Array.isArray(ring) && ring.length >= 2) out.push(ring.map(([lo, la]) => [la, lo]));
+    }
+  } else if (geojson.type === 'MultiPolygon') {
+    for (const poly of geojson.coordinates || []) {
+      for (const ring of poly || []) {
+        if (Array.isArray(ring) && ring.length >= 2) out.push(ring.map(([lo, la]) => [la, lo]));
+      }
+    }
+  }
+  return out;
+}
+
 // Find most-likely entrance by projecting nearest road point to bbox edge
 // GET /entrance?q=<address>
 // Returns: { center, bbox, roadPoint, entrance, candidates[], session artifacts }
@@ -346,6 +375,7 @@ app.get('/entrance', async (req, res) => {
     geoUrl.searchParams.set('format', 'json');
     geoUrl.searchParams.set('limit', '1');
     geoUrl.searchParams.set('addressdetails', '0');
+    geoUrl.searchParams.set('polygon_geojson', '1');
 
     const headers = {
       'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)',
@@ -366,6 +396,7 @@ app.get('/entrance', async (req, res) => {
     if ([south, west, north, east].some((v) => Number.isNaN(v))) return res.status(500).json({ error: 'invalid_bbox' });
     const lat = Number(first.lat);
     const lon = Number(first.lon);
+    const footprint = (first && first.geojson && (first.geojson.type === 'Polygon' || first.geojson.type === 'MultiPolygon')) ? first.geojson : null;
 
     // Step 2: query nearby roads via Overpass
     // Use around:150m on the geocode center for highway ways
@@ -384,6 +415,7 @@ app.get('/entrance', async (req, res) => {
         const polylines = ways.map((w) => w.geometry.map((g) => [g.lat, g.lon]));
         const nearest = polylines.length ? nearestPointOnPolyline(lat, lon, polylines) : null;
         if (nearest) roadPoint = { lat: nearest.lat, lon: nearest.lon };
+        
       }
     } catch {
       // ignore overpass errors; fall back below
@@ -393,15 +425,22 @@ app.get('/entrance', async (req, res) => {
     const bbox = { south, west, north, east };
     let entrance = null;
     let method = 'center_as_entrance';
+    const fpLines = footprint ? footprintToPolylines(footprint) : [];
     if (roadPoint) {
-      entrance = projectToBBoxEdge(roadPoint.lat, roadPoint.lon, bbox);
-      method = 'nearest_road_projection';
+      if (fpLines.length) {
+        const p = nearestPointOnPolyline(roadPoint.lat, roadPoint.lon, fpLines);
+        if (p) { entrance = { lat: p.lat, lon: p.lon }; method = 'nearest_road_projection_polygon'; }
+      }
+      if (!entrance) { entrance = projectToBBoxEdge(roadPoint.lat, roadPoint.lon, bbox); method = 'nearest_road_projection_bbox'; }
     } else {
-      // Fall back: project center to nearest edge
-      entrance = projectToBBoxEdge(lat, lon, bbox);
-      method = 'center_projection';
+      if (fpLines.length) {
+        const p = nearestPointOnPolyline(lat, lon, fpLines);
+        if (p) { entrance = { lat: p.lat, lon: p.lon }; method = 'center_projection_polygon'; }
+      }
+      if (!entrance) { entrance = projectToBBoxEdge(lat, lon, bbox); method = 'center_projection_bbox'; }
     }
 
+    if (!entrance) { entrance = { lat, lon }; method = 'center_fallback'; }
     const distance_m = haversineMeters(lat, lon, entrance.lat, entrance.lon);
 
     // Persist a session with a richer map
@@ -418,6 +457,7 @@ app.get('/entrance', async (req, res) => {
         provider: 'nominatim',
         center: { lat, lon },
         bbox,
+        footprint,
         roadPoint,
         entrance: { ...entrance, method, distance_m },
         candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ],
@@ -454,9 +494,14 @@ app.get('/entrance', async (req, res) => {
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
     }).addTo(map);
-    const bounds = L.latLngBounds([ [south, west], [north, east] ]);
-    map.fitBounds(bounds, { padding: [20, 20] });
-    L.rectangle(bounds, { color: 'blue', weight: 2, fillOpacity: 0.15 }).addTo(map);
+    const footprint = ${JSON.stringify(footprint || null)};
+    if (footprint) {
+      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { map.setView(center, 19); }
+    } else {
+      const bounds = L.latLngBounds([ [south, west], [north, east] ]);
+      map.fitBounds(bounds, { padding: [20, 20] });
+    }
     L.marker(center, { title: 'Center' }).addTo(map).bindPopup('Center');
     if (road) L.marker(road, { title: 'Nearest road', icon: L.divIcon({className:'', html:'<div style="width:12px;height:12px;background:gold;border:2px solid #333;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Nearest road point');
     L.marker(entrance, { title: 'Entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#e33;border:2px solid #600;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Most likely entrance');
