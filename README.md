@@ -7,19 +7,18 @@ This project serves a minimal web UI and API to:
 
 It runs with a single command and auto‑installs a local Node.js runtime and dependencies if needed. By default, it exposes a public URL so anyone on the internet can access it while it runs on your Mac.
 
-## One Command
+## One Command (macOS, Linux, Windows)
 
 Run from the repo root:
 
-```sh
-./run
-```
+- macOS/Linux: `./run`
+- Windows (PowerShell or CMD): `run`
 
-What `./run` does:
+What the runner does:
 - Ensures a local Node.js 20 runtime under `.runtime/` (downloaded if missing or system Node < 18).
 - Installs Node dependencies into `node_modules/` (only if missing).
 - Creates `.env` with defaults on first run and starts the server.
-- Opens a public tunnel URL by default via Localtunnel so the app is reachable on the internet while it runs.
+- Opens a public tunnel URL by default (Cloudflare Quick Tunnel). Set `ENABLE_TUNNEL=0` to disable.
 
 Open the printed Public URL (or `http://localhost:8080/`) and use the web UI to enter an address and view the entrance map.
 
@@ -71,7 +70,7 @@ Example `/ping` response:
 If you want to manage Node yourself instead of using `./run`:
 - `npm install` – install deps
 - `npm start` – start server locally
-- `npm run expose` – start and open a public tunnel
+- `npm run expose` – start and open a public tunnel (cross‑platform)
 
 ## Repo Layout
 
