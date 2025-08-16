@@ -101,7 +101,7 @@ def normalize_bbox(south: float, west: float, north: float, east: float) -> Tupl
     return (s, w, n, e)
 
 
-def pad_bbox(south: float, west: float, north: float, east: float, pad_ratio: float = 0.10) -> Tuple[float, float, float, float]:
+def pad_bbox(south: float, west: float, north: float, east: float, pad_ratio: float = 0.30) -> Tuple[float, float, float, float]:
     s, w, n, e = normalize_bbox(south, west, north, east)
     width = max(1e-8, e - w)
     height = max(1e-8, n - s)
@@ -204,6 +204,41 @@ def save_image_for_address(
     # Fetch and save image
     save_satellite_bbox(ps, pw, pn, pe, width=width, height=height, out=out_png)
 
+    # Optional post-upscale using OpenCV dnn_superres if available
+    try:
+        import cv2  # type: ignore
+        import numpy as np  # type: ignore
+        from cv2 import dnn_superres  # type: ignore
+
+        # Pick a model if found locally; otherwise fall back gracefully
+        # You can place EDSR_x2.pb or ESPCN_x2.pb in the repo root or config/cache
+        model_search_paths = [
+            os.path.join(os.getcwd(), "EDSR_x2.pb"),
+            os.path.join(os.getcwd(), "ESPCN_x2.pb"),
+            os.path.join("config", "cache", "EDSR_x2.pb"),
+            os.path.join("config", "cache", "ESPCN_x2.pb"),
+        ]
+        model_path = next((p for p in model_search_paths if os.path.exists(p)), None)
+        if model_path is not None:
+            sr = dnn_superres.DnnSuperResImpl_create()
+            if model_path.endswith("EDSR_x2.pb"):
+                sr.readModel(model_path)
+                sr.setModel("edsr", 2)
+            else:
+                sr.readModel(model_path)
+                sr.setModel("espcn", 2)
+
+            # Load image and upscale 2x, then downscale back to requested size with Lanczos
+            img = cv2.imread(out_png, cv2.IMREAD_COLOR)
+            if img is not None:
+                up = sr.upsample(img)
+                # Downscale to target size to sharpen details
+                down = cv2.resize(up, (width, height), interpolation=cv2.INTER_LANCZOS4)
+                cv2.imwrite(out_png, down)
+    except Exception:
+        # If OpenCV or model not available, keep the original image
+        pass
+
     # Save metadata
     meta = {
         "address": geo.address,
@@ -224,14 +259,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Fetch satellite images for building bboxes given addresses")
     p.add_argument("addresses", nargs="*", help="Addresses to process (alternative to --input)")
     p.add_argument("--input", dest="input_file", type=str, help="Path to file with one address per line")
-    p.add_argument("--out-dir", dest="out_dir", type=str, default="building_images", help="Output directory for images and metadata")
+    p.add_argument("--out-dir", dest="out_dir", type=str, default="/Volumes/T9/entrypoint-maps/building_images", help="Output directory for images and metadata")
     p.add_argument("--geocoder-base-url", dest="geocoder_base_url", type=str, default="https://nominatim.openstreetmap.org", help="Nominatim-compatible base URL")
     p.add_argument("--geocoder-email", dest="geocoder_email", type=str, default=None, help="Contact email for geocoder User-Agent (recommended)")
     p.add_argument("--width", type=int, default=1024, help="Output image width in pixels")
     p.add_argument("--height", type=int, default=1024, help="Output image height in pixels")
-    p.add_argument("--pad", dest="pad_ratio", type=float, default=0.10, help="Padding ratio around building bbox (default 0.10 = 10%)")
+    p.add_argument("--pad", dest="pad_ratio", type=float, default=0.30, help="Padding ratio around building bbox (default 0.30 = 30%)")
     p.add_argument("--delay", dest="delay_s", type=float, default=1.1, help="Seconds to sleep between geocoding requests (respect provider policy)")
-    p.add_argument("--skip-existing", dest="skip_existing", action="store_true", help="Skip addresses if output PNG already exists")
+    p.add_argument("--skip-existing", dest="skip_existing", action="store_true", default=True, help="Skip addresses if output PNG already exists")
     return p
 
 
