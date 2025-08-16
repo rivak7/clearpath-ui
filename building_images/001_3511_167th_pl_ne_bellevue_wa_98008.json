@@ -1,0 +1,22 @@
+{
+  "address": "3511 167th Pl NE, Bellevue, WA 98008",
+  "center": {
+    "lat": 47.6412845,
+    "lon": -122.1180688
+  },
+  "bbox": {
+    "south": 47.641225,
+    "west": -122.118202,
+    "north": 47.64137,
+    "east": -122.117942
+  },
+  "bbox_padded": {
+    "south": 47.6412105,
+    "west": -122.118228,
+    "north": 47.6413845,
+    "east": -122.117916
+  },
+  "width": 1024,
+  "height": 1024,
+  "geocoder": "https://nominatim.openstreetmap.org"
+}
