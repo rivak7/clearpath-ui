@@ -51,6 +51,7 @@
         </form>
         <div class="small">Requests GET <code>/entrance?q=...</code> on this server.</div>
         <div id="status" class="small"></div>
+        <div id="summary" class="small"></div>
       </section>
 
       <section class="grid">
@@ -73,6 +74,7 @@
       const out = el('out');
       const map = el('map');
       const status = el('status');
+      const summary = el('summary');
       const acList = el('ac-list');
 
       function setBusy(b) { btn.disabled = b; status.textContent = b ? 'Loading…' : ''; }
@@ -88,6 +90,49 @@
 </body></html>`;
       }
 
+
+      function escapeHtml(value) {
+        const str = value === null || value === undefined ? '' : String(value);
+        return str.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+      }
+
+      function formatCoord(value) {
+        return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(6) : 'n/a';
+      }
+
+      function formatMeters(value) {
+        return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} m` : 'n/a';
+      }
+
+      function updateSummary(data) {
+        if (!data || typeof data !== 'object') { summary.textContent = ''; return; }
+        const heur = data.entrance;
+        const cnn = data.cnnEntrance;
+        const lines = [];
+        if (heur) {
+          const method = escapeHtml(heur.method || 'unknown');
+          const lat = escapeHtml(formatCoord(heur.lat));
+          const lon = escapeHtml(formatCoord(heur.lon));
+          const dist = escapeHtml(formatMeters(heur.distance_m));
+          lines.push(`Heuristic (${method}): ${lat}, ${lon} (≈${dist} from center)`);
+        }
+        if (cnn) {
+          const lat = escapeHtml(formatCoord(cnn.lat));
+          const lon = escapeHtml(formatCoord(cnn.lon));
+          const diff = escapeHtml(formatMeters(cnn.difference_from_heuristic_m));
+          const center = escapeHtml(formatMeters(cnn.distance_from_center_m));
+          let line = `CNN: ${lat}, ${lon} (Δ heuristic ${diff}, Δ center ${center})`;
+          if (cnn.image_url) {
+            line += ` · <a href="${escapeHtml(cnn.image_url)}" target="_blank" rel="noopener">tile</a>`;
+          }
+          lines.push(line);
+        } else if (data.cnnDiagnostics) {
+          const diag = data.cnnDiagnostics;
+          const reason = escapeHtml(diag.reason || diag.status || 'unavailable');
+          lines.push(`CNN unavailable (${reason})`);
+        }
+        summary.innerHTML = lines.join('<br>');
+      }
 
       // --- Autocomplete (fast, cached, abortable) ---
       const acCache = new Map(); // query -> results
@@ -211,6 +256,7 @@
         setBusy(true);
         out.textContent = '';
         map.src = 'about:blank';
+        summary.textContent = '';
         try {
           const resp = await fetch(url, { headers });
           const data = await resp.json().catch(() => ({}));
@@ -229,22 +275,26 @@
                   map.removeAttribute('src');
                   map.srcdoc = mapHtml(lat, lon, name);
                   status.textContent = 'Done. (fallback geocoder)';
+                  summary.textContent = 'Heuristic/CNN unavailable; fallback geocoder result shown.';
                   return;
                 }
               } catch {}
             }
             out.textContent = JSON.stringify({ error: data.error || 'request_failed', status: resp.status }, null, 2);
             status.innerHTML = '<span class="error">Error ' + resp.status + '</span>';
+            summary.textContent = '';
             return;
           }
           out.textContent = JSON.stringify(data, null, 2);
           if (data && data.mapUrl) {
             map.src = data.mapUrl;
           }
+          updateSummary(data);
           status.textContent = 'Done.';
         } catch (err) {
           out.textContent = JSON.stringify({ error: 'network_error' }, null, 2);
           status.innerHTML = '<span class="error">Network error</span>';
+          summary.textContent = '';
         } finally {
           setBusy(false);
         }
