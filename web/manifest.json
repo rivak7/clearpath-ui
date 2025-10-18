@@ -1,0 +1,31 @@
+﻿{
+  "name": "ClearPath",
+  "short_name": "ClearPath",
+  "description": "Pinpoint wheelchair-accessible entrances from satellite imagery for safer drop-offs.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#030d18",
+  "theme_color": "#0b1c2c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["navigation", "productivity", "travel"],
+  "lang": "en-US"
+}

@@ -1,304 +1,65 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Geocode BBox – Minimal UI</title>
-    <meta name="robots" content="noindex" />
-    <link rel="icon" href="data:," />
-    <style>
-      :root { color-scheme: light dark; }
-      * { box-sizing: border-box; }
-      body { margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-      header { padding: 14px 16px; border-bottom: 1px solid #ccc; }
-      main { padding: 16px; display: grid; gap: 16px; grid-template-columns: 1fr; }
-      form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: relative; }
-      input[type="text"] { flex: 1 1 420px; padding: 10px 12px; border: 1px solid #888; border-radius: 8px; }
-      input[type="text"] { min-width: 260px; }
-      button { padding: 10px 14px; border-radius: 8px; border: 1px solid #555; background: #0b5; color: #fff; cursor: pointer; }
-      button:disabled { opacity: 0.6; cursor: not-allowed; }
-      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      .small { font-size: 12px; color: #666; }
-      .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
-      .card { border: 1px solid #ccc; border-radius: 10px; padding: 12px; }
-      .error { color: #b00; }
-      pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
-      iframe { width: 100%; height: 420px; border: 1px solid #ccc; border-radius: 10px; }
-      /* Autocomplete */
-      .ac-wrap { position: relative; flex: 1 1 420px; min-width: 260px; }
-      .ac-list { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; background: var(--ac-bg, #fff); border: 1px solid #aaa; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.08); max-height: 280px; overflow: auto; padding: 6px 0; }
-      .ac-item { padding: 8px 12px; cursor: pointer; }
-      .ac-item:hover, .ac-item[aria-selected="true"] { background: rgba(0,0,0,.08); }
-      .hidden { display: none; }
-      @media (min-width: 980px) { main { grid-template-columns: 1fr 1fr; } }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ClearPath - Smarter Building Arrivals</title>
+    <meta name="description" content="ClearPath guides riders and couriers to real building entrances with satellite intelligence." />
+    <meta name="theme-color" content="#0b1c2c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="/icons/icon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header>
-      <div class="row">
-        <strong>Find Building Entrance</strong>
-        <span class="small">– Enter an address, get entrance + map</span>
-      </div>
-    </header>
-    <main>
-      <section class="card">
-        <form id="form">
-          <div class="ac-wrap">
-            <input id="q" type="text" placeholder="1600 Amphitheatre Pkwy, Mountain View, CA" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-owns="ac-list" />
-            <div id="ac-list" class="ac-list hidden" role="listbox" aria-label="Suggestions"></div>
+    <noscript>ClearPath requires JavaScript to locate entrances and provide navigation.</noscript>
+    <div id="app" class="app-shell">
+      <div id="splash" class="splash">Loading ClearPath...</div>
+      <div class="map-stage" aria-live="polite">
+        <div id="map" class="map"></div>
+        <button id="locateMe" class="fab fab--locate" type="button" aria-label="Center on my location">
+          <span class="fab__icon" aria-hidden="true">◎</span>
+        </button>
+        <button id="openInstall" class="fab fab--install" type="button" hidden>Install</button>
+
+        <header class="top-shell" role="search">
+          <div class="brand">
+            <div class="brand__logo" aria-hidden="true">CP</div>
+            <div class="brand__copy">
+              <span class="brand__title">ClearPath</span>
+              <span class="brand__subtitle">Accessible entrance routing</span>
+            </div>
           </div>
-          <button id="btn" type="submit">Find Entrance</button>
-        </form>
-        <div class="small">Requests GET <code>/entrance?q=...</code> on this server.</div>
-        <div id="status" class="small"></div>
-        <div id="summary" class="small"></div>
-      </section>
+          <form id="searchForm" class="search" autocomplete="off">
+            <label class="search__label" for="searchInput">Destination</label>
+            <div class="search__inputWrap">
+              <input id="searchInput" name="q" type="text" inputmode="search" placeholder="Search address, place, or building" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" />
+              <button id="clearSearch" class="search__clear" type="button" aria-label="Clear search" hidden>×</button>
+              <div id="suggestions" class="suggestions" role="listbox" aria-label="Address suggestions" hidden></div>
+            </div>
+          </form>
+        </header>
 
-      <section class="grid">
-        <div class="card">
-          <div><strong>Result JSON</strong></div>
-          <pre id="out">No result yet.</pre>
-        </div>
-        <div class="card">
-          <div class="row"><strong>Map Preview</strong><span class="small">(opens session HTML)</span></div>
-          <iframe id="map" title="Map preview" src="about:blank"></iframe>
-        </div>
-      </section>
-    </main>
+        <section id="infoSheet" class="sheet" aria-labelledby="sheetTitle">
+          <div class="sheet__handle" aria-hidden="true"></div>
+          <div class="sheet__content">
+            <div class="sheet__header">
+              <h1 id="sheetTitle">Plan your arrival</h1>
+              <p id="sheetSubtitle" class="sheet__subtitle">Search for a building to see the verified entrance and drop-off.</p>
+            </div>
+            <div id="insights" class="insights" hidden></div>
+            <div id="directions" class="directions" hidden></div>
+            <div id="statusMessage" class="status"></div>
+          </div>
+        </section>
+      </div>
+    </div>
 
-    <script>
-      const el = (id) => document.getElementById(id);
-      const form = el('form');
-      const q = el('q');
-      const btn = el('btn');
-      const out = el('out');
-      const map = el('map');
-      const status = el('status');
-      const summary = el('summary');
-      const acList = el('ac-list');
-
-      function setBusy(b) { btn.disabled = b; status.textContent = b ? 'Loading…' : ''; }
-      function mapHtml(lat, lon, name) {
-        return `<!doctype html><html lang="en"><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Map – ${name.replace(/[&<>"']/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]))}</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-<style>html,body,#map{height:100%;margin:0} body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}</style>
-</head><body><div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"><\/script>
-<script>const lat=${lat},lon=${lon},name=${JSON.stringify(name)};const m=L.map('map').setView([lat,lon],18);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'&copy; OpenStreetMap'}).addTo(m);L.marker([lat,lon]).addTo(m).bindPopup(name).openPopup();<\/script>
-</body></html>`;
-      }
-
-
-      function escapeHtml(value) {
-        const str = value === null || value === undefined ? '' : String(value);
-        return str.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-      }
-
-      function formatCoord(value) {
-        return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(6) : 'n/a';
-      }
-
-      function formatMeters(value) {
-        return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} m` : 'n/a';
-      }
-
-      function updateSummary(data) {
-        if (!data || typeof data !== 'object') { summary.textContent = ''; return; }
-        const heur = data.entrance;
-        const cnn = data.cnnEntrance;
-        const lines = [];
-        if (heur) {
-          const method = escapeHtml(heur.method || 'unknown');
-          const lat = escapeHtml(formatCoord(heur.lat));
-          const lon = escapeHtml(formatCoord(heur.lon));
-          const dist = escapeHtml(formatMeters(heur.distance_m));
-          lines.push(`Heuristic (${method}): ${lat}, ${lon} (≈${dist} from center)`);
-        }
-        if (cnn) {
-          const lat = escapeHtml(formatCoord(cnn.lat));
-          const lon = escapeHtml(formatCoord(cnn.lon));
-          const diff = escapeHtml(formatMeters(cnn.difference_from_heuristic_m));
-          const center = escapeHtml(formatMeters(cnn.distance_from_center_m));
-          let line = `CNN: ${lat}, ${lon} (Δ heuristic ${diff}, Δ center ${center})`;
-          if (cnn.image_url) {
-            line += ` · <a href="${escapeHtml(cnn.image_url)}" target="_blank" rel="noopener">tile</a>`;
-          }
-          lines.push(line);
-        } else if (data.cnnDiagnostics) {
-          const diag = data.cnnDiagnostics;
-          const reason = escapeHtml(diag.reason || diag.status || 'unavailable');
-          lines.push(`CNN unavailable (${reason})`);
-        }
-        summary.innerHTML = lines.join('<br>');
-      }
-
-      // --- Autocomplete (fast, cached, abortable) ---
-      const acCache = new Map(); // query -> results
-      let acIndex = -1; // active index
-      let acAbort = null; // AbortController
-      let acTimer = null; // debounce timer
-
-      function hideAC() {
-        acList.classList.add('hidden');
-        q.setAttribute('aria-expanded', 'false');
-        acList.innerHTML = '';
-        acIndex = -1;
-      }
-
-      function showAC(items) {
-        if (!items || !items.length) { hideAC(); return; }
-        acList.innerHTML = '';
-        items.forEach((t, i) => {
-          const div = document.createElement('div');
-          div.className = 'ac-item';
-          div.setAttribute('role', 'option');
-          div.setAttribute('id', 'ac-item-' + i);
-          div.textContent = t;
-          div.addEventListener('mousedown', (e) => {
-            e.preventDefault(); // avoid blurring input
-            applySelection(i);
-          });
-          acList.appendChild(div);
-        });
-        acList.classList.remove('hidden');
-        q.setAttribute('aria-expanded', 'true');
-        acIndex = -1;
-      }
-
-      function highlightAC(idx) {
-        const children = [...acList.children];
-        children.forEach((c, i) => c.setAttribute('aria-selected', String(i === idx)));
-        if (idx >= 0 && children[idx]) {
-          const el = children[idx];
-          const r = el.getBoundingClientRect();
-          const pr = acList.getBoundingClientRect();
-          if (r.top < pr.top || r.bottom > pr.bottom) el.scrollIntoView({ block: 'nearest' });
-        }
-      }
-
-      function applySelection(idx) {
-        const children = [...acList.children];
-        if (!children[idx]) return;
-        const value = children[idx].textContent || '';
-        q.value = value;
-        hideAC();
-        // Do not auto-submit; user can hit Enter.
-        q.focus();
-      }
-
-      async function fetchSuggest(query) {
-        // Call our server (which fans out to providers) to keep CORS + UA consistent
-        const url = '/geocode/suggest?q=' + encodeURIComponent(query) + '&limit=8';
-        if (acAbort) acAbort.abort();
-        acAbort = new AbortController();
-        const resp = await fetch(url, { signal: acAbort.signal });
-        const data = await resp.json().catch(() => ({}));
-        const list = (data && Array.isArray(data.suggestions)) ? data.suggestions : [];
-        return list;
-      }
-
-      function scheduleSuggest() {
-        const query = q.value.trim();
-        if (acTimer) clearTimeout(acTimer);
-        if (query.length < 3) { hideAC(); return; }
-        // Debounce lightly
-        acTimer = setTimeout(async () => {
-          // Cache first
-          if (acCache.has(query)) { showAC(acCache.get(query)); return; }
-          try {
-            const results = await fetchSuggest(query);
-            acCache.set(query, results);
-            showAC(results);
-          } catch (e) {
-            // Swallow aborts/network errors silently for UX
-            hideAC();
-          }
-        }, 120);
-      }
-
-      q.addEventListener('input', scheduleSuggest);
-      q.addEventListener('focus', scheduleSuggest);
-      q.addEventListener('blur', () => setTimeout(hideAC, 120));
-      q.addEventListener('keydown', (e) => {
-        const open = !acList.classList.contains('hidden');
-        const count = acList.children.length;
-        if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-          scheduleSuggest();
-          return;
-        }
-        if (!open || !count) return;
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          acIndex = (acIndex + 1) % count;
-          highlightAC(acIndex);
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          acIndex = (acIndex - 1 + count) % count;
-          highlightAC(acIndex);
-        } else if (e.key === 'Enter') {
-          if (acIndex >= 0) {
-            e.preventDefault();
-            applySelection(acIndex);
-          }
-        } else if (e.key === 'Escape') {
-          hideAC();
-        }
-      });
-
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const query = q.value.trim();
-        if (!query) { q.focus(); return; }
-        const headers = { 'Accept': 'application/json' };
-        const url = '/entrance?q=' + encodeURIComponent(query);
-        setBusy(true);
-        out.textContent = '';
-        map.src = 'about:blank';
-        summary.textContent = '';
-        try {
-          const resp = await fetch(url, { headers });
-          const data = await resp.json().catch(() => ({}));
-          if (!resp.ok) {
-            // Fallback: do client-side geocode if upstream fails
-            if (resp.status >= 500 || resp.status === 404 || (data && (data.error === 'geocoder_unavailable' || data.error === 'invalid_bbox'))) {
-              try {
-                const g = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=1');
-                const gj = await g.json();
-                const feat = (gj.features || [])[0];
-                if (feat && feat.geometry && feat.geometry.coordinates) {
-                  const [lon, lat] = feat.geometry.coordinates;
-                  const name = (feat.properties && (feat.properties.label || feat.properties.name)) || query;
-                  const fallback = { query, name, entrance: { lat, lon }, mapUrl: '(inline)' };
-                  out.textContent = JSON.stringify(fallback, null, 2);
-                  map.removeAttribute('src');
-                  map.srcdoc = mapHtml(lat, lon, name);
-                  status.textContent = 'Done. (fallback geocoder)';
-                  summary.textContent = 'Heuristic/CNN unavailable; fallback geocoder result shown.';
-                  return;
-                }
-              } catch {}
-            }
-            out.textContent = JSON.stringify({ error: data.error || 'request_failed', status: resp.status }, null, 2);
-            status.innerHTML = '<span class="error">Error ' + resp.status + '</span>';
-            summary.textContent = '';
-            return;
-          }
-          out.textContent = JSON.stringify(data, null, 2);
-          if (data && data.mapUrl) {
-            map.src = data.mapUrl;
-          }
-          updateSummary(data);
-          status.textContent = 'Done.';
-        } catch (err) {
-          out.textContent = JSON.stringify({ error: 'network_error' }, null, 2);
-          status.innerHTML = '<span class="error">Network error</span>';
-          summary.textContent = '';
-        } finally {
-          setBusy(false);
-        }
-      });
-    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+    <script type="module" src="/app.js"></script>
   </body>
-  </html>
+</html>

@@ -261,22 +261,66 @@ app.get('/geocode/suggest', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();
     const limit = String(req.query.limit || '8');
-    if (!q || q.length < 2) return res.status(200).json({ provider: 'photon', suggestions: [] });
+    const latParam = Number(req.query.lat);
+    const lonParam = Number(req.query.lon);
+    if (!q || q.length < 2) {
+      return res.status(200).json({ provider: 'photon', suggestions: [], results: [] });
+    }
     const url = new URL('https://photon.komoot.io/api/');
     url.searchParams.set('q', q);
     url.searchParams.set('limit', limit);
+    if (Number.isFinite(latParam) && Number.isFinite(lonParam)) {
+      url.searchParams.set('lat', latParam.toFixed(6));
+      url.searchParams.set('lon', lonParam.toFixed(6));
+    }
+
     let suggestions = [];
+    let results = [];
     try {
-      const j = await httpJson(url.toString(), { method: 'GET', headers: { 'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)', 'Accept': 'application/json' }, timeoutMs: 6000 });
-      suggestions = (j.features || [])
-        .map((f) => (f && f.properties && (f.properties.label || f.properties.name)) || '')
+      const responseHeaders = {
+        'User-Agent': 'rishabh-piyush/1.0 (+https://github.com/VerisimilitudeX/rishabh-piyush-placeholder)',
+        'Accept': 'application/json',
+      };
+      const j = await httpJson(url.toString(), { method: 'GET', headers: responseHeaders, timeoutMs: 6000 });
+      const features = (j.features || [])
+        .map((f) => {
+          if (!f || !f.properties) return null;
+          const label = f.properties.label || f.properties.name;
+          if (!label) return null;
+          const coords = Array.isArray(f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : null;
+          const lon = coords ? Number(coords[0]) : null;
+          const lat = coords ? Number(coords[1]) : null;
+          const context = [f.properties.city, f.properties.state, f.properties.country]
+            .filter(Boolean)
+            .join(', ');
+          let distance = null;
+          if (Number.isFinite(latParam) && Number.isFinite(lonParam) && Number.isFinite(lat) && Number.isFinite(lon)) {
+            distance = haversineMeters(latParam, lonParam, lat, lon);
+          }
+          return { label, lat, lon, context, distance };
+        })
         .filter(Boolean);
+
+      if (Number.isFinite(latParam) && Number.isFinite(lonParam)) {
+        features.sort((a, b) => {
+          const da = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
+          const db = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
+          if (da === db) return 0;
+          return da < db ? -1 : 1;
+        });
+      }
+
       const seen = new Set();
-      suggestions = suggestions.filter((s) => (seen.has(s) ? false : (seen.add(s), true)));
+      for (const feature of features) {
+        if (seen.has(feature.label)) continue;
+        seen.add(feature.label);
+        suggestions.push(feature.label);
+        results.push(feature);
+      }
     } catch {}
-    return res.status(200).json({ provider: 'photon', suggestions });
+    return res.status(200).json({ provider: 'photon', suggestions, results });
   } catch {
-    return res.status(200).json({ provider: 'photon', suggestions: [] });
+    return res.status(200).json({ provider: 'photon', suggestions: [], results: [] });
   }
 });
 
@@ -667,6 +711,7 @@ app.get('/entrance', async (req, res) => {
       provider: raw && raw.__provider ? raw.__provider : 'nominatim',
       center: { lat, lon },
       bbox,
+      footprint,
       roadPoint,
       entrance: { ...entrance, method, distance_m },
       cnnEntrance: cnnSummary,
