@@ -10,6 +10,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const http = require('http');
 const https = require('https');
+const childProcess = require('child_process');
 
 dotenv.config();
 
@@ -29,6 +30,14 @@ const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
 const TRUST_PROXY = process.env.TRUST_PROXY || '1';
 // Fallback bbox size in meters when geocoder does not return bounding box
 const DEFAULT_BBOX_METERS = Number(process.env.DEFAULT_BBOX_METERS || 60);
+const ENTRYPOINT_DIR = path.resolve(__dirname, 'entrypoint');
+const CNN_DEFAULT_WEIGHTS = path.join(ENTRYPOINT_DIR, 'checkpoints', 'best.pt');
+const CNN_IMAGE_SIZE = Number(process.env.CNN_IMAGE_SIZE || 512);
+const CNN_ZOOM = Number(process.env.CNN_ZOOM || 19);
+const CNN_TIMEOUT_MS = Number(process.env.CNN_TIMEOUT_MS || 25000);
+const CNN_FETCH_TIMEOUT_SEC = Number(process.env.CNN_FETCH_TIMEOUT_SEC || 15);
+const PYTHON_BIN = pickPythonBinary();
+
 
 // Security middlewares
 app.disable('x-powered-by');
@@ -271,6 +280,112 @@ app.get('/geocode/suggest', async (req, res) => {
   }
 });
 
+async function runCnnPrediction({ centerLat, centerLon, sessionDir }) {
+  const weightsPath = process.env.CNN_WEIGHTS || CNN_DEFAULT_WEIGHTS;
+  if (!weightsPath) return { ok: false, reason: 'weights_missing' };
+  if (!fs.existsSync(weightsPath)) {
+    return { ok: false, reason: 'weights_missing', message: 'Weights not found at ' + weightsPath };
+  }
+
+  const args = [
+    '-m',
+    'src.cnn_infer',
+    '--center_lat',
+    String(centerLat),
+    '--center_lon',
+    String(centerLon),
+    '--zoom',
+    String(CNN_ZOOM),
+    '--img_size_px',
+    String(CNN_IMAGE_SIZE),
+    '--timeout',
+    String(CNN_FETCH_TIMEOUT_SEC),
+    '--weights',
+    weightsPath,
+  ];
+  let imagePath = null;
+  if (sessionDir) {
+    imagePath = path.join(sessionDir, 'cnn_input.png');
+    args.push('--image_out', imagePath);
+  }
+
+  return await new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let child;
+    try {
+      child = childProcess.spawn(PYTHON_BIN, args, { cwd: ENTRYPOINT_DIR });
+    } catch (err) {
+      const message = err && (err.message || String(err));
+      return resolve({ ok: false, reason: 'spawn_failed', error: message });
+    }
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try { child.kill('SIGKILL'); } catch {}
+    }, Math.max(1000, CNN_TIMEOUT_MS));
+    child.stdout.on('data', (buf) => { stdout += buf.toString(); });
+    child.stderr.on('data', (buf) => { stderr += buf.toString(); });
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      const message = err && (err.message || String(err));
+      resolve({ ok: false, reason: 'spawn_error', error: message });
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        return resolve({ ok: false, reason: 'timeout', stdout, stderr, exitCode: code });
+      }
+      let payload = null;
+      const trimmed = stdout.trim();
+      if (trimmed) {
+        const lines = trimmed.split(/\r?\n/).filter(Boolean);
+        const last = lines[lines.length - 1];
+        try {
+          payload = JSON.parse(last);
+        } catch (err) {
+          const message = err && (err.message || String(err));
+          return resolve({ ok: false, reason: 'parse_error', stdout, stderr, exitCode: code, error: message });
+        }
+      }
+      if (!payload) {
+        return resolve({ ok: false, reason: 'no_output', stdout, stderr, exitCode: code });
+      }
+      if (payload.error) {
+        return resolve({ ok: false, reason: 'script_error', payload, stdout, stderr, exitCode: code });
+      }
+      resolve({ ok: true, payload, stdout, stderr, exitCode: code, imagePath });
+    });
+  });
+}
+
+function pickPythonBinary() {
+  const candidates = [
+    process.env.CNN_PYTHON,
+    process.env.PYTHON,
+    process.env.PYTHON_BIN,
+    path.join(ENTRYPOINT_DIR, '.venv', 'Scripts', 'python.exe'),
+    path.join(ENTRYPOINT_DIR, '.venv', 'bin', 'python'),
+    'python',
+    'python3',
+    'python.exe',
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (candidate.includes(path.sep)) {
+      if (fs.existsSync(candidate)) return candidate;
+      continue;
+    }
+    try {
+      const probe = childProcess.spawnSync(candidate, ['--version'], { stdio: 'ignore' });
+      if (!probe.error && probe.status === 0) return candidate;
+    } catch {
+      continue;
+    }
+  }
+  return process.platform === 'win32' ? 'python.exe' : 'python3';
+}
+
 // Helper: clamp
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
@@ -426,6 +541,60 @@ app.get('/entrance', async (req, res) => {
     const sessionDir = path.join(SESSIONS_DIR, sessionId);
     try { fs.mkdirSync(sessionDir, { recursive: true }); } catch {}
 
+    const weightsPath = process.env.CNN_WEIGHTS || CNN_DEFAULT_WEIGHTS;
+    const hasWeights = Boolean(weightsPath && fs.existsSync(weightsPath));
+    const candidates = [ { ...entrance, score: 0.9, label: 'Projected entrance', source: 'heuristic' } ];
+    let cnnSummary = null;
+    let cnnDiagnostics = hasWeights ? { status: 'pending' } : { status: 'skipped', reason: 'weights_missing', weightsPath };
+    if (hasWeights) {
+      try {
+        const cnnResult = await runCnnPrediction({ centerLat: lat, centerLon: lon, sessionDir });
+        if (cnnResult && cnnResult.ok && cnnResult.payload && cnnResult.payload.prediction) {
+          const payload = cnnResult.payload;
+          const pred = payload.prediction;
+          const cnnLat = Number(pred.lat);
+          const cnnLon = Number(pred.lon);
+          if (Number.isFinite(cnnLat) && Number.isFinite(cnnLon)) {
+            const distanceCenter = haversineMeters(lat, lon, cnnLat, cnnLon);
+            const distanceHeuristic = haversineMeters(entrance.lat, entrance.lon, cnnLat, cnnLon);
+            const imageUrl = cnnResult.imagePath ? `/sessions/${sessionId}/${path.basename(cnnResult.imagePath)}` : null;
+            cnnSummary = {
+              lat: cnnLat,
+              lon: cnnLon,
+              method: 'cnn_regressor',
+              runtime_ms: typeof payload.runtime_ms === 'number' ? payload.runtime_ms : null,
+              distance_from_center_m: distanceCenter,
+              difference_from_heuristic_m: distanceHeuristic,
+              image_url: imageUrl,
+              x_norm: pred.x_norm,
+              y_norm: pred.y_norm,
+              px: pred.px,
+              py: pred.py,
+              zoom: payload.zoom,
+              img_size_px: payload.img_size_px,
+            };
+            candidates.push({ lat: cnnLat, lon: cnnLon, score: 0.92, label: 'CNN entrance', source: 'cnn' });
+          }
+          cnnDiagnostics = { status: 'ok', runtime_ms: payload.runtime_ms ?? null };
+        } else if (cnnResult) {
+          cnnDiagnostics = {
+            status: 'error',
+            reason: cnnResult.reason || 'unknown',
+            error: cnnResult.error,
+          };
+          if (cnnResult.stdout) cnnDiagnostics.stdout = cnnResult.stdout;
+          if (cnnResult.stderr) cnnDiagnostics.stderr = cnnResult.stderr;
+          if (cnnResult.reason === 'weights_missing') cnnDiagnostics.weightsPath = weightsPath;
+        }
+      } catch (err) {
+        const message = err && (err.message || String(err));
+        cnnDiagnostics = { status: 'error', reason: 'exception', error: message };
+      }
+      if (cnnDiagnostics && cnnDiagnostics.status === 'pending') {
+        cnnDiagnostics = { status: 'error', reason: 'no_output' };
+      }
+    }
+
     const sessionJson = {
       sessionId,
       receivedAt: new Date().toISOString(),
@@ -438,7 +607,9 @@ app.get('/entrance', async (req, res) => {
         footprint,
         roadPoint,
         entrance: { ...entrance, method, distance_m },
-        candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ],
+        cnn: cnnSummary,
+        cnnDiagnostics,
+        candidates,
       },
     };
     try { fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2)); } catch {}
@@ -466,6 +637,7 @@ app.get('/entrance', async (req, res) => {
     const east = ${east};
     const center = [${lat}, ${lon}];
     const entrance = [${entrance.lat}, ${entrance.lon}];
+    const cnn = ${cnnSummary ? `[${cnnSummary.lat}, ${cnnSummary.lon}]` : 'null'};
     ${roadPoint ? `const road = [${roadPoint.lat}, ${roadPoint.lon}];` : 'const road = null;'}
 
     const map = L.map('map', { zoomControl: true });
@@ -482,7 +654,8 @@ app.get('/entrance', async (req, res) => {
     }
     L.marker(center, { title: 'Center' }).addTo(map).bindPopup('Center');
     if (road) L.marker(road, { title: 'Nearest road', icon: L.divIcon({className:'', html:'<div style="width:12px;height:12px;background:gold;border:2px solid #333;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Nearest road point');
-    L.marker(entrance, { title: 'Entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#e33;border:2px solid #600;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Most likely entrance');
+    L.marker(entrance, { title: 'Entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#e33;border:2px solid #600;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Heuristic entrance');
+    if (cnn) L.marker(cnn, { title: 'CNN entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#2680ff;border:2px solid #063c9d;border-radius:50%"></div>'}) }).addTo(map).bindPopup('CNN entrance');
   </script>
  </body>
  </html>`;
@@ -496,7 +669,9 @@ app.get('/entrance', async (req, res) => {
       bbox,
       roadPoint,
       entrance: { ...entrance, method, distance_m },
-      candidates: [ { ...entrance, score: 0.9, label: 'Projected entrance' } ],
+      cnnEntrance: cnnSummary,
+      cnnDiagnostics,
+      candidates,
       sessionId,
       sessionDir: `/sessions/${sessionId}/`,
       mapUrl,
@@ -676,4 +851,8 @@ async function geocodeAddress(query) {
 
   return null;
 }
+
+
+
+
 
