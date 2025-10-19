@@ -1,3 +1,0 @@
-[dotenv@17.2.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
-Server listening on http://0.0.0.0:8080
-GET /geocode/bbox?q=New%20York%20City 200 174 - 420.409 ms

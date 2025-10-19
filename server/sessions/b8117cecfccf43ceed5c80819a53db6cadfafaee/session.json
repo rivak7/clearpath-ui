@@ -1,0 +1,35 @@
+[
+  {
+    "query": "Interlake",
+    "response": {
+      "id": "b8117cecfccf43ceed5c80819a53db6cadfafaee",
+      "name": "Interlake, Silver Creek Township, Cass County, Michigan, 49047, United States",
+      "center": {
+        "lat": 42.0681644,
+        "lon": -86.1993221
+      },
+      "bbox": [
+        -86.199912,
+        42.067941,
+        -86.198737,
+        42.068374
+      ],
+      "method": "nearest_road_projection_bbox",
+      "entrance": {
+        "lat": 42.067894603518226,
+        "lon": -86.1993221,
+        "confidence": "low",
+        "accessible": false
+      },
+      "dropoff": {
+        "lat": 42.06813008910806,
+        "lon": -86.19923217710173
+      },
+      "footprint": null,
+      "paths": [],
+      "verifiedCount": 0,
+      "lastVerifiedAt": null
+    },
+    "timestamp": "2025-10-19T04:43:30.823Z"
+  }
+]
