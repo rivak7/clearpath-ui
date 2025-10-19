@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Session 1760831487847-fed90762 – Entrance Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>html,body,#map{height:100%;margin:0;padding:0}</style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https://unpkg.com https://server.arcgisonline.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src * data: blob:;" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:," />
+  </head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const south = 47.613984;
+    const west = -122.2053231;
+    const north = 47.6172974;
+    const east = -122.2018801;
+    const center = [47.6156549, -122.2036769];
+    const entrance = [47.6153076, -122.2032811];
+    const cnn = null;
+    const road = [47.615607888570096, -122.20367457262813];
+
+    const map = L.map('map', { zoomControl: true });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+    }).addTo(map);
+    const footprint = {"type":"Polygon","coordinates":[[[-122.2053231,47.6167483],[-122.2053218,47.6166922],[-122.2052814,47.6166922],[-122.2052812,47.6166673],[-122.2052556,47.6166674],[-122.2052346,47.6162189],[-122.205208,47.6162188],[-122.2052079,47.6162008],[-122.2051805,47.6162009],[-122.2051789,47.6161822],[-122.2050792,47.616183],[-122.2050774,47.6161215],[-122.2050766,47.6161021],[-122.2050738,47.6159354],[-122.2052335,47.6159342],[-122.2052325,47.6158661],[-122.2052665,47.6158663],[-122.2052604,47.615567],[-122.2052608,47.6155272],[-122.2052405,47.6155272],[-122.205219,47.6155271],[-122.2052116,47.6152024],[-122.204846,47.615208],[-122.2047003,47.6152103],[-122.2047003,47.615177],[-122.2044683,47.6151799],[-122.2044694,47.6152143],[-122.2043752,47.6152147],[-122.2043722,47.615123],[-122.204369,47.6150359],[-122.2043582,47.6145566],[-122.2045873,47.6145534],[-122.2045727,47.6141668],[-122.2045687,47.6140576],[-122.2045664,47.613984],[-122.2032329,47.6140034],[-122.2032332,47.6140351],[-122.2032446,47.6143219],[-122.203245,47.6143325],[-122.2032522,47.6145724],[-122.2033168,47.614572],[-122.2033176,47.614595],[-122.2031955,47.6145951],[-122.2032071,47.6149265],[-122.2032669,47.6149264],[-122.2032811,47.6153076],[-122.2029811,47.615313],[-122.2029796,47.6152459],[-122.2027655,47.6152485],[-122.2027643,47.6152043],[-122.2018801,47.6152129],[-122.2018844,47.6154114],[-122.2018866,47.6154824],[-122.2019739,47.6154819],[-122.2021075,47.6154812],[-122.2021085,47.6155409],[-122.2020886,47.6155408],[-122.202091,47.6156362],[-122.2020921,47.6156736],[-122.2021164,47.6156738],[-122.2021184,47.6157387],[-122.2018949,47.6157405],[-122.2019104,47.6161387],[-122.202485,47.61613],[-122.2028215,47.6161262],[-122.2028176,47.6160649],[-122.2028303,47.6160649],[-122.2028287,47.6159884],[-122.2031273,47.6159847],[-122.2031373,47.6163118],[-122.2032137,47.6163113],[-122.2032285,47.6167468],[-122.2032771,47.6167467],[-122.2034977,47.6167442],[-122.203503,47.6169734],[-122.2035143,47.6172974],[-122.2050436,47.6172759],[-122.205151,47.6172549],[-122.2052173,47.6172073],[-122.2052472,47.6171336],[-122.2052429,47.6170096],[-122.2052361,47.6168027],[-122.205299,47.6168019],[-122.205298,47.6167738],[-122.205299,47.6167483],[-122.2053231,47.6167483]]]};
+    if (footprint) {
+      const layer = L.geoJSON(footprint, { style: { color: '#1e90ff', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+      try { map.fitBounds(layer.getBounds(), { padding: [20, 20] }); } catch { map.setView(center, 19); }
+    } else {
+      const bounds = L.latLngBounds([ [south, west], [north, east] ]);
+      map.fitBounds(bounds, { padding: [20, 20] });
+    }
+    L.marker(center, { title: 'Center' }).addTo(map).bindPopup('Center');
+    if (road) L.marker(road, { title: 'Nearest road', icon: L.divIcon({className:'', html:'<div style="width:12px;height:12px;background:gold;border:2px solid #333;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Nearest road point');
+    L.marker(entrance, { title: 'Entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#e33;border:2px solid #600;border-radius:50%"></div>'}) }).addTo(map).bindPopup('Heuristic entrance');
+    if (cnn) L.marker(cnn, { title: 'CNN entrance', icon: L.divIcon({className:'', html:'<div style="width:14px;height:14px;background:#2680ff;border:2px solid #063c9d;border-radius:50%"></div>'}) }).addTo(map).bindPopup('CNN entrance');
+  </script>
+ </body>
+ </html>

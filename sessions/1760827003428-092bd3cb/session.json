@@ -1,0 +1,170 @@
+{
+  "sessionId": "1760827003428-092bd3cb",
+  "receivedAt": "2025-10-18T22:36:43.577Z",
+  "request": {
+    "method": "GET",
+    "path": "/entrance",
+    "originalUrl": "/entrance?q=Atmospheric%20Sciences-Geophysics%20Building",
+    "ip": "127.0.0.1",
+    "query": {
+      "q": "Atmospheric Sciences-Geophysics Building"
+    },
+    "headers": {
+      "host": "localhost:8080",
+      "connection": "keep-alive",
+      "sec-ch-ua-platform": "\"Windows\"",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "accept": "application/json",
+      "sec-ch-ua": "\"Google Chrome\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"",
+      "dnt": "1",
+      "sec-ch-ua-mobile": "?0",
+      "sec-fetch-site": "same-origin",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-dest": "empty",
+      "accept-encoding": "gzip, deflate, br, zstd",
+      "accept-language": "en-US,en;q=0.9"
+    }
+  },
+  "result": {
+    "query": "Atmospheric Sciences-Geophysics Building",
+    "provider": "nominatim",
+    "center": {
+      "lat": 47.6539911,
+      "lon": -122.3094041
+    },
+    "bbox": {
+      "south": 47.6538326,
+      "west": -122.3096842,
+      "north": 47.6541486,
+      "east": -122.3090548
+    },
+    "footprint": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -122.3096842,
+            47.6540085
+          ],
+          [
+            -122.3096054,
+            47.6538948
+          ],
+          [
+            -122.3095941,
+            47.6538983
+          ],
+          [
+            -122.3095542,
+            47.6538406
+          ],
+          [
+            -122.3095097,
+            47.6538547
+          ],
+          [
+            -122.3094945,
+            47.6538326
+          ],
+          [
+            -122.3094449,
+            47.6538483
+          ],
+          [
+            -122.3093966,
+            47.6538636
+          ],
+          [
+            -122.3094102,
+            47.6538832
+          ],
+          [
+            -122.309124,
+            47.6539737
+          ],
+          [
+            -122.3091489,
+            47.6540096
+          ],
+          [
+            -122.3091226,
+            47.654018
+          ],
+          [
+            -122.3090548,
+            47.6540397
+          ],
+          [
+            -122.3091071,
+            47.6541144
+          ],
+          [
+            -122.3091375,
+            47.654105
+          ],
+          [
+            -122.3091677,
+            47.6541486
+          ],
+          [
+            -122.3092282,
+            47.6541295
+          ],
+          [
+            -122.3092169,
+            47.6541132
+          ],
+          [
+            -122.3092978,
+            47.6540876
+          ],
+          [
+            -122.3092901,
+            47.6540764
+          ],
+          [
+            -122.3093958,
+            47.6540429
+          ],
+          [
+            -122.309493,
+            47.6540122
+          ],
+          [
+            -122.3095253,
+            47.6540588
+          ],
+          [
+            -122.3096842,
+            47.6540085
+          ]
+        ]
+      ]
+    },
+    "roadPoint": {
+      "lat": 47.6540429,
+      "lon": -122.3093958
+    },
+    "entrance": {
+      "lat": 47.6540429,
+      "lon": -122.3093958,
+      "method": "nearest_road_projection_polygon",
+      "distance_m": 5.793358105573592
+    },
+    "cnn": null,
+    "cnnDiagnostics": {
+      "status": "error",
+      "reason": "no_output",
+      "stderr": "Traceback (most recent call last):\r\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"C:\\Users\\jayab\\OneDrive\\Documents\\GitHub\\clearpath-ui\\entrypoint\\src\\cnn_infer.py\", line 16, in <module>\r\n    import torch\r\nModuleNotFoundError: No module named 'torch'\r\n"
+    },
+    "candidates": [
+      {
+        "lat": 47.6540429,
+        "lon": -122.3093958,
+        "score": 0.9,
+        "label": "Projected entrance",
+        "source": "heuristic"
+      }
+    ]
+  }
+}

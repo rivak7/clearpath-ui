@@ -12,7 +12,11 @@ export default function EntranceActions({ place, prefs, onToast }: EntranceActio
   const [isSharing, setSharing] = useState(false);
   const deepLink = useMemo(() => {
     if (!place) return '';
-    return `https://app.clearpath.local/#/place/${encodeURIComponent(place.id)}?elat=${place.entrance.lat}&elon=${place.entrance.lon}`;
+    const origin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : 'https://app.clearpath.local';
+    return `${origin}/#/place/${encodeURIComponent(place.id)}?elat=${place.entrance.lat}&elon=${place.entrance.lon}`;
   }, [place]);
 
   if (!place) return null;
@@ -32,7 +36,7 @@ export default function EntranceActions({ place, prefs, onToast }: EntranceActio
         className={buttonClasses}
         onClick={() => {
           openNavigation(place.entrance.lat, place.entrance.lon);
-          onToast('Opening directions…', 'success');
+          onToast('Opening directions...', 'success');
         }}
         aria-label="Navigate to entrance"
       >
@@ -57,7 +61,7 @@ export default function EntranceActions({ place, prefs, onToast }: EntranceActio
         aria-label="Share entrance link"
         disabled={isSharing}
       >
-        {isSharing ? 'Sharing…' : 'Share door'}
+        {isSharing ? 'Sharing...' : 'Share door'}
       </button>
     </div>
   );

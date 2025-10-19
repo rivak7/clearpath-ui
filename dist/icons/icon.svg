@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title>ClearPath icon</title>
+  <defs>
+    <linearGradient id="g" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#26D0A4" />
+      <stop offset="100%" stop-color="#1AA5A0" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#09172C"/>
+  <circle cx="128" cy="128" r="96" fill="url(#g)"/>
+  <path d="M101 84c-18 0-33 15-33 33v22c0 18 15 33 33 33h5c6 0 11-5 11-11s-5-11-11-11h-5c-6 0-11-5-11-11v-22c0-6 5-11 11-11h33c6 0 11-5 11-11s-5-11-11-11h-33zm70 0c-18 0-33 15-33 33v22c0 18 15 33 33 33h17c6 0 11-5 11-11s-5-11-11-11h-17c-6 0-11-5-11-11v-22c0-6 5-11 11-11h17c6 0 11-5 11-11s-5-11-11-11h-17z" fill="#0F1A2A"/>
+  <path d="M128 64c-5 0-9 4-9 9v110c0 5 4 9 9 9s9-4 9-9V73c0-5-4-9-9-9z" fill="#0F1A2A"/>
+</svg>

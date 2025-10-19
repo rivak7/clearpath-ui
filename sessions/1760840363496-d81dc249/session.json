@@ -1,0 +1,68 @@
+{
+  "sessionId": "1760840363496-d81dc249",
+  "receivedAt": "2025-10-19T02:19:23.647Z",
+  "request": {
+    "method": "GET",
+    "path": "/entrance",
+    "originalUrl": "/entrance?q=Lincoln%20Square%20South%20Food%20Hall",
+    "ip": "127.0.0.1",
+    "query": {
+      "q": "Lincoln Square South Food Hall"
+    },
+    "headers": {
+      "host": "localhost:8080",
+      "connection": "keep-alive",
+      "sec-ch-ua-platform": "\"Windows\"",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "accept": "application/json",
+      "sec-ch-ua": "\"Google Chrome\";v=\"141\", \"Not?A_Brand\";v=\"8\", \"Chromium\";v=\"141\"",
+      "dnt": "1",
+      "sec-ch-ua-mobile": "?0",
+      "sec-fetch-site": "same-origin",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-dest": "empty",
+      "accept-encoding": "gzip, deflate, br, zstd",
+      "accept-language": "en-US,en;q=0.9"
+    }
+  },
+  "result": {
+    "query": "Lincoln Square South Food Hall",
+    "provider": "nominatim",
+    "center": {
+      "lat": 47.6143845,
+      "lon": -122.2008125
+    },
+    "bbox": {
+      "south": 47.6143345,
+      "west": -122.2008625,
+      "north": 47.6144345,
+      "east": -122.2007625
+    },
+    "footprint": null,
+    "roadPoint": {
+      "lat": 47.6142486,
+      "lon": -122.2008146
+    },
+    "entrance": {
+      "lat": 47.6143345,
+      "lon": -122.2008146,
+      "method": "nearest_road_projection_bbox",
+      "distance_m": 5.561981975468219
+    },
+    "cnn": null,
+    "cnnDiagnostics": {
+      "status": "error",
+      "reason": "no_output",
+      "stderr": "Traceback (most recent call last):\r\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"C:\\Users\\jayab\\OneDrive\\Documents\\GitHub\\clearpath-ui\\entrypoint\\src\\cnn_infer.py\", line 16, in <module>\r\n    import torch\r\nModuleNotFoundError: No module named 'torch'\r\n"
+    },
+    "candidates": [
+      {
+        "lat": 47.6143345,
+        "lon": -122.2008146,
+        "score": 0.9,
+        "label": "Projected entrance",
+        "source": "heuristic"
+      }
+    ]
+  }
+}
