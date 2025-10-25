@@ -68,6 +68,9 @@ const eveningTimeInput = document.getElementById('eveningTime');
 const eveningDestinationSelect = document.getElementById('eveningDestination');
 const eveningModeSelect = document.getElementById('eveningMode');
 const commuteStatus = document.getElementById('commuteStatus');
+const themeOverview = document.getElementById('settingsThemeSummary');
+const accessibilityOverview = document.getElementById('settingsAccessibilitySummary');
+const commuteOverview = document.getElementById('settingsCommuteSummary');
 
 const accessibilityControls = new Map();
 const featureMeta = new Map(ACCESSIBILITY_FEATURES.map((feature) => [feature.id, feature]));
@@ -76,6 +79,17 @@ let accountSnapshot = { user: null, ready: false };
 
 const PENDING_AUTH_KEY = 'clearpath-ui:pending-auth-mode';
 let commuteDebounce = null;
+const DAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const DAY_LABELS = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+};
+const COMMUTE_DEFAULT_SUMMARY = 'Commute reminders are off.';
 
 function titleCase(value) {
   if (!value) return '';
@@ -83,6 +97,14 @@ function titleCase(value) {
 }
 
 function formatTime(date) {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatClockTime(value) {
+  if (!value || typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) return value || '';
+  const [hours, minutes] = value.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
@@ -106,17 +128,76 @@ function getNextAutoBoundary(reference = new Date()) {
   return { next, upcomingTheme };
 }
 
+function formatClock(value) {
+  if (!value || typeof value !== 'string') return '';
+  const [hourString, minuteString = '0'] = value.split(':');
+  const hour = Number.parseInt(hourString, 10);
+  const minute = Number.parseInt(minuteString, 10);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return value;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const normalizedHour = hour % 12 || 12;
+  const paddedMinute = minute.toString().padStart(2, '0');
+  return `${normalizedHour}:${paddedMinute} ${period}`;
+}
+
+function formatDaySummary(days) {
+  if (!Array.isArray(days) || !days.length) return '';
+  const normalized = Array.from(new Set(days.map((day) => (day || '').toLowerCase()))).filter((day) => DAY_ORDER.includes(day));
+  if (!normalized.length) return '';
+  if (normalized.length === DAY_ORDER.length) return 'Every day';
+  const weekdays = DAY_ORDER.slice(0, 5);
+  if (normalized.length === 5 && weekdays.every((day) => normalized.includes(day))) return 'Weekdays';
+  if (normalized.length === 2 && normalized.includes('sat') && normalized.includes('sun')) return 'Weekends';
+  return normalized.map((day) => DAY_LABELS[day] || titleCase(day)).join(' · ');
+}
+
+function describeCommuteLeg(leg, fallbackDestination) {
+  if (!leg) return null;
+  const destinationKey = (leg.destinationKey || leg.placeId || '').toLowerCase();
+  const destinationLabel = leg.destinationLabel || fallbackDestination || '';
+  const enabled = leg.enabled !== false && destinationKey !== 'off' && destinationLabel.toLowerCase() !== 'off';
+  if (!enabled) return null;
+  const destination = destinationKey === 'home'
+    ? 'Home'
+    : destinationKey === 'work'
+      ? 'Work'
+      : destinationLabel
+        ? destinationLabel
+        : 'Destination';
+  const timeFragment = formatClock(leg.time) || 'Any time';
+  const modeFragment = leg.travelMode ? titleCase(String(leg.travelMode)) : '';
+  const descriptor = `${timeFragment} → ${destination}`;
+  return modeFragment ? `${descriptor} (${modeFragment})` : descriptor;
+}
+
+function summarizeCommutePlan(plan) {
+  if (!plan) return COMMUTE_DEFAULT_SUMMARY;
+  const parts = [];
+  const morningPart = describeCommuteLeg(plan.morning, 'Work');
+  if (morningPart) parts.push(morningPart);
+  const eveningPart = describeCommuteLeg(plan.evening, 'Home');
+  if (eveningPart) parts.push(eveningPart);
+  if (!parts.length) return COMMUTE_DEFAULT_SUMMARY;
+  const daySummary = formatDaySummary(plan.days || []);
+  return daySummary ? `${daySummary} · ${parts.join(' | ')}` : parts.join(' | ');
+}
+
 function updateThemeStatus({ mode, theme }) {
-  if (!themeStatusChip) return;
   const readableTheme = titleCase(theme);
+  let chipText = '';
+  let summaryText = '';
   if (mode === ThemeMode.AUTO) {
     const { next, upcomingTheme } = getNextAutoBoundary();
     const formattedTime = formatTime(next);
     const readableUpcoming = titleCase(upcomingTheme);
-    themeStatusChip.textContent = `Auto · ${readableTheme} now → ${readableUpcoming} at ${formattedTime}.`;
+    chipText = `Auto · ${readableTheme} now → ${readableUpcoming} at ${formattedTime}.`;
+    summaryText = `Auto • ${readableTheme} now, ${readableUpcoming} at ${formattedTime}`;
   } else {
-    themeStatusChip.textContent = `Locked to ${readableTheme}.`;
+    chipText = `Locked to ${readableTheme}.`;
+    summaryText = `Locked to ${readableTheme}`;
   }
+  if (themeStatusChip) themeStatusChip.textContent = chipText;
+  if (themeOverview) setSummary(themeOverview, summaryText);
 }
 
 function syncThemeSelection(mode) {
@@ -232,22 +313,26 @@ function syncAccessibilitySelection(state) {
 }
 
 function updateAccessibilityStatus(state) {
-  if (!accessibilityStatusChip) return;
   const active = state?.features || [];
-  if (!active.length) {
-    accessibilityStatusChip.textContent = 'Pick the boosts you need.';
-    return;
+  let chipText = 'Pick the boosts you need.';
+  let summaryText = 'No profiles active.';
+  if (active.length) {
+    const labels = active
+      .map((id) => featureMeta.get(id))
+      .filter(Boolean)
+      .map((feature) => feature.shortLabel || feature.label);
+    if (active.length === ACCESSIBILITY_FEATURES.length) {
+      chipText = `All profiles on: ${labels.join(', ')}.`;
+      summaryText = 'All assistive profiles active.';
+    } else {
+      const readableList = labels.join(', ');
+      const suffix = active.length === 1 ? 'profile active' : 'profiles active';
+      chipText = `${readableList} ${suffix}.`;
+      summaryText = `Active: ${readableList}`;
+    }
   }
-  const labels = active
-    .map((id) => featureMeta.get(id))
-    .filter(Boolean)
-    .map((feature) => feature.shortLabel || feature.label);
-  if (active.length === ACCESSIBILITY_FEATURES.length) {
-    accessibilityStatusChip.textContent = `All profiles on: ${labels.join(', ')}.`;
-    return;
-  }
-  const readableList = labels.join(', ');
-  accessibilityStatusChip.textContent = `${readableList} ${active.length === 1 ? 'profile' : 'profiles'} active.`;
+  if (accessibilityStatusChip) accessibilityStatusChip.textContent = chipText;
+  if (accessibilityOverview) setSummary(accessibilityOverview, summaryText);
 }
 
 function onAccessibilityToggle(event) {
@@ -281,6 +366,11 @@ function applyThemeAccessibilityLocks(activeSetOrState) {
   }
 }
 
+function setSummary(element, message) {
+  if (!element) return;
+  element.textContent = message && message.trim() ? message : '—';
+}
+
 function showStatus(element, message, type = 'info') {
   if (!element) return;
   element.textContent = message || '';
@@ -310,6 +400,13 @@ function setPreferencesDisabled(disabled) {
     .forEach((control) => {
       control.disabled = disabled;
     });
+}
+
+function setCommuteDisabled(disabled) {
+  if (!commuteForm) return;
+  commuteForm.querySelectorAll('input, select, button').forEach((control) => {
+    control.disabled = disabled;
+  });
 }
 
 function requestAuthFromMap(mode) {
@@ -402,6 +499,52 @@ function renderPreferences(preferences) {
   if (savedPlaceUpdatesToggle) savedPlaceUpdatesToggle.checked = Boolean(preferences.notifications?.savedPlaceUpdates);
 }
 
+function renderCommutePlan(plan) {
+  if (morningTimeInput) morningTimeInput.value = '';
+  if (eveningTimeInput) eveningTimeInput.value = '';
+  if (morningDestinationSelect) morningDestinationSelect.value = 'off';
+  if (eveningDestinationSelect) eveningDestinationSelect.value = 'off';
+  if (morningModeSelect) morningModeSelect.value = 'drive';
+  if (eveningModeSelect) eveningModeSelect.value = 'drive';
+  if (!commuteForm) return;
+
+  const morning = plan?.morning || {};
+  const evening = plan?.evening || {};
+  const morningEnabled = morning.enabled !== false && (morning.destinationKey || morning.placeId || '').toLowerCase() !== 'off';
+  const morningKey = (morning.destinationKey || morning.placeId || (morning.destinationLabel || '')).toLowerCase();
+  if (morningDestinationSelect) {
+    morningDestinationSelect.value = morningEnabled ? (morningKey === 'home' ? 'home' : 'work') : 'off';
+  }
+  if (morningTimeInput) {
+    morningTimeInput.value = morningEnabled && morning.time ? morning.time : '';
+  }
+  if (morningModeSelect) {
+    morningModeSelect.value = morning.travelMode || 'drive';
+  }
+
+  const eveningEnabled = evening.enabled !== false && (evening.destinationKey || evening.placeId || '').toLowerCase() !== 'off';
+  const eveningKey = (evening.destinationKey || evening.placeId || (evening.destinationLabel || '')).toLowerCase();
+  if (eveningDestinationSelect) {
+    eveningDestinationSelect.value = eveningEnabled ? (eveningKey === 'work' ? 'work' : 'home') : 'off';
+  }
+  if (eveningTimeInput) {
+    eveningTimeInput.value = eveningEnabled && evening.time ? evening.time : '';
+  }
+  if (eveningModeSelect) {
+    eveningModeSelect.value = evening.travelMode || 'drive';
+  }
+
+  const checkboxes = commuteForm.querySelectorAll('input[name="commuteDays"]');
+  const days = new Set(Array.isArray(plan?.days) ? plan.days : []);
+  checkboxes.forEach((box) => {
+    box.checked = days.has(box.value);
+  });
+
+  if (commuteOverview) {
+    setSummary(commuteOverview, summarizeCommutePlan(plan));
+  }
+}
+
 function renderAccountSettings(snapshot) {
   const user = snapshot?.user || null;
   accountSnapshot = { user, ready: true };
@@ -422,6 +565,7 @@ function renderAccountSettings(snapshot) {
   }
   setSavedPlacesDisabled(!signedIn);
   setPreferencesDisabled(!signedIn);
+  setCommuteDisabled(!signedIn);
   if (!signedIn) {
     if (homeAddressInput) homeAddressInput.value = '';
     if (workAddressInput) workAddressInput.value = '';
@@ -430,6 +574,9 @@ function renderAccountSettings(snapshot) {
     if (mapStylePreferenceSelect) mapStylePreferenceSelect.value = 'auto';
     if (savedPlacesStatus) showStatus(savedPlacesStatus, 'Sign in to update saved places.');
     if (preferencesStatus) showStatus(preferencesStatus, 'Sign in to change travel preferences.');
+    if (commuteStatus) showStatus(commuteStatus, 'Sign in to schedule your commute.');
+    renderCommutePlan(null);
+    if (commuteOverview) setSummary(commuteOverview, 'Sign in to schedule your commute.');
     return;
   }
 
@@ -437,8 +584,17 @@ function renderAccountSettings(snapshot) {
   if (workAddressInput) workAddressInput.value = user.savedPlaces?.work?.address || '';
   renderFavoriteList(user.savedPlaces?.favorites || []);
   renderPreferences(user.preferences || {});
+  renderCommutePlan(user.commutePlan || {});
   if (savedPlacesStatus) showStatus(savedPlacesStatus, '');
   if (preferencesStatus) showStatus(preferencesStatus, '');
+  if (commuteStatus) {
+    const morningEnabled = user.commutePlan?.morning?.enabled !== false && (user.commutePlan?.morning?.destinationKey || '').toLowerCase() !== 'off';
+    const eveningEnabled = user.commutePlan?.evening?.enabled !== false && (user.commutePlan?.evening?.destinationKey || '').toLowerCase() !== 'off';
+    const message = morningEnabled || eveningEnabled
+      ? 'Commute reminders will surface before your scheduled departures.'
+      : 'Set a time and destination to unlock commute reminders.';
+    showStatus(commuteStatus, message);
+  }
 }
 
 async function handleSavedPlaceAction(action) {
@@ -577,6 +733,69 @@ async function handlePreferenceChange() {
   }
 }
 
+function collectCommutePlan() {
+  if (!commuteForm) return null;
+  const selectedDays = Array.from(commuteForm.querySelectorAll('input[name="commuteDays"]:checked')).map((input) => input.value);
+  const days = selectedDays.length ? selectedDays : ['mon', 'tue', 'wed', 'thu', 'fri'];
+
+  const buildLeg = (timeInput, destinationSelect, modeSelect, fallbackKey) => {
+    const key = destinationSelect ? destinationSelect.value : fallbackKey;
+    const timeValue = timeInput?.value || '';
+    const travelMode = modeSelect?.value || 'drive';
+    if (!key || key === 'off' || !timeValue) {
+      return {
+        time: timeValue || '08:30',
+        destinationLabel: 'Off',
+        travelMode,
+        placeId: null,
+        destinationKey: 'off',
+        enabled: false,
+      };
+    }
+    const label = key === 'home' ? 'Home' : key === 'work' ? 'Work' : key;
+    return {
+      time: timeValue,
+      destinationLabel: label,
+      travelMode,
+      placeId: key,
+      destinationKey: key,
+      enabled: true,
+    };
+  };
+
+  return {
+    days,
+    morning: buildLeg(morningTimeInput, morningDestinationSelect, morningModeSelect, 'work'),
+    evening: buildLeg(eveningTimeInput, eveningDestinationSelect, eveningModeSelect, 'home'),
+  };
+}
+
+async function submitCommutePlan() {
+  if (!isAuthenticated()) return;
+  const plan = collectCommutePlan();
+  if (!plan) return;
+  try {
+    await updateCommutePlan(plan);
+    showStatus(commuteStatus, 'Commute schedule saved.', 'success');
+  } catch (error) {
+    console.warn('Failed to update commute plan', error);
+    showStatus(commuteStatus, 'Unable to update commute schedule right now.', 'error');
+  }
+}
+
+function handleCommuteChange() {
+  if (!isAuthenticated()) {
+    showStatus(commuteStatus, 'Sign in to schedule your commute.', 'error');
+    return;
+  }
+  if (commuteStatus) showStatus(commuteStatus, 'Saving commute…');
+  if (commuteDebounce) window.clearTimeout(commuteDebounce);
+  commuteDebounce = window.setTimeout(() => {
+    commuteDebounce = null;
+    submitCommutePlan();
+  }, 400);
+}
+
 function handleAccountPrimaryAction() {
   if (isAuthenticated()) {
     requestAccountViewOnMap();
@@ -623,6 +842,9 @@ function wireAccountSettings() {
   if (favoriteList) favoriteList.addEventListener('click', handleFavoriteListClick);
   if (preferencesForm) {
     preferencesForm.addEventListener('change', handlePreferenceChange);
+  }
+  if (commuteForm) {
+    commuteForm.addEventListener('change', handleCommuteChange);
   }
   onAccountChange((snapshot) => {
     renderAccountSettings(snapshot);

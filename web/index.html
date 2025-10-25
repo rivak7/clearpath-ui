@@ -111,7 +111,7 @@
             <button id="clearSearch" class="search__clear" type="button" aria-label="Clear search" hidden>×</button>
             <div id="suggestions" class="suggestions" role="listbox" aria-label="Address suggestions" hidden></div>
           </div>
-          <div id="searchFocusActions" class="search__focusActions" hidden>
+          <div id="searchFocusActions" class="search__focusActions" hidden aria-live="polite">
             <button id="addRouteStop" class="search__addStop" type="button">
               <span class="search__addStopIcon" aria-hidden="true">＋</span>
               Add stop
@@ -202,16 +202,17 @@
                 <button id="saveAsFavorite" class="place-actions__button place-actions__button--secondary" type="button">Add to Favorites</button>
               </div>
             </div>
-            <div id="routePlanner" class="route-planner" aria-live="polite">
-              <div class="route-planner__headerBar">
-                <span id="routeOverview" class="route-planner__overview">Search to plan your route</span>
-                <button id="routeEditorToggle" class="route-planner__toggle" type="button" aria-expanded="false" hidden>
-                  Edit route
-                </button>
-              </div>
-              <div class="route-planner__modes" role="tablist" aria-label="Travel mode">
-                <button class="route-mode route-mode--active" type="button" role="tab" aria-selected="true" data-mode="drive" aria-label="Driving">
-                  <span aria-hidden="true">🚗</span>
+            <div id="routePlannerDock" class="route-plannerDock">
+              <div id="routePlanner" class="route-planner" aria-live="polite">
+                <div class="route-planner__headerBar">
+                  <span id="routeOverview" class="route-planner__overview">Search to plan your route</span>
+                  <button id="routeEditorToggle" class="route-planner__toggle" type="button" aria-expanded="false" hidden>
+                    Edit route
+                  </button>
+                </div>
+                <div class="route-planner__modes" role="tablist" aria-label="Travel mode">
+                  <button class="route-mode route-mode--active" type="button" role="tab" aria-selected="true" data-mode="drive" aria-label="Driving">
+                    <span aria-hidden="true">🚗</span>
                 </button>
                 <button class="route-mode" type="button" role="tab" aria-selected="false" data-mode="walk" aria-label="Walking">
                   <span aria-hidden="true">🚶‍♂️</span>
@@ -222,8 +223,9 @@
                 <button class="route-mode" type="button" role="tab" aria-selected="false" data-mode="bike" aria-label="Cycling">
                   <span aria-hidden="true">🚲</span>
                 </button>
+                </div>
+                <div id="routeStops" class="route-stops" role="list" aria-label="Route stops"></div>
               </div>
-              <div id="routeStops" class="route-stops" role="list" aria-label="Route stops"></div>
             </div>
             <div id="routeSummary" class="route-summary" hidden></div>
             <section id="entranceOptions" class="entrance-options" hidden>
