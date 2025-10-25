@@ -1679,8 +1679,14 @@ function hideEntranceConfirmation({ mark = false } = {}) {
   if (mark && key) state.confirmationHistory.add(key);
   state.confirmationPrompt = null;
   if (dom.entranceConfirm) dom.entranceConfirm.hidden = true;
-  if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = false;
-  if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = false;
+  if (dom.entranceConfirmYes) {
+    dom.entranceConfirmYes.disabled = false;
+    dom.entranceConfirmYes.hidden = true;
+  }
+  if (dom.entranceConfirmNo) {
+    dom.entranceConfirmNo.disabled = false;
+    dom.entranceConfirmNo.hidden = true;
+  }
 }
 
 function showEntranceConfirmation(result) {
@@ -1695,8 +1701,14 @@ function showEntranceConfirmation(result) {
   };
   updateEntranceConfirmationMessage(result);
   dom.entranceConfirm.hidden = false;
-  if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = false;
-  if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = false;
+  if (dom.entranceConfirmYes) {
+    dom.entranceConfirmYes.hidden = false;
+    dom.entranceConfirmYes.disabled = false;
+  }
+  if (dom.entranceConfirmNo) {
+    dom.entranceConfirmNo.hidden = false;
+    dom.entranceConfirmNo.disabled = false;
+  }
   state.lastConfirmationPromptAt = Date.now();
 }
 
