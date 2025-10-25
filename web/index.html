@@ -99,6 +99,15 @@
               <h1 id="sheetTitle">Plan your arrival</h1>
               <p id="sheetSubtitle" class="sheet__subtitle">Search for a building to see the verified entrance and drop-off.</p>
             </div>
+            <section id="entranceOptions" class="entrance-options" hidden>
+              <div class="entrance-options__head">
+                <h2 class="entrance-options__title">Entrance options</h2>
+                <span id="entranceOptionsMeta" class="entrance-options__meta"></span>
+              </div>
+              <div id="entranceOptionList" class="entrance-options__list" role="list"></div>
+              <button id="startEntranceVote" class="entrance-options__action" type="button">Suggest another entrance</button>
+              <p id="entranceVoteHint" class="entrance-options__hint" hidden>Tap on the map to place the entrance and confirm to share it.</p>
+            </section>
             <div id="insights" class="insights" hidden></div>
             <div id="directions" class="directions" hidden></div>
             <div id="statusMessage" class="status"></div>
