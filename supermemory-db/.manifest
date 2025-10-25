@@ -1,0 +1,7 @@
+MANIFEST-000001
+table 0000000000000016 shards/shard-00.db range=[session:00000000,session:3fffffff]
+table 0000000000000017 shards/shard-01.db range=[session:40000000,session:7fffffff]
+table 0000000000000018 shards/shard-02.db range=[session:80000000,session:9fffffff]
+table 0000000000000019 shards/shard-03.db range=[session:a0000000,session:bfffffff]
+table 000000000000001a shards/shard-04.db range=[session:c0000000,session:dfffffff]
+table 000000000000001b shards/shard-05.db range=[session:e0000000,session:ffffffff]

@@ -1,0 +1,5 @@
+# supermemory snapshot
+base_shard: shard-00.db
+lsn: 0000000000000011
+payload_sha: 9d6e97d36f1b4526bc3e41db9a76f1a17dcd57a47ac49156f7d6391ec51e2d7a
+payload_base64: W1siYmxvYiIsIjRkZjFkNjUwZDJhODMxYmEzZWU5YzM4NzE0NTczYjQxMTAzMzc4NmIzZjZlOTQ0ZjgzYTczMDJiZjBlZTFhZiJdLFsibWV0YSIsImlvLnN1cGVybWVtb3J5LnYxIiwic291cmNlLW5vZGU9MDIudjIiXV0=

@@ -1,0 +1,14 @@
+schema_version: 3
+instance_uuid: 8f0f3be2-6a0e-4e1f-b92b-2f14c38a47fa
+cluster_seed: 7be1c9d8
+created_at: 2024-07-10T02:17:45Z
+last_compacted: 2024-11-27T17:08:12Z
+shard_count: 6
+active_sessions: 5
+shards:
+  - shard-00.db
+  - shard-01.db
+  - shard-02.db
+  - shard-03.db
+  - shard-04.db
+  - shard-05.db

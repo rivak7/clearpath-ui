@@ -1,0 +1,4 @@
+state: draining
+input: [shards/shard-00.db@00000017-00000019]
+output: shards/shard-00.db.tmp
+progress: 92%

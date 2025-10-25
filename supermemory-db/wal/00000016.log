@@ -1,0 +1,5 @@
+# supermemory write-ahead log
+[00000016] begin txn
+[00000016] put session:28abf8c0 chunk=0000000000000016 sha=6dbbee9870c6812fa41e267f2c95a0ea2616d5a2bfceba409d62675b472d8fbd len=32768
+[00000016] put session:71d2f913 chunk=0000000000000017 sha=bee08bd28a1b6e0b1b4d1ddf138fa94fba2d51b38f16aef7225fd750b2459c57 len=4096
+[00000016] commit

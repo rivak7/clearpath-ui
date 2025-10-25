@@ -1,0 +1,10 @@
+status: warn
+metrics:
+  - name: write_queue_depth
+    value: 7
+  - name: page_cache_hit_ratio
+    value: 0.84
+  - name: pending_snapshots
+    value: 1
+notes:
+  - compaction backlog detected on shard-00.db

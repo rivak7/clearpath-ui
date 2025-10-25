@@ -5,13 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ClearPath - Smarter Building Arrivals</title>
     <meta name="description" content="ClearPath guides riders and couriers to real building entrances with satellite intelligence." />
-    <meta name="theme-color" content="#0b1c2c" />
+    <meta name="theme-color" content="#f1f5fb" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="icon" href="/icons/icon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <script>
+      (function () {
+        const storageKey = 'clearpath-ui:theme-preference';
+        const dayStart = 7;
+        const nightStart = 19;
+        try {
+          const mode = localStorage.getItem(storageKey) || 'auto';
+          const hour = new Date().getHours();
+          const theme = mode === 'light'
+            ? 'light'
+            : mode === 'dark'
+              ? 'dark'
+              : hour >= nightStart || hour < dayStart
+                ? 'dark'
+                : 'light';
+          const root = document.documentElement;
+          root.dataset.theme = theme;
+          root.dataset.themeMode = mode;
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#030d18' : '#f1f5fb');
+        } catch (error) {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.dataset.themeMode = 'auto';
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -28,11 +54,138 @@
 
         <header class="top-shell" role="search">
           <div class="brand">
-            <div class="brand__logo" aria-hidden="true">CP</div>
-            <div class="brand__copy">
-              <span class="brand__title">ClearPath</span>
-              <span class="brand__subtitle">Accessible entrance routing</span>
+            <div class="brand__identity">
+              <div class="brand__copy">
+                <span class="brand__title">ClearPath</span>
+                <span class="brand__note">Logo explorations (dark green / blue / white)</span>
+              </div>
+              <div class="brand__concepts" role="list">
+                <div class="brand__concept" role="listitem" aria-label="Option A: flowing route arc">
+                  <span class="brand__tag">Option A</span>
+                  <div class="brand__logo" aria-hidden="true">
+                    <svg class="brand__symbol" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="presentation">
+                      <defs>
+                        <linearGradient id="conceptA_bg" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#0d3a46" />
+                          <stop offset="100%" stop-color="#062029" />
+                        </linearGradient>
+                        <linearGradient id="conceptA_path" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#ffffff" />
+                          <stop offset="100%" stop-color="#35cbb4" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="64" height="64" rx="18" fill="url(#conceptA_bg)" />
+                      <path d="M18 46c5-12 12-17 18-21 8-5 13-11 11-17" fill="none" stroke="url(#conceptA_path)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M26 18c3-4.5 8-6.8 13-6.3 2.8 0.3 5.6 1.6 7.2 3.1" fill="none" stroke="#67e8d1" stroke-width="3" stroke-linecap="round" opacity="0.45" />
+                      <circle cx="18" cy="46" r="6" fill="#03121f" opacity="0.42" />
+                      <circle cx="18" cy="46" r="4.2" fill="#f7fbff" />
+                      <circle cx="46" cy="14" r="6" fill="#031c24" opacity="0.32" />
+                      <circle cx="46" cy="14" r="4.4" fill="#eef7ff" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="brand__concept" role="listitem" aria-label="Option B: compass sweep with arrow">
+                  <span class="brand__tag">Option B</span>
+                  <div class="brand__logo" aria-hidden="true">
+                    <svg class="brand__symbol" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="presentation">
+                      <defs>
+                        <linearGradient id="conceptB_bg" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#0b2c3d" />
+                          <stop offset="100%" stop-color="#05202a" />
+                        </linearGradient>
+                        <linearGradient id="conceptB_arc" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#f7fbff" />
+                          <stop offset="100%" stop-color="#2fbdae" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="64" height="64" rx="18" fill="url(#conceptB_bg)" />
+                      <path d="M48 20c-5-6-11-9-18-9-12 0-22 10-22 22s10 22 22 22c7 0 13-3 18-9" fill="none" stroke="url(#conceptB_arc)" stroke-width="6.5" stroke-linecap="round" />
+                      <path d="M44 13l12 4-4 12" fill="none" stroke="#f7fbff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
+                      <circle cx="46" cy="14" r="5" fill="#0b6f6b" opacity="0.42" />
+                      <circle cx="46" cy="14" r="3.4" fill="#f2f8ff" />
+                      <circle cx="20" cy="48" r="5.5" fill="#02111d" opacity="0.4" />
+                      <circle cx="20" cy="48" r="3.6" fill="#f7fbff" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="brand__concept" role="listitem" aria-label="Option C: layered waypoint bands">
+                  <span class="brand__tag">Option C</span>
+                  <div class="brand__logo" aria-hidden="true">
+                    <svg class="brand__symbol" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="presentation">
+                      <defs>
+                        <linearGradient id="conceptC_bg" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#0c3847" />
+                          <stop offset="100%" stop-color="#041521" />
+                        </linearGradient>
+                        <linearGradient id="conceptC_band" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stop-color="#34c8b2" />
+                          <stop offset="100%" stop-color="#0b6f6b" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="64" height="64" rx="18" fill="url(#conceptC_bg)" />
+                      <path d="M14 38c6-16 24-22 42-16" fill="none" stroke="#123242" stroke-width="10" stroke-linecap="round" opacity="0.35" />
+                      <path d="M14 40c6-14 22-18 36-12" fill="none" stroke="url(#conceptC_band)" stroke-width="7" stroke-linecap="round" />
+                      <path d="M22 24c6 2 10 6 12 12 2.5 7 7 10 12 11.5" fill="none" stroke="#f7fbff" stroke-width="3" stroke-linecap="round" opacity="0.6" />
+                      <circle cx="14" cy="40" r="5.5" fill="#02111d" opacity="0.35" />
+                      <circle cx="14" cy="40" r="3.6" fill="#f7fbff" />
+                      <circle cx="50" cy="28" r="5.2" fill="#0b6f6b" opacity="0.34" />
+                      <circle cx="50" cy="28" r="3.4" fill="#eef7ff" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="brand__concept" role="listitem" aria-label="Option D: destination pin">
+                  <span class="brand__tag">Option D</span>
+                  <div class="brand__logo" aria-hidden="true">
+                    <svg class="brand__symbol" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="presentation">
+                      <defs>
+                        <linearGradient id="conceptD_bg" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#0c2f40" />
+                          <stop offset="100%" stop-color="#041723" />
+                        </linearGradient>
+                        <linearGradient id="conceptD_pin" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#0b6f6b" />
+                          <stop offset="100%" stop-color="#0c293f" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="64" height="64" rx="18" fill="url(#conceptD_bg)" />
+                      <path d="M32 14c-10 0-18 8-18 18 0 14 18 28 18 28s18-14 18-28c0-10-8-18-18-18z" fill="url(#conceptD_pin)" />
+                      <path d="M32 18c-7.5 0-13.5 6-13.5 13.5 0 4.8 3 8.8 5.6 12.3 2.4 3.2 4.9 6.1 7.9 8.8 3-2.7 5.5-5.6 7.9-8.8 2.6-3.5 5.6-7.5 5.6-12.3 0-7.5-6-13.5-13.5-13.5z" fill="#03121f" opacity="0.35" />
+                      <circle cx="32" cy="32" r="9" fill="#f7fbff" />
+                      <circle cx="32" cy="32" r="5" fill="#0b6f6b" />
+                      <path d="M28 20c3-2.5 7-3.5 10.5-3" fill="none" stroke="#f7fbff" stroke-width="3" stroke-linecap="round" opacity="0.45" />
+                    </svg>
+                  </div>
+                </div>
+                <div class="brand__concept" role="listitem" aria-label="Option E: compass field">
+                  <span class="brand__tag">Option E</span>
+                  <div class="brand__logo" aria-hidden="true">
+                    <svg class="brand__symbol" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="presentation">
+                      <defs>
+                        <linearGradient id="conceptE_bg" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#0b2838" />
+                          <stop offset="100%" stop-color="#03121f" />
+                        </linearGradient>
+                        <linearGradient id="conceptE_diamond" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stop-color="#3dd6c1" />
+                          <stop offset="100%" stop-color="#0b6f6b" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="64" height="64" rx="18" fill="url(#conceptE_bg)" />
+                      <circle cx="32" cy="32" r="22" fill="#041b28" opacity="0.55" />
+                      <path d="M32 12l10 20-10 20-10-20z" fill="url(#conceptE_diamond)" />
+                      <path d="M32 16l7 16-7 16-7-16z" fill="#f7fbff" opacity="0.85" />
+                      <circle cx="32" cy="32" r="5" fill="#03121f" opacity="0.6" />
+                      <circle cx="32" cy="32" r="3.4" fill="#f7fbff" />
+                      <path d="M22 18c3-2 7-3.2 10-3" fill="none" stroke="#123242" stroke-width="3" stroke-linecap="round" opacity="0.35" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             </div>
+            <a class="brand__settings" href="/settings.html" aria-label="Open settings">
+              <span class="brand__settingsIcon" aria-hidden="true">&#9881;</span>
+              <span class="brand__settingsText">Settings</span>
+            </a>
           </div>
           <form id="searchForm" class="search" autocomplete="off">
             <label class="search__label" for="searchInput">Destination</label>

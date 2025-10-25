@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ClearPath Settings</title>
+    <meta name="description" content="Adjust how ClearPath looks and feels." />
+    <meta name="theme-color" content="#f1f5fb" />
+    <link rel="icon" href="/icons/icon.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <script>
+      (function () {
+        const storageKey = 'clearpath-ui:theme-preference';
+        const dayStart = 7;
+        const nightStart = 19;
+        try {
+          const mode = localStorage.getItem(storageKey) || 'auto';
+          const hour = new Date().getHours();
+          const theme = mode === 'light'
+            ? 'light'
+            : mode === 'dark'
+              ? 'dark'
+              : hour >= nightStart || hour < dayStart
+                ? 'dark'
+                : 'light';
+          const root = document.documentElement;
+          root.dataset.theme = theme;
+          root.dataset.themeMode = mode;
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'dark' ? '#030d18' : '#f1f5fb');
+        } catch (error) {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.dataset.themeMode = 'auto';
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="settings-body">
+    <main class="settings-panel" aria-labelledby="settingsTitle">
+      <header class="settings-header">
+        <a class="settings-back" href="/">← Back to map</a>
+        <div>
+          <h1 id="settingsTitle">Appearance</h1>
+          <p class="settings-lead">Choose the color mode that feels best. Auto follows your local time so ClearPath stays comfortable day and night.</p>
+        </div>
+      </header>
+
+      <form id="themeForm" class="theme-options" autocomplete="off">
+        <span id="themeFormTitle" class="theme-options__title">Theme mode</span>
+        <div class="theme-options__grid" role="radiogroup" aria-labelledby="themeFormTitle">
+          <label class="theme-option">
+            <input class="theme-option__control" type="radio" name="theme-mode" value="light" />
+            <div class="theme-option__body">
+              <span class="theme-option__icon" aria-hidden="true">&#9728;</span>
+              <div class="theme-option__info">
+                <span class="theme-option__title">Light</span>
+                <span class="theme-option__description">Bright, crisp surfaces for clear daytime contrast.</span>
+              </div>
+              <span class="theme-option__status" aria-hidden="true">Selected</span>
+            </div>
+          </label>
+          <label class="theme-option">
+            <input class="theme-option__control" type="radio" name="theme-mode" value="dark" />
+            <div class="theme-option__body">
+              <span class="theme-option__icon" aria-hidden="true">&#9790;</span>
+              <div class="theme-option__info">
+                <span class="theme-option__title">Dark</span>
+                <span class="theme-option__description">Deep tones reduce glare for late-night navigation.</span>
+              </div>
+              <span class="theme-option__status" aria-hidden="true">Selected</span>
+            </div>
+          </label>
+          <label class="theme-option">
+            <input class="theme-option__control" type="radio" name="theme-mode" value="auto" />
+            <div class="theme-option__body">
+              <span class="theme-option__icon" aria-hidden="true">&#128339;</span>
+              <div class="theme-option__info">
+                <span class="theme-option__title">Auto</span>
+                <span class="theme-option__description">Switches between light and dark based on local time.</span>
+              </div>
+              <span class="theme-option__status" aria-hidden="true">Selected</span>
+            </div>
+          </label>
+        </div>
+      </form>
+
+      <section class="theme-status" aria-live="polite">
+        <span id="themeStatusChip" class="theme-status__chip">Loading current theme…</span>
+        <p class="theme-status__meta">Auto mode uses 7 a.m. and 7 p.m. as the daytime and nighttime boundaries.</p>
+      </section>
+    </main>
+    <script type="module" src="/settings.js"></script>
+  </body>
+</html>

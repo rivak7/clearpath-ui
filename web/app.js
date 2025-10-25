@@ -1,4 +1,8 @@
-﻿const state = {
+﻿import { initTheme } from './theme.js';
+
+initTheme();
+
+const state = {
   map: null,
   satelliteLayer: null,
   overlays: null,
@@ -7,6 +11,8 @@
   userAccuracyCircle: null,
   userLocation: null,
   geolocationWatchId: null,
+  hasCenteredOnUser: false,
+  locateInFlight: null,
   suggestions: [],
   activeSuggestion: -1,
   pendingSuggest: null,
@@ -30,6 +36,14 @@ const dom = {
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
 };
+
+const GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: true,
+  timeout: 15000,
+  maximumAge: 15000,
+};
+
+const MIN_LOCATE_ZOOM = 17;
 
 const DEFAULT_VIEW = { lat: 47.6036, lon: -122.3294, zoom: 13 }; // Seattle downtown default
 
@@ -149,38 +163,122 @@ function updateUserMarker(lat, lon, accuracy) {
   }
 }
 
-function onGeolocation(position) {
+function onGeolocation(position, { centerOnUser = false, preferFly = false } = {}) {
   const { latitude, longitude, accuracy } = position.coords;
-  state.userLocation = { lat: latitude, lon: longitude, accuracy };
+  state.userLocation = {
+    lat: latitude,
+    lon: longitude,
+    accuracy,
+    timestamp: position.timestamp,
+  };
   updateUserMarker(latitude, longitude, accuracy);
-  if (state.map && !state.hasCenteredOnUser) {
-    state.map.setView([latitude, longitude], 17, { animate: true });
+  const shouldCenter = centerOnUser || !state.hasCenteredOnUser;
+  if (state.map && shouldCenter) {
+    const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
+    const zoom = centerOnUser ? Math.max(mapZoom, MIN_LOCATE_ZOOM + 1) : Math.max(mapZoom, MIN_LOCATE_ZOOM);
+    const latLng = [latitude, longitude];
+    if (preferFly && typeof state.map.flyTo === 'function') {
+      state.map.flyTo(latLng, zoom, { duration: 0.6 });
+    } else {
+      state.map.setView(latLng, zoom, { animate: true });
+    }
     state.hasCenteredOnUser = true;
   }
   updateDirections();
 }
 
-function onGeolocationError(error) {
-  if (error && error.code === error.PERMISSION_DENIED) {
-    setStatus('Location permission denied. You can still search manually.', 'error');
+function onGeolocationError(error, { userInitiated = false } = {}) {
+  if (!error) return;
+  let message = 'Unable to retrieve your location.';
+  if (error.code === error.PERMISSION_DENIED) {
+    message = 'Location permission denied. You can still search manually.';
+  } else if (error.code === error.POSITION_UNAVAILABLE) {
+    message = 'Position unavailable. Try moving outdoors or check your signal.';
+  } else if (error.code === error.TIMEOUT) {
+    message = 'Locating you took too long. Please try again.';
+  }
+  setStatus(message, 'error');
+  if (userInitiated && dom.locateButton) {
+    dom.locateButton.classList.add('fab--error');
+    window.setTimeout(() => {
+      dom.locateButton?.classList.remove('fab--error');
+    }, 1200);
+  }
+  if (error.code === error.PERMISSION_DENIED && state.geolocationWatchId !== null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(state.geolocationWatchId);
+    state.geolocationWatchId = null;
+    state.hasCenteredOnUser = false;
   }
 }
 
-function startGeolocation() {
-  if (!('geolocation' in navigator)) {
-    setStatus('Geolocation unavailable in this browser.');
-    return;
+function ensureGeolocationWatch() {
+  if (state.geolocationWatchId !== null || !('geolocation' in navigator)) return;
+  state.geolocationWatchId = navigator.geolocation.watchPosition(
+    (pos) => onGeolocation(pos),
+    (error) => onGeolocationError(error),
+    GEOLOCATION_OPTIONS,
+  );
+}
+
+function toggleLocateButtonBusy(isBusy) {
+  if (!dom.locateButton) return;
+  if (isBusy) {
+    dom.locateButton.setAttribute('aria-busy', 'true');
+    dom.locateButton.disabled = true;
+    dom.locateButton.classList.add('fab--loading');
+  } else {
+    dom.locateButton.removeAttribute('aria-busy');
+    dom.locateButton.disabled = false;
+    dom.locateButton.classList.remove('fab--loading');
   }
-  navigator.geolocation.getCurrentPosition(onGeolocation, onGeolocationError, {
-    enableHighAccuracy: true,
-    timeout: 10000,
-    maximumAge: 15000,
+}
+
+function focusOnUserLocation({ animate = true, useFly = true, zoom = MIN_LOCATE_ZOOM + 1 } = {}) {
+  if (!state.map || !state.userLocation) return;
+  const latLng = [state.userLocation.lat, state.userLocation.lon];
+  const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
+  const targetZoom = Math.max(mapZoom, zoom);
+  if (useFly && typeof state.map.flyTo === 'function') {
+    state.map.flyTo(latLng, targetZoom, { duration: animate ? 0.6 : 0 });
+  } else {
+    state.map.setView(latLng, targetZoom, { animate });
+  }
+}
+
+function startGeolocation({ centerOnSuccess = false, userInitiated = false } = {}) {
+  if (!('geolocation' in navigator)) {
+    setStatus('Geolocation unavailable in this browser.', 'error');
+    return Promise.resolve(false);
+  }
+  if (state.locateInFlight) return state.locateInFlight;
+
+  if (userInitiated) {
+    setStatus('Locating you...');
+  }
+  toggleLocateButtonBusy(true);
+
+  state.locateInFlight = new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        onGeolocation(position, { centerOnUser: centerOnSuccess, preferFly: userInitiated });
+        ensureGeolocationWatch();
+        if (userInitiated) {
+          setStatus('Centered on your position.', 'success');
+        }
+        resolve(true);
+      },
+      (error) => {
+        onGeolocationError(error, { userInitiated });
+        resolve(false);
+      },
+      GEOLOCATION_OPTIONS,
+    );
+  }).finally(() => {
+    toggleLocateButtonBusy(false);
+    state.locateInFlight = null;
   });
-  state.geolocationWatchId = navigator.geolocation.watchPosition(onGeolocation, onGeolocationError, {
-    enableHighAccuracy: true,
-    timeout: 20000,
-    maximumAge: 15000,
-  });
+
+  return state.locateInFlight;
 }
 
 function buildSuggestionNode(item, index) {
@@ -593,12 +691,42 @@ function wireSearch() {
 function wireLocateButton() {
   if (!dom.locateButton) return;
   dom.locateButton.addEventListener('click', () => {
-    if (state.userLocation && state.map) {
-      state.map.flyTo([state.userLocation.lat, state.userLocation.lon], 18, { duration: 0.6 });
-    } else {
-      startGeolocation();
+    if (state.userLocation) {
+      focusOnUserLocation({ animate: true, useFly: true });
     }
+    startGeolocation({ centerOnSuccess: true, userInitiated: true });
   });
+}
+
+async function primeGeolocation() {
+  if (!('geolocation' in navigator)) {
+    setStatus('Geolocation unavailable in this browser.', 'error');
+    return;
+  }
+
+  if (!navigator.permissions?.query) {
+    startGeolocation({ centerOnSuccess: true });
+    return;
+  }
+
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    if (status.state === 'granted') {
+      startGeolocation({ centerOnSuccess: true });
+    } else if (status.state === 'denied') {
+      setStatus('Location permission denied. Enable it in your browser settings to center the map.', 'error');
+    } else if (status.state === 'prompt') {
+      setStatus('Tap the locate button to center on your position.');
+    }
+    status.onchange = () => {
+      if (status.state === 'granted') {
+        startGeolocation({ centerOnSuccess: true });
+      }
+    };
+  } catch (error) {
+    console.warn('Unable to query geolocation permission', error);
+    startGeolocation({ centerOnSuccess: true });
+  }
 }
 
 function registerServiceWorker() {
@@ -635,7 +763,7 @@ function init() {
   wireLocateButton();
   setupInstallPrompt();
   registerServiceWorker();
-  startGeolocation();
+  primeGeolocation();
   hideSplash();
 }
 
@@ -647,5 +775,3 @@ window.addEventListener('pagehide', () => {
     state.geolocationWatchId = null;
   }
 });
-
-
