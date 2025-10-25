@@ -8,6 +8,7 @@ const AccessibilityFeature = Object.freeze({
   DYSLEXIA: 'dyslexia',
   FOCUS: 'focus',
   CALM: 'calm',
+  LOW_VISION: 'lowvision',
 });
 
 const rawFeatures = [
@@ -17,11 +18,10 @@ const rawFeatures = [
     shortLabel: 'Senior Comfort',
     icon: '65+',
     classes: ['accessibility-senior'],
-    summary: 'Enlarged typography, high-legibility controls, steadier map motions.',
+    summary: 'Larger type and steadier controls for relaxed reading.',
     bullets: [
-      'Boosts type scale, line spacing, and contrast across the interface.',
-      'Expands tap targets, buttons, and zoom controls for tremor-friendly input.',
-      'Adds calmer map movements and context hints for longer decision windows.',
+      'Upsizes text, spacing, and map overlays.',
+      'Widens tap targets and softens motion bursts.',
     ],
   },
   {
@@ -30,11 +30,10 @@ const rawFeatures = [
     shortLabel: 'Color Vision',
     icon: 'CV',
     classes: ['accessibility-colorblind'],
-    summary: 'Duo-tone palette with patterns and redundant cues that avoid color-only messaging.',
+    summary: 'High-contrast palette with backups for every hue.',
     bullets: [
-      'Replaces greens/reds with a blue–amber palette tuned for the main CVD spectrums.',
-      'Adds patterns and border styles to entrances, drop-offs, and guidance chips.',
-      'Underlines semantic meaning with icons and labels anywhere color previously worked alone.',
+      'Swaps risky reds/greens for blue–amber pairings.',
+      'Adds patterns and icons wherever color carries meaning.',
     ],
   },
   {
@@ -43,11 +42,10 @@ const rawFeatures = [
     shortLabel: 'Reading Ease',
     icon: 'AE',
     classes: ['accessibility-dyslexia'],
-    summary: 'Alternate font stack, generous letter-spacing, and sentence-case labels.',
+    summary: 'Gentler font stack with calmer letter spacing.',
     bullets: [
-      'Swaps to a dyslexia-friendly font stack with softer, distinct letterforms.',
-      'Reduces all-caps labels, increases spacing, and stabilises line length.',
-      'Adds dotted underlines to actionable text to separate it from body copy.',
+      'Switches headings and labels to sentence case.',
+      'Adds subtle spacing cues and dotted link markers.',
     ],
   },
   {
@@ -56,11 +54,10 @@ const rawFeatures = [
     shortLabel: 'Guided Focus',
     icon: '◇',
     classes: ['accessibility-focus'],
-    summary: 'Persistent focus halos, spotlighted active regions, and calmer background noise.',
+    summary: 'Bold focus halos and toned-down background noise.',
     bullets: [
-      'Projector-yellow focus halos appear on every interactive element, keyboard or touch.',
-      'Scroll snapping and focus waypoints keep the sheet content aligned at eye level.',
-      'Adds subtle masking behind popovers to reduce peripheral distractions.',
+      'Highlights every interactive element in amber.',
+      'Dims peripheral chrome so active cards stand out.',
     ],
   },
   {
@@ -69,11 +66,22 @@ const rawFeatures = [
     shortLabel: 'Calm Motion',
     icon: '≋',
     classes: ['accessibility-calm'],
-    summary: 'Disables motion bursts, flattens parallax, and eases map transitions.',
+    summary: 'Keeps motion minimal for sensitive riders.',
     bullets: [
-      'Suppresses non-essential animations, pulses, and parallax flourishes.',
-      'Switches live map recentering to snap mode with zero glide duration.',
-      'Prefers static feedback, replacing bounce states with gentle contrast shifts.',
+      'Disables non-essential animations and pulses.',
+      'Snaps map recentering without the flyover glide.',
+    ],
+  },
+  {
+    id: AccessibilityFeature.LOW_VISION,
+    label: 'Low Vision Beacon',
+    shortLabel: 'Low Vision',
+    icon: 'V+',
+    classes: ['accessibility-lowvision'],
+    summary: 'Ultra-bold contrast and outlines you can track instantly.',
+    bullets: [
+      'Layers black-and-gold contrast across the UI.',
+      'Thickens borders and marker halos for quick scanning.',
     ],
   },
 ];

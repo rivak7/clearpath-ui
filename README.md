@@ -78,6 +78,10 @@ If you want to manage Node yourself instead of using `./run`:
 - `web/index.html`: Minimal web UI for querying `/entrance` and previewing the session map.
 - `run`: One‑command bootstrapper and launcher.
 - `src/satdist`: Python package for bbox distance, imagery fetch, and map helpers.
+
+## Accessibility profiles
+
+The UI includes layered assistive profiles (senior, color vision, reading ease, guided focus, calm motion, low vision). When adding pages or components make sure they respond to those profiles—see [`docs/accessibility-profiles.md`](docs/accessibility-profiles.md) for the CSS/JS hooks and the QA checklist.
 - Generated artifacts (e.g., `sessions/`, `config/cache/`, `*.png`) are ignored.
 
 ## Geocoding Endpoint
