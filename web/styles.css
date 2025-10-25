@@ -969,11 +969,6 @@ body {
   gap: 14px;
 }
 
-.entrance-confirm__body {
-  display: grid;
-  gap: 6px;
-}
-
 .entrance-confirm__title {
   margin: 0;
   font-size: 1rem;
@@ -985,12 +980,6 @@ body {
   font-size: 0.82rem;
   color: var(--text-muted);
   line-height: 1.45;
-}
-
-.entrance-confirm__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .entrance-confirm__button {
@@ -1016,30 +1005,28 @@ body {
   cursor: progress;
 }
 
-.entrance-confirm__button--primary {
-  background: var(--accent);
-  color: var(--text-invert);
-  border-color: var(--accent);
-  box-shadow: 0 16px 28px rgba(61, 214, 193, 0.24);
+.entrance-confirm__button--ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: transparent;
+  box-shadow: none;
+  padding-inline: 6px;
 }
 
-.entrance-confirm__button--primary:hover:not(:disabled) {
-  box-shadow: 0 20px 36px rgba(61, 214, 193, 0.28);
+.entrance-confirm__button--ghost:hover:not(:disabled) {
+  color: var(--text-strong);
 }
 
-.entrance-confirm__suggest {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 0.8rem;
-  align-self: flex-start;
-  cursor: pointer;
+.entrance-confirm--inline {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 360px;
 }
 
-.entrance-confirm__suggest:hover {
-  text-decoration: underline;
+.entrance-confirm__assurance {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
 .entrance-options {
@@ -1053,9 +1040,9 @@ body {
 
 .entrance-options__head {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 
 .entrance-options__title {
@@ -1064,9 +1051,22 @@ body {
   font-weight: 600;
 }
 
+.entrance-options__metaWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .entrance-options__meta {
   font-size: 0.78rem;
   color: var(--text-muted);
+}
+
+.entrance-options__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .entrance-options__list {
@@ -1127,7 +1127,7 @@ body {
 }
 
 .entrance-options__action {
-  border: none;
+  border: 1px solid var(--accent);
   border-radius: 999px;
   padding: 10px 18px;
   background: var(--accent);
@@ -1135,7 +1135,6 @@ body {
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
-  justify-self: start;
   box-shadow: 0 16px 28px rgba(61, 214, 193, 0.22);
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
@@ -1149,6 +1148,17 @@ body {
   opacity: 0.65;
   cursor: progress;
   box-shadow: none;
+}
+
+.entrance-options__action--ghost {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent-outline);
+  box-shadow: none;
+}
+
+.entrance-options__action--ghost:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(12, 34, 56, 0.18);
 }
 
 .entrance-options__hint {
@@ -1370,12 +1380,17 @@ body {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: clamp(6px, 2vw, 10px);
+  padding: clamp(2px, 1vw, 6px);
   border-radius: var(--radius-sm);
   grid-area: remove;
   min-height: calc(var(--touch-target) - clamp(12px, 3vw, 18px));
   align-self: flex-start;
   transition: color 0.2s ease, background 0.2s ease;
+  font-size: clamp(18px, 3vw, 22px);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .route-stop__remove:hover {

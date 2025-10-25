@@ -1297,6 +1297,17 @@ function ensureCommunityStore() {
   }
 }
 
+function ensureUserStore() {
+  if (!fs.existsSync(USER_DATA_FILE)) {
+    const seed = { version: 1, updatedAt: new Date().toISOString(), profiles: {} };
+    try {
+      fs.writeFileSync(USER_DATA_FILE, JSON.stringify(seed, null, 2));
+    } catch {
+      // same best-effort persistence approach as community store
+    }
+  }
+}
+
 function readCommunityStore() {
   try {
     const raw = fs.readFileSync(COMMUNITY_DATA_FILE, 'utf8');
