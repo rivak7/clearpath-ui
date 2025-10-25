@@ -140,7 +140,7 @@ const dom = {
   entranceConfirmMessage: document.getElementById('entranceConfirmMessage'),
   entranceConfirmYes: document.getElementById('entranceConfirmYes'),
   entranceConfirmNo: document.getElementById('entranceConfirmNo'),
-  entranceConfirmSuggest: document.getElementById('entranceConfirmSuggest'),
+  entranceAssurance: document.getElementById('entranceAssurance'),
   accountButton: document.getElementById('accountButton'),
   accountAvatar: document.getElementById('accountAvatar'),
   accountLabel: document.getElementById('accountLabel'),
@@ -2544,6 +2544,21 @@ function updateDirections() {
   refreshSheetSnap({ animate: false });
 }
 
+function getNavigationOrigin() {
+  const originStop = state.routeStops.find((stop) => stop.role === 'origin');
+  const value = originStop?.value?.trim();
+  if (value) {
+    if (value.toLowerCase() === 'my location' && state.userLocation && Number.isFinite(state.userLocation.lat) && Number.isFinite(state.userLocation.lon)) {
+      return `${state.userLocation.lat.toFixed(6)},${state.userLocation.lon.toFixed(6)}`;
+    }
+    return value;
+  }
+  if (state.userLocation && Number.isFinite(state.userLocation.lat) && Number.isFinite(state.userLocation.lon)) {
+    return `${state.userLocation.lat.toFixed(6)},${state.userLocation.lon.toFixed(6)}`;
+  }
+  return '';
+}
+
 function updateNavigationLinks() {
   if (!dom.navLinks) return;
   dom.navLinks.innerHTML = '';
@@ -2554,16 +2569,21 @@ function updateNavigationLinks() {
     return;
   }
   const destination = `${entrance.lat},${entrance.lon}`;
+  const origin = getNavigationOrigin();
+  const encodedDestination = encodeURIComponent(destination);
+  const encodedOrigin = origin ? encodeURIComponent(origin) : '';
   const links = [
     {
       id: 'google',
       label: 'Open in Google Maps',
-      href: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`,
+      href: `https://www.google.com/maps/dir/?api=1&destination=${encodedDestination}${encodedOrigin ? `&origin=${encodedOrigin}` : ''}`,
     },
     {
       id: 'apple',
       label: 'Open in Apple Maps',
-      href: `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}`,
+      href: encodedOrigin
+        ? `https://maps.apple.com/?saddr=${encodedOrigin}&daddr=${encodedDestination}`
+        : `https://maps.apple.com/?daddr=${encodedDestination}`,
     },
   ];
   links.forEach((link) => {
@@ -2673,12 +2693,6 @@ function wireEntranceConfirmation() {
   if (dom.entranceConfirmNo) {
     dom.entranceConfirmNo.addEventListener('click', () => {
       hideEntranceConfirmation({ mark: true });
-    });
-  }
-  if (dom.entranceConfirmSuggest) {
-    dom.entranceConfirmSuggest.addEventListener('click', () => {
-      hideEntranceConfirmation({ mark: true });
-      startEntranceVoting();
     });
   }
 }
