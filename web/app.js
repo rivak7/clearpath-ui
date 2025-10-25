@@ -84,6 +84,10 @@ function collectDesignTokens() {
     markerCnnFill: read('--marker-cnn-fill', '#1c64f2'),
     markerDropoffBorder: read('--marker-dropoff-border', '#f9b234'),
     markerDropoffFill: read('--marker-dropoff-fill', '#faca61'),
+    markerCommunityBorder: read('--marker-community-border', '#125e63'),
+    markerCommunityFill: read('--marker-community-fill', '#69e3d4'),
+    markerSelectedBorder: read('--marker-selected-border', '#114e4d'),
+    markerSelectedFill: read('--marker-selected-fill', '#0ea5e9'),
     pathConnector: read('--path-connector', '#3dd6c1'),
   };
 }
