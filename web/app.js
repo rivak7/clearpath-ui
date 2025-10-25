@@ -5,9 +5,31 @@ import {
   initAccessibility,
   onAccessibilityChange,
 } from './accessibility.js';
+import {
+  initAccount,
+  onAccountChange,
+  login,
+  logout,
+  signup,
+  isAuthenticated,
+  getCurrentUser,
+  saveFavorite,
+  removeFavorite,
+  recordRecent,
+  setHome,
+  setWork,
+  clearHome,
+  clearWork,
+  updateProfile,
+  touchPreference,
+  getSavedPlaces,
+  getRecents,
+  getPreferences,
+} from './account.js';
 
 initTheme();
 initAccessibility();
+initAccount();
 
 const state = {
   map: null,
@@ -25,6 +47,7 @@ const state = {
   pendingSuggest: null,
   lastResult: null,
   installPromptEvent: null,
+  hasShownInstallBanner: false,
   voteLayer: null,
   entranceOptions: [],
   selectedEntranceId: null,
@@ -35,12 +58,14 @@ const state = {
   voteInFlight: false,
   confirmationPrompt: null,
   sheet: {
-    snapPoints: [0.12, 0.58, 0.92],
+    snapPoints: [],
     index: 0,
     translate: 0,
-    minVisible: null,
+    baseline: null,
     observer: null,
     isAnimating: false,
+    resizeRaf: null,
+    viewportCleanup: null,
   },
   routeStops: [],
   routeStopCounter: 0,
@@ -53,6 +78,20 @@ const state = {
   splashResetTimer: null,
   searchCount: 0,
   lastConfirmationPromptAt: 0,
+  account: {
+    user: null,
+    token: null,
+    ready: false,
+  },
+  accountMenuOpen: false,
+  authMode: 'login',
+  authBusy: false,
+  personalization: {
+    quickLinks: [],
+    recents: [],
+  },
+  lastRecordedResultKey: null,
+  pendingPlaceTarget: null,
 };
 
 state.accessibility = new Set();
@@ -80,6 +119,10 @@ const dom = {
   sheetSubtitle: document.getElementById('sheetSubtitle'),
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
+  installBanner: document.getElementById('installBanner'),
+  installBannerConfirm: document.getElementById('installBannerConfirm'),
+  installBannerDismiss: document.getElementById('installBannerDismiss'),
+  sheetLauncher: document.getElementById('openSheet'),
   sheetHandle: document.getElementById('sheetHandle'),
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
@@ -98,6 +141,36 @@ const dom = {
   entranceConfirmYes: document.getElementById('entranceConfirmYes'),
   entranceConfirmNo: document.getElementById('entranceConfirmNo'),
   entranceConfirmSuggest: document.getElementById('entranceConfirmSuggest'),
+  accountButton: document.getElementById('accountButton'),
+  accountAvatar: document.getElementById('accountAvatar'),
+  accountLabel: document.getElementById('accountLabel'),
+  accountCard: document.getElementById('accountCard'),
+  accountClose: document.getElementById('accountClose'),
+  accountOpenSettings: document.getElementById('accountOpenSettings'),
+  accountSignOut: document.getElementById('accountSignOut'),
+  accountSavedPlaces: document.getElementById('accountSavedPlaces'),
+  accountPreferenceSummary: document.getElementById('accountPreferenceSummary'),
+  accountName: document.getElementById('accountName'),
+  accountEmail: document.getElementById('accountEmail'),
+  accountCardAvatar: document.getElementById('accountCardAvatar'),
+  personalizationRail: document.getElementById('personalizationRail'),
+  personalizationQuickLinks: document.getElementById('personalizationQuickLinks'),
+  personalizationRecents: document.getElementById('personalizationRecents'),
+  personalizationRecentsList: document.getElementById('personalizationRecentsList'),
+  managePersonalization: document.getElementById('managePersonalization'),
+  authDialog: document.getElementById('authDialog'),
+  authClose: document.getElementById('authClose'),
+  authSwitcher: document.getElementById('authSwitcher'),
+  authHint: document.getElementById('authHint'),
+  loginForm: document.getElementById('loginForm'),
+  signupForm: document.getElementById('signupForm'),
+  authStatus: document.getElementById('authStatus'),
+  authTitle: document.getElementById('authTitle'),
+  authSubtitle: document.getElementById('authSubtitle'),
+  placeActions: document.getElementById('placeActions'),
+  saveAsHome: document.getElementById('saveAsHome'),
+  saveAsWork: document.getElementById('saveAsWork'),
+  saveAsFavorite: document.getElementById('saveAsFavorite'),
 };
 
 if (dom.splash) {
@@ -108,9 +181,33 @@ if (dom.entranceOptions) {
   dom.entranceOptions.setAttribute('aria-hidden', dom.entranceOptions.hidden ? 'true' : 'false');
 }
 
+if (dom.installBanner) {
+  dom.installBanner.setAttribute('aria-hidden', dom.installBanner.hidden ? 'true' : 'false');
+}
+
+if (dom.personalizationRail) {
+  dom.personalizationRail.setAttribute('aria-hidden', dom.personalizationRail.hidden ? 'true' : 'false');
+}
+
+if (dom.accountCard) {
+  dom.accountCard.setAttribute('aria-hidden', dom.accountCard.hidden ? 'true' : 'false');
+}
+
+if (dom.authDialog) {
+  dom.authDialog.setAttribute('aria-hidden', dom.authDialog.hidden ? 'true' : 'false');
+}
+
+if (dom.placeActions) {
+  dom.placeActions.setAttribute('aria-hidden', dom.placeActions.hidden ? 'true' : 'false');
+}
+
 const SPLASH_MESSAGES = {
   bootstrap: 'Preparing your experience...',
   search: 'Finding the best entrance...',
+};
+
+const STORAGE_KEYS = {
+  installBannerDismissed: 'clearpath-ui:install-banner-dismissed',
 };
 
 function collectDesignTokens() {
@@ -147,6 +244,54 @@ function getDesignTokens() {
     state.designTokens = collectDesignTokens();
   }
   return state.designTokens;
+}
+
+function isStandaloneDisplayMode() {
+  try {
+    const matchMedia = window.matchMedia?.('(display-mode: standalone)');
+    return Boolean(matchMedia?.matches || window.navigator?.standalone);
+  } catch (error) {
+    return false;
+  }
+}
+
+function readInstallBannerDismissed() {
+  try {
+    return window.localStorage?.getItem(STORAGE_KEYS.installBannerDismissed) === '1';
+  } catch (error) {
+    return false;
+  }
+}
+
+function rememberInstallBannerDismissed() {
+  try {
+    window.localStorage?.setItem(STORAGE_KEYS.installBannerDismissed, '1');
+  } catch (error) {
+    // noop
+  }
+}
+
+function shouldShowInstallBanner() {
+  if (!dom.installBanner) return false;
+  if (state.hasShownInstallBanner) return false;
+  if (isStandaloneDisplayMode()) return false;
+  return !readInstallBannerDismissed();
+}
+
+function showInstallBanner() {
+  if (!dom.installBanner) return;
+  dom.installBanner.hidden = false;
+  dom.installBanner.setAttribute('aria-hidden', 'false');
+  state.hasShownInstallBanner = true;
+}
+
+function hideInstallBanner({ persistDismiss = false } = {}) {
+  if (!dom.installBanner) return;
+  dom.installBanner.hidden = true;
+  dom.installBanner.setAttribute('aria-hidden', 'true');
+  if (persistDismiss) {
+    rememberInstallBannerDismissed();
+  }
 }
 
 function shouldReduceMotion() {
@@ -191,8 +336,72 @@ const MIN_LOCATE_ZOOM = 17;
 const MAX_SATELLITE_ZOOM = 18;
 
 const DEFAULT_VIEW = { lat: 47.6036, lon: -122.3294, zoom: 13 }; // Seattle downtown default
-const SHEET_MIN_VISIBLE = 208;
+const SHEET_BASELINE_FALLBACK = 208;
 const SHEET_PEEK_MIN_VISIBLE = 72;
+const SHEET_SNAP_TOLERANCE = 0.005;
+
+function getViewportHeight() {
+  const viewport = window.visualViewport;
+  if (viewport && Number.isFinite(viewport.height)) {
+    return viewport.height;
+  }
+  if (Number.isFinite(window.innerHeight)) {
+    return window.innerHeight;
+  }
+  if (document.documentElement && Number.isFinite(document.documentElement.clientHeight)) {
+    return document.documentElement.clientHeight;
+  }
+  if (document.body && Number.isFinite(document.body.clientHeight)) {
+    return document.body.clientHeight;
+  }
+  return SHEET_BASELINE_FALLBACK * 3;
+}
+
+function computeSheetBaselineVisible() {
+  const height = getViewportHeight();
+  if (!Number.isFinite(height)) {
+    return SHEET_BASELINE_FALLBACK;
+  }
+  if (height <= 600) {
+    return Math.max(168, Math.round(height * 0.24));
+  }
+  if (height <= 780) {
+    return Math.max(188, Math.round(height * 0.26));
+  }
+  if (height <= 920) {
+    return Math.round(height * 0.28);
+  }
+  return Math.min(320, Math.round(height * 0.3));
+}
+
+function computeSheetSnapPoints() {
+  const height = getViewportHeight();
+  const isLandscape = typeof window.matchMedia === 'function' && window.matchMedia('(orientation: landscape)').matches;
+  if (!Number.isFinite(height)) {
+    return [0.3, 0.62, 0.92];
+  }
+  if (height <= 600) {
+    return [0.36, 0.62, 0.92];
+  }
+  if (isLandscape && height <= 720) {
+    return [0.32, 0.58, 0.9];
+  }
+  if (height >= 960) {
+    return [0.24, 0.6, 0.96];
+  }
+  return [0.3, 0.62, 0.92];
+}
+
+function syncSheetSnapPoints() {
+  const next = computeSheetSnapPoints();
+  const current = state.sheet?.snapPoints || [];
+  const changed = current.length !== next.length
+    || current.some((value, idx) => Math.abs(value - next[idx]) > SHEET_SNAP_TOLERANCE);
+  if (changed) {
+    state.sheet.snapPoints = next;
+  }
+  return changed;
+}
 
 function initMap() {
   if (!dom.map) return;
@@ -378,14 +587,17 @@ function setStatus(message, type = 'info') {
   if (type === 'success') dom.statusMessage.classList.add('status--success');
 }
 
-function computeSheetPosition(fraction, { minVisible = SHEET_MIN_VISIBLE } = {}) {
+function computeSheetPosition(fraction, { minVisible } = {}) {
   if (!dom.infoSheet) {
-    return { translate: 0, visible: minVisible };
+    const baseline = typeof minVisible === 'number' ? minVisible : computeSheetBaselineVisible();
+    return { translate: 0, visible: baseline };
   }
   const sheet = dom.infoSheet;
   const sheetHeight = sheet.scrollHeight;
-  const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || sheetHeight;
-  const clampedVisible = Math.min(sheetHeight, Math.max(minVisible, Math.round(viewportHeight * fraction)));
+  const baseline = typeof minVisible === 'number' ? minVisible : computeSheetBaselineVisible();
+  const viewportHeight = getViewportHeight();
+  const visibleTarget = Math.round(viewportHeight * fraction);
+  const clampedVisible = Math.min(sheetHeight, Math.max(baseline, visibleTarget));
   const translate = Math.max(0, sheetHeight - clampedVisible);
   return { translate, visible: clampedVisible };
 }
@@ -404,7 +616,7 @@ function clampSheetTranslate(value) {
   if (!dom.infoSheet) return 0;
   const sheetHeight = dom.infoSheet.scrollHeight;
   const peekVisible = Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE);
-  const baseline = state.sheet?.minVisible || SHEET_MIN_VISIBLE;
+  const baseline = state.sheet?.baseline || computeSheetBaselineVisible();
   const minVisible = Math.min(baseline, peekVisible);
   const maxTranslate = Math.max(0, sheetHeight - minVisible);
   if (!Number.isFinite(value)) return 0;
@@ -416,6 +628,9 @@ function updateSheetVisualState(index) {
   const snapPoints = state.sheet?.snapPoints || [];
   dom.infoSheet.classList.toggle('sheet--peek', index === 0);
   dom.infoSheet.classList.toggle('sheet--expanded', index === snapPoints.length - 1);
+  if (dom.sheetLauncher) {
+    dom.sheetLauncher.hidden = index !== 0;
+  }
 }
 
 function applySheetSnap(index, { animate = true } = {}) {
@@ -424,12 +639,13 @@ function applySheetSnap(index, { animate = true } = {}) {
   const resolvedIndex = Math.max(0, Math.min(index, snapPoints.length - 1));
   const isPeek = resolvedIndex === 0;
   const peekVisible = Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE);
-  const minVisible = isPeek ? peekVisible : SHEET_MIN_VISIBLE;
+  const baseline = state.sheet?.baseline || computeSheetBaselineVisible();
+  const minVisible = isPeek ? peekVisible : baseline;
   const { translate, visible } = computeSheetPosition(snapPoints[resolvedIndex], { minVisible });
   state.sheet.index = resolvedIndex;
   state.sheet.translate = translate;
   state.sheet.visible = visible;
-  state.sheet.minVisible = minVisible;
+  state.sheet.baseline = baseline;
   if (!animate) {
     dom.infoSheet.classList.add('sheet--dragging');
   } else {
@@ -449,6 +665,15 @@ function applySheetSnap(index, { animate = true } = {}) {
 }
 
 function refreshSheetSnap({ animate = false } = {}) {
+  const changed = syncSheetSnapPoints();
+  if (!state.sheet.snapPoints.length) {
+    state.sheet.snapPoints = computeSheetSnapPoints();
+  }
+  state.sheet.baseline = computeSheetBaselineVisible();
+  if (changed) {
+    const maxIndex = state.sheet.snapPoints.length - 1;
+    state.sheet.index = Math.max(0, Math.min(state.sheet.index ?? 0, maxIndex));
+  }
   applySheetSnap(state.sheet.index ?? 0, { animate });
 }
 
@@ -546,8 +771,9 @@ function finishSheetDrag(evt) {
   const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
   let bestIndex = state.sheet.index;
   let bestDistance = Number.POSITIVE_INFINITY;
+  const baseline = state.sheet?.baseline || computeSheetBaselineVisible();
   snapPoints.forEach((fraction, idx) => {
-    const minVisible = idx === 0 ? Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE) : SHEET_MIN_VISIBLE;
+    const minVisible = idx === 0 ? Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE) : baseline;
     const { translate: candidate } = computeSheetPosition(fraction, { minVisible });
     const distance = Math.abs(candidate - targetTranslate);
     if (distance < bestDistance) {
@@ -560,16 +786,42 @@ function finishSheetDrag(evt) {
 
 function initSheetInteractions() {
   if (!dom.infoSheet) return;
+  syncSheetSnapPoints();
+  state.sheet.baseline = computeSheetBaselineVisible();
   refreshSheetSnap({ animate: false });
+  const scheduleSheetRefresh = () => {
+    if (state.sheet.resizeRaf) {
+      window.cancelAnimationFrame(state.sheet.resizeRaf);
+    }
+    state.sheet.resizeRaf = window.requestAnimationFrame(() => {
+      state.sheet.resizeRaf = null;
+      refreshSheetSnap({ animate: false });
+    });
+  };
   if (dom.sheetHandle) {
     dom.sheetHandle.addEventListener('pointerdown', startSheetDrag, { passive: false });
     dom.sheetHandle.addEventListener('keydown', onSheetHandleKeydown);
   }
   if ('ResizeObserver' in window && dom.sheetContent) {
-    state.sheet.observer = new ResizeObserver(() => refreshSheetSnap({ animate: false }));
+    state.sheet.observer = new ResizeObserver(() => scheduleSheetRefresh());
     state.sheet.observer.observe(dom.sheetContent);
   }
-  window.addEventListener('resize', () => refreshSheetSnap({ animate: false }));
+  window.addEventListener('resize', scheduleSheetRefresh);
+  if (window.visualViewport) {
+    const viewportRefresh = scheduleSheetRefresh;
+    window.visualViewport.addEventListener('resize', viewportRefresh);
+    window.visualViewport.addEventListener('scroll', viewportRefresh);
+    state.sheet.viewportCleanup = () => {
+      window.visualViewport.removeEventListener('resize', viewportRefresh);
+      window.visualViewport.removeEventListener('scroll', viewportRefresh);
+    };
+    window.addEventListener('pagehide', () => {
+      if (state.sheet.viewportCleanup) {
+        state.sheet.viewportCleanup();
+        state.sheet.viewportCleanup = null;
+      }
+    }, { once: true });
+  }
 }
 
 function createRouteStop(role, value = '', meta = '') {
@@ -2386,6 +2638,17 @@ function wireLocateButton() {
   });
 }
 
+function wireSheetLauncher() {
+  if (!dom.sheetLauncher) return;
+  dom.sheetLauncher.addEventListener('click', () => {
+    if (!dom.infoSheet) return;
+    dom.infoSheet.hidden = false;
+    dom.infoSheet.setAttribute('aria-hidden', 'false');
+    const targetIndex = state.sheet.index > 0 ? state.sheet.index : Math.min(1, (state.sheet?.snapPoints?.length || 2) - 1);
+    applySheetSnap(targetIndex || 1, { animate: true });
+  });
+}
+
 function wireEntranceConfirmation() {
   if (dom.entranceConfirmYes) {
     dom.entranceConfirmYes.addEventListener('click', () => {
@@ -2469,25 +2732,74 @@ function registerServiceWorker() {
   });
 }
 
+async function requestAppInstall(cta) {
+  if (!state.installPromptEvent) return;
+  if (cta) {
+    cta.disabled = true;
+    cta.setAttribute('aria-busy', 'true');
+  }
+  try {
+    await state.installPromptEvent.prompt();
+    const choice = await state.installPromptEvent.userChoice;
+    if (choice?.outcome === 'accepted') {
+      setStatus('ClearPath added to your device.', 'success');
+      hideInstallBanner({ persistDismiss: true });
+      rememberInstallBannerDismissed();
+    } else if (choice?.outcome === 'dismissed' && cta === dom.installBannerConfirm) {
+      hideInstallBanner({ persistDismiss: true });
+    }
+  } catch (error) {
+    console.warn('Install prompt failed', error);
+  } finally {
+    if (cta) {
+      cta.removeAttribute('aria-busy');
+      cta.disabled = false;
+    }
+    if (cta === dom.installButton || cta === dom.installBannerConfirm) {
+      hideInstallBanner({ persistDismiss: true });
+    }
+    dom.installButton.hidden = true;
+    state.installPromptEvent = null;
+  }
+}
+
 function setupInstallPrompt() {
   if (!dom.installButton) return;
+
+  if (isStandaloneDisplayMode()) {
+    rememberInstallBannerDismissed();
+  }
+
   window.addEventListener('beforeinstallprompt', (evt) => {
     evt.preventDefault();
     state.installPromptEvent = evt;
     dom.installButton.hidden = false;
-  });
-  dom.installButton.addEventListener('click', async () => {
-    if (!state.installPromptEvent) return;
-    dom.installButton.disabled = true;
-    await state.installPromptEvent.prompt();
-    const choice = await state.installPromptEvent.userChoice;
-    if (choice.outcome === 'accepted') {
-      setStatus('ClearPath added to your device.', 'success');
-    }
-    dom.installButton.hidden = true;
     dom.installButton.disabled = false;
-    state.installPromptEvent = null;
+    if (shouldShowInstallBanner()) {
+      showInstallBanner();
+    }
   });
+
+  dom.installButton.addEventListener('click', () => {
+    if (!state.installPromptEvent) return;
+    requestAppInstall(dom.installButton);
+  });
+
+  if (dom.installBannerConfirm) {
+    dom.installBannerConfirm.addEventListener('click', () => {
+      if (!state.installPromptEvent) {
+        hideInstallBanner({ persistDismiss: true });
+        return;
+      }
+      requestAppInstall(dom.installBannerConfirm);
+    });
+  }
+
+  if (dom.installBannerDismiss) {
+    dom.installBannerDismiss.addEventListener('click', () => {
+      hideInstallBanner({ persistDismiss: true });
+    });
+  }
 }
 
 function init() {
@@ -2500,7 +2812,11 @@ function init() {
   wireCommunityEntranceControls();
   initSheetInteractions();
   initRoutePlanner();
+  resetSheetHeadings();
   advanceSplashProgress(0.55);
+  if (isStandaloneDisplayMode()) {
+    hideInstallBanner({ persistDismiss: true });
+  }
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();
