@@ -36,12 +36,14 @@ const state = {
   voteInFlight: false,
   confirmationPrompt: null,
   sheet: {
-    snapPoints: [0.12, 0.58, 0.92],
+    snapPoints: [],
     index: 0,
     translate: 0,
-    minVisible: null,
+    baseline: null,
     observer: null,
     isAnimating: false,
+    resizeRaf: null,
+    viewportCleanup: null,
   },
   routeStops: [],
   routeStopCounter: 0,
@@ -251,8 +253,72 @@ const MIN_LOCATE_ZOOM = 17;
 const MAX_SATELLITE_ZOOM = 18;
 
 const DEFAULT_VIEW = { lat: 47.6036, lon: -122.3294, zoom: 13 }; // Seattle downtown default
-const SHEET_MIN_VISIBLE = 208;
+const SHEET_BASELINE_FALLBACK = 208;
 const SHEET_PEEK_MIN_VISIBLE = 72;
+const SHEET_SNAP_TOLERANCE = 0.005;
+
+function getViewportHeight() {
+  const viewport = window.visualViewport;
+  if (viewport && Number.isFinite(viewport.height)) {
+    return viewport.height;
+  }
+  if (Number.isFinite(window.innerHeight)) {
+    return window.innerHeight;
+  }
+  if (document.documentElement && Number.isFinite(document.documentElement.clientHeight)) {
+    return document.documentElement.clientHeight;
+  }
+  if (document.body && Number.isFinite(document.body.clientHeight)) {
+    return document.body.clientHeight;
+  }
+  return SHEET_BASELINE_FALLBACK * 3;
+}
+
+function computeSheetBaselineVisible() {
+  const height = getViewportHeight();
+  if (!Number.isFinite(height)) {
+    return SHEET_BASELINE_FALLBACK;
+  }
+  if (height <= 600) {
+    return Math.max(168, Math.round(height * 0.24));
+  }
+  if (height <= 780) {
+    return Math.max(188, Math.round(height * 0.26));
+  }
+  if (height <= 920) {
+    return Math.round(height * 0.28);
+  }
+  return Math.min(320, Math.round(height * 0.3));
+}
+
+function computeSheetSnapPoints() {
+  const height = getViewportHeight();
+  const isLandscape = typeof window.matchMedia === 'function' && window.matchMedia('(orientation: landscape)').matches;
+  if (!Number.isFinite(height)) {
+    return [0.16, 0.56, 0.92];
+  }
+  if (height <= 600) {
+    return [0.22, 0.52, 0.9];
+  }
+  if (isLandscape && height <= 720) {
+    return [0.2, 0.5, 0.86];
+  }
+  if (height >= 960) {
+    return [0.14, 0.58, 0.96];
+  }
+  return [0.16, 0.56, 0.92];
+}
+
+function syncSheetSnapPoints() {
+  const next = computeSheetSnapPoints();
+  const current = state.sheet?.snapPoints || [];
+  const changed = current.length !== next.length
+    || current.some((value, idx) => Math.abs(value - next[idx]) > SHEET_SNAP_TOLERANCE);
+  if (changed) {
+    state.sheet.snapPoints = next;
+  }
+  return changed;
+}
 
 function initMap() {
   if (!dom.map) return;
@@ -438,14 +504,17 @@ function setStatus(message, type = 'info') {
   if (type === 'success') dom.statusMessage.classList.add('status--success');
 }
 
-function computeSheetPosition(fraction, { minVisible = SHEET_MIN_VISIBLE } = {}) {
+function computeSheetPosition(fraction, { minVisible } = {}) {
   if (!dom.infoSheet) {
-    return { translate: 0, visible: minVisible };
+    const baseline = typeof minVisible === 'number' ? minVisible : computeSheetBaselineVisible();
+    return { translate: 0, visible: baseline };
   }
   const sheet = dom.infoSheet;
   const sheetHeight = sheet.scrollHeight;
-  const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || sheetHeight;
-  const clampedVisible = Math.min(sheetHeight, Math.max(minVisible, Math.round(viewportHeight * fraction)));
+  const baseline = typeof minVisible === 'number' ? minVisible : computeSheetBaselineVisible();
+  const viewportHeight = getViewportHeight();
+  const visibleTarget = Math.round(viewportHeight * fraction);
+  const clampedVisible = Math.min(sheetHeight, Math.max(baseline, visibleTarget));
   const translate = Math.max(0, sheetHeight - clampedVisible);
   return { translate, visible: clampedVisible };
 }
@@ -464,7 +533,7 @@ function clampSheetTranslate(value) {
   if (!dom.infoSheet) return 0;
   const sheetHeight = dom.infoSheet.scrollHeight;
   const peekVisible = Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE);
-  const baseline = state.sheet?.minVisible || SHEET_MIN_VISIBLE;
+  const baseline = state.sheet?.baseline || computeSheetBaselineVisible();
   const minVisible = Math.min(baseline, peekVisible);
   const maxTranslate = Math.max(0, sheetHeight - minVisible);
   if (!Number.isFinite(value)) return 0;
@@ -484,12 +553,13 @@ function applySheetSnap(index, { animate = true } = {}) {
   const resolvedIndex = Math.max(0, Math.min(index, snapPoints.length - 1));
   const isPeek = resolvedIndex === 0;
   const peekVisible = Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE);
-  const minVisible = isPeek ? peekVisible : SHEET_MIN_VISIBLE;
+  const baseline = state.sheet?.baseline || computeSheetBaselineVisible();
+  const minVisible = isPeek ? peekVisible : baseline;
   const { translate, visible } = computeSheetPosition(snapPoints[resolvedIndex], { minVisible });
   state.sheet.index = resolvedIndex;
   state.sheet.translate = translate;
   state.sheet.visible = visible;
-  state.sheet.minVisible = minVisible;
+  state.sheet.baseline = baseline;
   if (!animate) {
     dom.infoSheet.classList.add('sheet--dragging');
   } else {
@@ -2552,6 +2622,9 @@ async function requestAppInstall(cta) {
       cta.removeAttribute('aria-busy');
       cta.disabled = false;
     }
+    if (cta === dom.installButton || cta === dom.installBannerConfirm) {
+      hideInstallBanner({ persistDismiss: true });
+    }
     dom.installButton.hidden = true;
     state.installPromptEvent = null;
   }
@@ -2606,7 +2679,11 @@ function init() {
   wireCommunityEntranceControls();
   initSheetInteractions();
   initRoutePlanner();
+  resetSheetHeadings();
   advanceSplashProgress(0.55);
+  if (isStandaloneDisplayMode()) {
+    hideInstallBanner({ persistDismiss: true });
+  }
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();

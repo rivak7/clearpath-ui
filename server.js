@@ -188,6 +188,250 @@ app.get(['/health', '/_health', '/ping'], (req, res) => {
   res.status(200).json({ status: 'ok', message: 'ping' });
 });
 
+// Account + personalization APIs (JSON store backed)
+app.post('/api/users/signup', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'invalid_email' });
+    }
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'weak_password', message: 'Password must be at least 8 characters.' });
+    }
+    const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
+
+    const store = await readUserStore();
+    if (store.users.some((user) => user.email === email)) {
+      return res.status(409).json({ error: 'email_in_use' });
+    }
+
+    const { hash, salt } = hashPassword(password);
+    const nowIso = new Date().toISOString();
+    const userRecord = normalizeUserRecord({
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : crypto.randomBytes(8).toString('hex'),
+      email,
+      name: name || email.split('@')[0],
+      passwordHash: hash,
+      salt,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      preferences: body.preferences || {},
+      savedPlaces: body.savedPlaces || {},
+      commutePlan: body.commutePlan || {},
+      recents: [],
+      metrics: { searches: 0, lastLoginAt: nowIso, lastActiveAt: nowIso },
+    });
+
+    store.users.push(userRecord);
+    await writeUserStore(store);
+
+    const token = createSession(userRecord.id);
+    setSessionCookie(res, token, req);
+
+    return res.status(201).json({ token, user: sanitizeUser(userRecord) });
+  } catch (error) {
+    console.error('Signup failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.post('/api/users/login', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!isValidEmail(email) || !password) {
+      return res.status(400).json({ error: 'invalid_credentials' });
+    }
+
+    const user = await loadUserByEmail(email);
+    if (!user || !verifyPassword(password, user)) {
+      return res.status(401).json({ error: 'invalid_credentials' });
+    }
+
+    const token = createSession(user.id);
+    setSessionCookie(res, token, req);
+    const nowIso = new Date().toISOString();
+    const updated = await updateUserRecord(user.id, (record) => {
+      if (!record.metrics) record.metrics = {};
+      record.metrics.lastLoginAt = nowIso;
+      record.metrics.lastActiveAt = nowIso;
+    });
+
+    return res.status(200).json({ token, user: updated || sanitizeUser(user) });
+  } catch (error) {
+    console.error('Login failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.post('/api/users/logout', authenticate, (req, res) => {
+  try {
+    if (req.authToken) destroySession(req.authToken);
+    clearSessionCookie(res);
+    return res.status(204).end();
+  } catch (error) {
+    console.error('Logout failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.get('/api/users/me', authenticate, async (req, res) => {
+  try {
+    const nowIso = new Date().toISOString();
+    const updated = await updateUserRecord(req.user.id, (record) => {
+      if (!record.metrics) record.metrics = {};
+      record.metrics.lastActiveAt = nowIso;
+    });
+    return res.status(200).json({ user: updated || req.user });
+  } catch (error) {
+    console.error('Profile load failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.patch('/api/users/me', authenticate, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const updated = await updateUserRecord(req.user.id, (record) => {
+      if (typeof body.name === 'string') {
+        const trimmed = body.name.trim().slice(0, 80);
+        if (trimmed) record.name = trimmed;
+      }
+
+      if (body.preferences && typeof body.preferences === 'object') {
+        record.preferences = mergePreferences(record.preferences, body.preferences);
+      }
+
+      if (body.savedPlaces && typeof body.savedPlaces === 'object') {
+        if (!record.savedPlaces) record.savedPlaces = createInitialSavedPlaces();
+        if (Object.prototype.hasOwnProperty.call(body.savedPlaces, 'home')) {
+          record.savedPlaces.home = body.savedPlaces.home ? normalizePlace(body.savedPlaces.home, 'home') : null;
+        }
+        if (Object.prototype.hasOwnProperty.call(body.savedPlaces, 'work')) {
+          record.savedPlaces.work = body.savedPlaces.work ? normalizePlace(body.savedPlaces.work, 'work') : null;
+        }
+        if (Array.isArray(body.savedPlaces.favorites)) {
+          record.savedPlaces.favorites = body.savedPlaces.favorites
+            .map((place) => normalizePlace(place, place?.category || 'favorite'))
+            .filter(Boolean)
+            .slice(0, MAX_FAVORITES);
+        }
+      }
+
+      if (body.commutePlan && typeof body.commutePlan === 'object') {
+        const nextPlan = {
+          ...record.commutePlan,
+          ...body.commutePlan,
+          morning: { ...(record.commutePlan?.morning || {}), ...(body.commutePlan.morning || {}) },
+          evening: { ...(record.commutePlan?.evening || {}), ...(body.commutePlan.evening || {}) },
+        };
+        record.commutePlan = mergeCommutePlan(nextPlan);
+      }
+
+      if (!record.metrics) record.metrics = {};
+      record.metrics.lastActiveAt = new Date().toISOString();
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    return res.status(200).json({ user: updated });
+  } catch (error) {
+    console.error('Profile update failed', error);
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: error.message || 'invalid_request' });
+    }
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.post('/api/users/me/saved-places', authenticate, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const placePayload = body.place && typeof body.place === 'object' ? body.place : body;
+    let favorite = null;
+    const updated = await updateUserRecord(req.user.id, (record) => {
+      if (!record.savedPlaces) record.savedPlaces = createInitialSavedPlaces();
+      favorite = addFavoriteToUser(record, { ...placePayload, category: placePayload?.category || body.category || 'favorite' });
+      if (!favorite) {
+        const err = new Error('invalid_place');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!record.metrics) record.metrics = {};
+      record.metrics.lastActiveAt = new Date().toISOString();
+    });
+    if (!updated) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    return res.status(201).json({ user: updated, favorite });
+  } catch (error) {
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: 'invalid_place' });
+    }
+    console.error('Favorite add failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.delete('/api/users/me/saved-places/:placeId', authenticate, async (req, res) => {
+  try {
+    const { placeId } = req.params;
+    if (!placeId) {
+      return res.status(400).json({ error: 'missing_place_id' });
+    }
+    let removed = false;
+    const updated = await updateUserRecord(req.user.id, (record) => {
+      removed = removeFavoriteFromUser(record, placeId);
+      if (!removed) return;
+      if (!record.metrics) record.metrics = {};
+      record.metrics.lastActiveAt = new Date().toISOString();
+    });
+    if (!updated) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    if (!removed) {
+      return res.status(404).json({ error: 'favorite_not_found' });
+    }
+    return res.status(200).json({ user: updated });
+  } catch (error) {
+    console.error('Favorite removal failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.post('/api/users/me/recents', authenticate, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    let recentEntry = null;
+    const updated = await updateUserRecord(req.user.id, (record) => {
+      recentEntry = addRecentToUser(record, payload);
+      if (!recentEntry) {
+        const err = new Error('invalid_recent');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!record.metrics) record.metrics = {};
+      record.metrics.searches = Number.isFinite(record.metrics.searches) ? Number(record.metrics.searches) + 1 : 1;
+      record.metrics.lastActiveAt = new Date().toISOString();
+    });
+    if (!updated) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    return res.status(201).json({ user: updated, recent: recentEntry });
+  } catch (error) {
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: 'invalid_recent' });
+    }
+    console.error('Recent add failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // Geocode endpoint with optional footprint polygon
 // GET /geocode/bbox?q=<human address>
 // Returns: { query, provider, center: { lat, lon }, bbox: { south, west, north, east }, footprint?: GeoJSON }

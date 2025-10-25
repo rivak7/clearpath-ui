@@ -69,8 +69,6 @@
   --type-xl: clamp(1.36rem, 0.9vw + 1.18rem, 1.88rem);
   --type-title: clamp(1.6rem, 1.2vw + 1.32rem, 2.4rem);
   --touch-target: clamp(46px, 7vw, 60px);
-  --fab-size: clamp(52px, 9vw, 64px);
-  --fab-gap: clamp(12px, 4vw, 20px);
   --sheet-padding-x: clamp(18px, 6vw, 32px);
   --sheet-padding-bottom: calc(var(--safe-area-bottom) + clamp(24px, 6vh, 48px));
   --sheet-handle-width: clamp(48px, 12vw, 78px);
@@ -1419,7 +1417,6 @@ body {
   color: var(--text-muted);
 }
 
-
 .insight__title {
   font-weight: 600;
   font-size: 0.95rem;
@@ -1444,120 +1441,12 @@ body {
   color: var(--success);
 }
 
-.brand__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.brand__install {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: none;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  font-size: 0.68rem;
-  background: var(--accent);
-  color: var(--text-invert);
-  box-shadow: 0 12px 22px rgba(11, 111, 107, 0.28);
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-
-.brand__install:hover,
-.brand__install:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(11, 111, 107, 0.32);
-  outline: none;
-}
-
-.brand__install:active {
-  transform: translateY(0);
-  box-shadow: 0 10px 20px rgba(11, 111, 107, 0.26);
-}
-
-.brand__install[hidden] {
-  display: none;
-}
-
-.leaflet-control-attribution {
-  background: var(--leaflet-control-bg) !important;
-  color: var(--leaflet-control-text) !important;
-  font-size: 0.65rem !important;
-  padding: 2px 8px !important;
-}
-
-.leaflet-control-zoom {
-  border: none !important;
-  box-shadow: var(--shadow-soft) !important;
-  overflow: hidden;
-}
-
-.leaflet-control-zoom a {
-  background: var(--fab-bg) !important;
-  color: var(--fab-color) !important;
-}
-
-.leaflet-control-zoom .map-locate {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-width: 32px;
-  height: 36px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-top: 1px solid rgba(248, 251, 255, 0.16);
-  background: var(--fab-bg);
-  color: var(--fab-color);
-  font-size: 1.15rem;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.18s ease;
-}
-
-.leaflet-control-zoom .map-locate:hover,
-.leaflet-control-zoom .map-locate:focus-visible {
-  background: rgba(8, 72, 142, 0.78);
-  outline: none;
-}
-
-.leaflet-control-zoom .map-locate:active {
-  transform: scale(0.98);
-}
-
-.leaflet-control-zoom .map-locate:disabled {
-  cursor: wait;
-  opacity: 0.85;
-}
-
-.map-locate__icon {
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-
-.map-locate--loading .map-locate__icon {
-  opacity: 0.25;
-}
-
-.map-locate--loading::after {
-  content: '';
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid rgba(248, 251, 255, 0.35);
-  border-top-color: var(--accent);
-  animation: mapLocateSpin 0.9s linear infinite;
-}
-
-.map-locate--error {
-  animation: mapLocateError 0.45s ease-in-out 0s 2;
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
 }
 
 @keyframes mapLocateSpin {
@@ -1581,38 +1470,88 @@ body {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .top-shell {
-    width: 94vw;
-    padding: 10px 14px;
+    left: clamp(var(--safe-area-left) + 12px, 6vw, 32px);
+    right: clamp(var(--safe-area-right) + 12px, 6vw, 32px);
+    width: auto;
+    transform: none;
+    margin: 0;
+    border-radius: clamp(18px, 6vw, 26px);
+    padding: clamp(12px, 4vw, 20px) clamp(18px, 6vw, 28px);
   }
-  .install-banner {
-    top: calc(var(--safe-area-top) + clamp(78px, 18vh, 142px));
-    width: 94vw;
-    padding: 12px 16px;
-    gap: 12px;
-  }
-  .install-banner__actions {
-    width: 100%;
-    justify-content: flex-end;
-    gap: 10px;
-  }
-  .brand__logo {
-    width: 40px;
-    height: 40px;
-    font-size: 0.85rem;
+  .brand {
+    align-items: flex-start;
   }
   .brand__settings {
-    padding: 6px 10px;
-    font-size: 0.75rem;
+    order: 3;
+    margin-left: 0;
   }
   .brand__settingsText {
     display: none;
   }
   .sheet {
-    padding: 10px 0 28px;
-    max-height: min(92vh, 720px);
+    max-height: min(94vh, 720px);
+    padding-bottom: calc(var(--safe-area-bottom) + clamp(20px, 7vh, 52px));
   }
+  .sheet__content {
+    padding: 0 clamp(16px, 5vw, 24px) 0;
+  }
+  .route-planner__modes {
+    overflow-x: auto;
+    padding-bottom: clamp(4px, 2vw, 8px);
+    scrollbar-width: none;
+  }
+  .route-planner__modes::-webkit-scrollbar {
+    display: none;
+  }
+  .install-banner {
+    top: calc(var(--safe-area-top) + clamp(82px, 20vh, 150px));
+    left: clamp(var(--safe-area-left) + 12px, 6vw, 32px);
+    right: clamp(var(--safe-area-right) + 12px, 6vw, 32px);
+    width: auto;
+    gap: clamp(10px, 3vw, 18px);
+  }
+  .install-banner__actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: clamp(10px, 3vw, 18px);
+  }
+}
+
+@media (max-width: 560px) {
+
+  .route-stops::after {
+    left: clamp(20px, 7vw, 28px);
+  }
+  .route-stop {
+    grid-template-columns: clamp(36px, 12vw, 44px) 1fr;
+    grid-template-areas:
+      'drag body'
+      'marker body'
+      'remove remove';
+    row-gap: clamp(10px, 4vw, 16px);
+  }
+  .route-stop__marker {
+    justify-self: center;
+    align-self: flex-start;
+  }
+  .route-stop__remove {
+    justify-self: flex-end;
+  }
+  .sheet__content {
+    padding: 0 clamp(14px, 5vw, 20px) 0;
+  }
+}
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .top-shell {
+    top: calc(var(--safe-area-top) + clamp(8px, 3vh, 16px));
+  }
+  .sheet {
+    max-height: min(88vh, 620px);
+  }
+
 }
 
 .insight--cnn {
@@ -1988,6 +1927,27 @@ body {
   font-size: 1.3rem;
 }
 
+:root.accessibility-senior .install-banner {
+  gap: 18px;
+}
+
+:root.accessibility-senior .install-banner__title {
+  font-size: 1rem;
+}
+
+:root.accessibility-senior .install-banner__text {
+  font-size: 0.92rem;
+}
+
+:root.accessibility-senior .install-banner__primary {
+  padding: 10px 20px;
+  font-size: 0.82rem;
+}
+
+:root.accessibility-senior .install-banner__dismiss {
+  font-size: 0.82rem;
+}
+
 :root.accessibility-senior .search input {
   padding: 18px 60px 18px 22px;
   font-size: 1.05rem;
@@ -2157,6 +2117,7 @@ body {
 }
 
 :root.accessibility-lowvision .top-shell,
+:root.accessibility-lowvision .install-banner,
 :root.accessibility-lowvision .sheet {
   border: 2px solid rgba(247, 181, 0, 0.45);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
@@ -2217,6 +2178,7 @@ body {
 
 :root.accessibility-focus .sheet,
 :root.accessibility-focus .top-shell,
+:root.accessibility-focus .install-banner,
 :root.accessibility-focus .theme-option__body,
 :root.accessibility-focus .accessibility-card__body,
 :root.accessibility-focus .direction-step,
