@@ -1227,6 +1227,18 @@ body {
   opacity: 1;
 }
 
+.theme-option--disabled .theme-option__body {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+  transform: none;
+  box-shadow: none;
+}
+
+.theme-option--disabled .theme-option__status {
+  opacity: 0;
+}
+
 .accessibility-section {
   display: flex;
   flex-direction: column;
