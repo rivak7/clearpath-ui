@@ -27,6 +27,7 @@ const state = {
   pendingSuggest: null,
   lastResult: null,
   installPromptEvent: null,
+  isSheetCollapsed: false,
 };
 
 state.accessibility = new Set();
@@ -47,6 +48,7 @@ const dom = {
   sheetSubtitle: document.getElementById('sheetSubtitle'),
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
+  sheetToggle: document.getElementById('sheetToggle'),
 };
 
 function collectDesignTokens() {
@@ -153,6 +155,17 @@ function setStatus(message, type = 'info') {
   if (type === 'error') dom.statusMessage.classList.add('status--error');
   if (type === 'success') dom.statusMessage.classList.add('status--success');
 }
+
+function setSheetCollapsed(collapsed) {
+  state.isSheetCollapsed = collapsed;
+  dom.infoSheet?.classList.toggle('sheet--collapsed', collapsed);
+  if (dom.sheetToggle) {
+    dom.sheetToggle.setAttribute('aria-expanded', String(!collapsed));
+    dom.sheetToggle.setAttribute('aria-label', collapsed ? 'Expand details' : 'Collapse details');
+  }
+}
+
+setSheetCollapsed(state.isSheetCollapsed);
 
 function formatDistance(meters) {
   if (!Number.isFinite(meters)) return 'n/a';
@@ -789,6 +802,13 @@ function wireLocateButton() {
   });
 }
 
+function wireSheetToggle() {
+  if (!dom.sheetToggle) return;
+  dom.sheetToggle.addEventListener('click', () => {
+    setSheetCollapsed(!state.isSheetCollapsed);
+  });
+}
+
 async function primeGeolocation() {
   if (!('geolocation' in navigator)) {
     setStatus('Geolocation unavailable in this browser.', 'error');
@@ -852,6 +872,7 @@ function init() {
   initMap();
   wireSearch();
   wireLocateButton();
+  wireSheetToggle();
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();

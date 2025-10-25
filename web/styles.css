@@ -285,6 +285,7 @@ body {
 
 .search input {
   width: 100%;
+  box-sizing: border-box;
   border: none;
   border-radius: 16px;
   padding: 14px 48px 14px 16px;
@@ -387,11 +388,67 @@ body {
 }
 
 .sheet__handle {
+  align-self: center;
+  border: none;
+  background: transparent;
+  padding: 6px 12px 2px;
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  color: inherit;
+}
+
+.sheet__handle:focus-visible {
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 4px;
+}
+
+.sheet__handleBar {
   width: 56px;
   height: 4px;
   border-radius: 999px;
   background: var(--handle-bg);
-  align-self: center;
+  display: block;
+}
+
+.sheet__handleIcon {
+  width: 18px;
+  height: 18px;
+  stroke: var(--text-muted);
+  stroke-width: 2.2;
+  fill: none;
+  transition: transform 160ms ease;
+}
+
+.sheet__handleIcon path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sheet__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: opacity 150ms ease;
+}
+
+.sheet--collapsed .sheet__content {
+  opacity: 0;
+  visibility: hidden;
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sheet--collapsed {
+  padding-bottom: 18px;
+}
+
+.sheet--collapsed .sheet__handleIcon {
+  transform: rotate(180deg);
 }
 
 .sheet__header h1 {

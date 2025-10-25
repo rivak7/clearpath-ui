@@ -116,8 +116,20 @@
         </header>
 
         <section id="infoSheet" class="sheet" aria-labelledby="sheetTitle">
-          <div class="sheet__handle" aria-hidden="true"></div>
-          <div class="sheet__content">
+          <button
+            id="sheetToggle"
+            class="sheet__handle"
+            type="button"
+            aria-label="Collapse details"
+            aria-expanded="true"
+            aria-controls="sheetContent"
+          >
+            <span class="sheet__handleBar" aria-hidden="true"></span>
+            <svg class="sheet__handleIcon" viewBox="0 0 24 24" role="presentation" aria-hidden="true">
+              <path d="M6.5 14.5 12 9l5.5 5.5" />
+            </svg>
+          </button>
+          <div id="sheetContent" class="sheet__content">
             <div class="sheet__header">
               <h1 id="sheetTitle">Plan your arrival</h1>
               <p id="sheetSubtitle" class="sheet__subtitle">Search for a building to see the verified entrance and drop-off.</p>
