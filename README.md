@@ -84,6 +84,10 @@ If you want to manage Node yourself instead of using `./run`:
 The UI includes layered assistive profiles (senior, color vision, reading ease, guided focus, calm motion, low vision). When adding pages or components make sure they respond to those profiles—see [`docs/accessibility-profiles.md`](docs/accessibility-profiles.md) for the CSS/JS hooks and the QA checklist.
 - Generated artifacts (e.g., `sessions/`, `config/cache/`, `*.png`) are ignored.
 
+## Mobile experience
+
+We drive everything with safe-area tokens, fluid typography, and responsive sheet snap points. Before tweaking layouts or adding a new flow, review [`docs/mobile-experience.md`](docs/mobile-experience.md) for the shared primitives, extension tips, and a mobile QA checklist.
+
 ## Geocoding Endpoint
 
 - `GET /geocode/bbox?q=<address>`: Returns the latitude/longitude for the best match and the bounding box for the address.

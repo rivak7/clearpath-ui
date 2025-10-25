@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ClearPath Settings</title>
-    <meta name="description" content="Adjust how ClearPath looks and feels." />
+    <meta name="description" content="Personalize ClearPath with cohesive themes, accessibility boosts, and saved places." />
     <meta name="theme-color" content="#f1f5fb" />
     <link rel="icon" href="/icons/icon.svg" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
@@ -37,72 +37,225 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="settings-body">
-    <main class="settings-panel" aria-labelledby="settingsTitle">
-      <header class="settings-header">
-        <a class="settings-back" href="/">← Back to map</a>
-        <div>
-          <h1 id="settingsTitle">Appearance</h1>
-          <p class="settings-lead">Pick a mode you like. Auto mirrors sunrise and sunset.</p>
-        </div>
+    <div class="settings-shell">
+      <header class="settings-top">
+        <a class="settings-brand" href="/" aria-label="Back to ClearPath home">
+          <span class="settings-brand__mark" aria-hidden="true">
+            <img class="settings-brand__image" src="/icons/logo-192.png" alt="" width="40" height="40" />
+          </span>
+          <span class="settings-brand__copy">
+            <span class="settings-brand__title">ClearPath</span>
+            <span class="settings-brand__subtitle">Personalization</span>
+          </span>
+        </a>
+        <a class="settings-top__action" href="/">Back to map</a>
       </header>
 
-      <form id="themeForm" class="theme-options" autocomplete="off">
-        <span id="themeFormTitle" class="theme-options__title">Theme mode</span>
-        <div class="theme-options__grid" role="radiogroup" aria-labelledby="themeFormTitle">
-          <label class="theme-option">
-            <input class="theme-option__control" type="radio" name="theme-mode" value="light" />
-            <div class="theme-option__body">
-              <span class="theme-option__icon" aria-hidden="true">&#9728;</span>
-              <div class="theme-option__info">
-                <span class="theme-option__title">Light</span>
-              <span class="theme-option__description">Bright palette tuned for daytime clarity.</span>
-              </div>
-              <span class="theme-option__status" aria-hidden="true">Selected</span>
-            </div>
-          </label>
-          <label class="theme-option">
-            <input class="theme-option__control" type="radio" name="theme-mode" value="dark" />
-            <div class="theme-option__body">
-              <span class="theme-option__icon" aria-hidden="true">&#9790;</span>
-              <div class="theme-option__info">
-                <span class="theme-option__title">Dark</span>
-              <span class="theme-option__description">Low-glare canvas that stays gentle after dark.</span>
-              </div>
-              <span class="theme-option__status" aria-hidden="true">Selected</span>
-            </div>
-          </label>
-          <label class="theme-option">
-            <input class="theme-option__control" type="radio" name="theme-mode" value="auto" />
-            <div class="theme-option__body">
-              <span class="theme-option__icon" aria-hidden="true">&#128339;</span>
-              <div class="theme-option__info">
-                <span class="theme-option__title">Auto</span>
-              <span class="theme-option__description">Follows sunrise and sunset automatically.</span>
-              </div>
-              <span class="theme-option__status" aria-hidden="true">Selected</span>
-            </div>
-          </label>
+      <section class="settings-hero" aria-labelledby="settingsTitle">
+        <div class="settings-hero__content">
+          <p class="settings-hero__eyebrow">Personalization hub</p>
+          <h1 id="settingsTitle" class="settings-hero__title">Tune how ClearPath looks and feels</h1>
+          <p class="settings-hero__lead">
+            Pick a mode for the moment, add the boosts that help you focus, and keep your entrances synced everywhere.
+          </p>
+          <div class="settings-hero__chips" role="list">
+            <span class="settings-chip" role="listitem">Appearance</span>
+            <span class="settings-chip" role="listitem">Accessibility</span>
+            <span class="settings-chip" role="listitem">Saved places</span>
+          </div>
         </div>
-      </form>
-
-      <section class="theme-status" aria-live="polite">
-        <span id="themeStatusChip" class="theme-status__chip">Loading current theme…</span>
-        <p class="theme-status__meta">Auto flips at 7 a.m. and 7 p.m. by default.</p>
-      </section>
-
-      <section class="accessibility-section" aria-labelledby="accessibilityTitle">
-        <div class="accessibility-section__header">
-          <h2 id="accessibilityTitle">Assistive profiles</h2>
-          <p class="accessibility-lead">Mix the profiles that help you most—everything updates instantly.</p>
+        <div class="settings-hero__preview" aria-hidden="true">
+          <div class="settings-preview settings-preview--light">
+            <span class="settings-preview__label">Light</span>
+            <div class="settings-preview__surface">
+              <span class="settings-preview__bar"></span>
+              <span class="settings-preview__bar"></span>
+              <span class="settings-preview__map"></span>
+            </div>
+          </div>
+          <div class="settings-preview settings-preview--dark">
+            <span class="settings-preview__label">Dark</span>
+            <div class="settings-preview__surface">
+              <span class="settings-preview__bar"></span>
+              <span class="settings-preview__bar"></span>
+              <span class="settings-preview__map"></span>
+            </div>
+          </div>
         </div>
-        <div id="accessibilityOptions" class="accessibility-grid" role="group" aria-describedby="accessibilityTitle"></div>
       </section>
 
-      <section class="assistive-status" aria-live="polite">
-        <span id="accessibilityStatusChip" class="theme-status__chip">Pick the boosts you need—mix and match freely.</span>
-        <p class="theme-status__meta">Profiles sync across signed-in devices.</p>
-      </section>
-    </main>
+      <main class="settings-main" aria-labelledby="settingsTitle">
+        <section class="settings-card settings-card--theme" aria-labelledby="themeCardTitle">
+          <div class="settings-card__header">
+            <div class="settings-card__heading">
+              <p class="settings-card__eyebrow">Appearance</p>
+              <h2 id="themeCardTitle" class="settings-card__title">Theme mode</h2>
+              <p class="settings-card__subtitle">Auto mirrors sunrise and sunset so the map stays comfortable day and night.</p>
+            </div>
+            <span id="themeStatusChip" class="theme-status__chip">Loading current theme…</span>
+          </div>
+          <form id="themeForm" class="theme-options" autocomplete="off">
+            <div id="themeFormTitle" class="theme-options__title">Modes</div>
+            <div class="theme-options__grid" role="radiogroup" aria-labelledby="themeFormTitle">
+              <label class="theme-option">
+                <input class="theme-option__control" type="radio" name="theme-mode" value="light" />
+                <div class="theme-option__body">
+                  <span class="theme-option__icon" aria-hidden="true">&#9728;</span>
+                  <div class="theme-option__info">
+                    <span class="theme-option__title">Light</span>
+                    <span class="theme-option__description">Bright palette tuned for daytime clarity.</span>
+                  </div>
+                  <span class="theme-option__status" aria-hidden="true">Selected</span>
+                </div>
+              </label>
+              <label class="theme-option">
+                <input class="theme-option__control" type="radio" name="theme-mode" value="dark" />
+                <div class="theme-option__body">
+                  <span class="theme-option__icon" aria-hidden="true">&#9790;</span>
+                  <div class="theme-option__info">
+                    <span class="theme-option__title">Dark</span>
+                    <span class="theme-option__description">Low-glare canvas that stays gentle after dark.</span>
+                  </div>
+                  <span class="theme-option__status" aria-hidden="true">Selected</span>
+                </div>
+              </label>
+              <label class="theme-option">
+                <input class="theme-option__control" type="radio" name="theme-mode" value="auto" />
+                <div class="theme-option__body">
+                  <span class="theme-option__icon" aria-hidden="true">&#128339;</span>
+                  <div class="theme-option__info">
+                    <span class="theme-option__title">Auto</span>
+                    <span class="theme-option__description">Follows sunrise and sunset automatically.</span>
+                  </div>
+                  <span class="theme-option__status" aria-hidden="true">Selected</span>
+                </div>
+              </label>
+            </div>
+          </form>
+          <p class="settings-card__meta theme-status__meta">Auto flips at 7 a.m. and 7 p.m. by default.</p>
+        </section>
+
+        <section class="settings-card settings-card--accessibility" aria-labelledby="accessibilityTitle">
+          <div class="settings-card__header">
+            <div class="settings-card__heading">
+              <p class="settings-card__eyebrow">Assistive profiles</p>
+              <h2 id="accessibilityTitle" class="settings-card__title">Boost clarity and focus</h2>
+              <p class="settings-card__subtitle">Mix the profiles that help you most—everything updates instantly.</p>
+            </div>
+            <span id="accessibilityStatusChip" class="theme-status__chip">Pick the boosts you need—mix and match freely.</span>
+          </div>
+          <div id="accessibilityOptions" class="accessibility-grid" role="group" aria-describedby="accessibilityTitle"></div>
+          <p class="settings-card__meta theme-status__meta">Profiles sync across signed-in devices.</p>
+        </section>
+
+        <section id="accountSection" class="settings-card settings-card--wide settings-card--places" aria-labelledby="accountSectionTitle">
+          <div class="settings-card__header">
+            <div class="settings-card__heading">
+              <p class="settings-card__eyebrow">Your locations</p>
+              <h2 id="accountSectionTitle" class="settings-card__title">Saved places</h2>
+              <p class="settings-card__subtitle">Quickly set entrances for home, work, and favorites so directions launch in one tap.</p>
+            </div>
+            <span class="settings-card__badge">Synced soon</span>
+          </div>
+          <form id="savedPlacesForm" class="settings-form" autocomplete="off">
+            <fieldset class="settings-fieldset">
+              <legend class="settings-fieldset__legend">Home &amp; work</legend>
+              <div class="settings-field">
+                <label class="settings-field__label" for="homeAddress">Home</label>
+                <div class="settings-field__controls">
+                  <input id="homeAddress" name="homeAddress" type="text" placeholder="Add home address" />
+                  <button class="settings-field__button" type="button" data-action="save-home">Save</button>
+                  <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-home">Clear</button>
+                </div>
+              </div>
+              <div class="settings-field">
+                <label class="settings-field__label" for="workAddress">Work</label>
+                <div class="settings-field__controls">
+                  <input id="workAddress" name="workAddress" type="text" placeholder="Add work address" />
+                  <button class="settings-field__button" type="button" data-action="save-work">Save</button>
+                  <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-work">Clear</button>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset class="settings-fieldset">
+              <legend class="settings-fieldset__legend">Favorites</legend>
+              <div class="settings-field settings-field--stacked">
+                <label class="settings-field__label" for="favoriteName">Add favorite</label>
+                <div class="settings-favorite__inputs">
+                  <input id="favoriteName" name="favoriteName" type="text" placeholder="Label (e.g., Gym)" />
+                  <input id="favoriteAddress" name="favoriteAddress" type="text" placeholder="Address or place" />
+                  <button id="addFavoriteButton" class="settings-field__button" type="button">Add</button>
+                </div>
+              </div>
+              <ul id="favoriteList" class="settings-favoriteList" aria-live="polite"></ul>
+            </fieldset>
+          </form>
+          <p id="savedPlacesStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="travelPreferencesSection" class="settings-card settings-card--wide settings-card--preferences" aria-labelledby="travelPreferencesTitle">
+          <div class="settings-card__header">
+            <div class="settings-card__heading">
+              <p class="settings-card__eyebrow">Travel preferences</p>
+              <h2 id="travelPreferencesTitle" class="settings-card__title">Plan arrivals your way</h2>
+              <p class="settings-card__subtitle">Tell ClearPath how you move so arrival guidance highlights what matters.</p>
+            </div>
+          </div>
+          <form id="preferencesForm" class="settings-form" autocomplete="off">
+            <div class="settings-field">
+              <label class="settings-field__label" for="defaultTravelMode">Default travel mode</label>
+              <select id="defaultTravelMode" name="defaultTravelMode">
+                <option value="drive">Drive</option>
+                <option value="walk">Walk</option>
+                <option value="transit">Transit</option>
+                <option value="bike">Bike</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <label class="settings-field__label" for="mapStylePreference">Map appearance</label>
+              <select id="mapStylePreference" name="mapStylePreference">
+                <option value="auto">Auto (day/night)</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="satellite">Satellite</option>
+                <option value="terrain">Terrain</option>
+              </select>
+            </div>
+            <fieldset class="settings-fieldset settings-fieldset--inline">
+              <legend class="settings-fieldset__legend">Routing options</legend>
+              <label class="settings-toggle">
+                <input id="avoidTolls" name="avoidTolls" type="checkbox" />
+                <span>Avoid toll roads</span>
+              </label>
+              <label class="settings-toggle">
+                <input id="avoidHighways" name="avoidHighways" type="checkbox" />
+                <span>Avoid highways</span>
+              </label>
+              <label class="settings-toggle">
+                <input id="avoidFerries" name="avoidFerries" type="checkbox" />
+                <span>Avoid ferries</span>
+              </label>
+            </fieldset>
+            <fieldset class="settings-fieldset settings-fieldset--inline">
+              <legend class="settings-fieldset__legend">Notifications</legend>
+              <label class="settings-toggle">
+                <input id="arrivalReminders" name="arrivalReminders" type="checkbox" />
+                <span>Arrival reminders</span>
+              </label>
+              <label class="settings-toggle">
+                <input id="commuteInsights" name="commuteInsights" type="checkbox" />
+                <span>Commute insights</span>
+              </label>
+              <label class="settings-toggle">
+                <input id="savedPlaceUpdates" name="savedPlaceUpdates" type="checkbox" />
+                <span>Saved place updates</span>
+              </label>
+            </fieldset>
+          </form>
+          <p id="preferencesStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/settings.js"></script>
   </body>
 </html>

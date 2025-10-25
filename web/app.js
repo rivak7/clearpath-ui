@@ -12,7 +12,6 @@ import {
   logout,
   signup,
   isAuthenticated,
-  getCurrentUser,
   saveFavorite,
   removeFavorite,
   recordRecent,
@@ -20,11 +19,7 @@ import {
   setWork,
   clearHome,
   clearWork,
-  updateProfile,
   touchPreference,
-  getSavedPlaces,
-  getRecents,
-  getPreferences,
 } from './account.js';
 
 initTheme();
@@ -42,6 +37,7 @@ const state = {
   geolocationWatchId: null,
   hasCenteredOnUser: false,
   locateInFlight: null,
+  locateFeedbackTimer: null,
   suggestions: [],
   activeSuggestion: -1,
   pendingSuggest: null,
@@ -77,6 +73,7 @@ const state = {
   splashHideTimer: null,
   splashProgress: 0,
   splashResetTimer: null,
+  bootstrapFailed: false,
   searchCount: 0,
   lastConfirmationPromptAt: 0,
   account: {
@@ -90,9 +87,16 @@ const state = {
   personalization: {
     quickLinks: [],
     recents: [],
+    hasContent: false,
   },
   lastRecordedResultKey: null,
   pendingPlaceTarget: null,
+  searchInputFocused: false,
+  personalizationRailHovered: false,
+  personalizationRailFocused: false,
+  personalizationInteractionsWired: false,
+  pendingAuthMode: null,
+  pendingAccountOpen: false,
 };
 
 state.accessibility = new Set();
@@ -100,6 +104,25 @@ state.designTokens = null;
 state.confirmationHistory = new Set();
 state.splashTimeouts = new Set();
 state.splashFrames = new Set();
+
+const PENDING_AUTH_KEY = 'clearpath-ui:pending-auth-mode';
+const PENDING_ACCOUNT_KEY = 'clearpath-ui:pending-account-open';
+
+try {
+  const pendingMode = window.localStorage.getItem(PENDING_AUTH_KEY);
+  if (pendingMode) {
+    state.pendingAuthMode = pendingMode;
+    window.localStorage.removeItem(PENDING_AUTH_KEY);
+  }
+} catch {}
+
+try {
+  const pendingAccount = window.localStorage.getItem(PENDING_ACCOUNT_KEY);
+  if (pendingAccount) {
+    state.pendingAccountOpen = true;
+    window.localStorage.removeItem(PENDING_ACCOUNT_KEY);
+  }
+} catch {}
 
 const dom = {
   splash: document.getElementById('splash'),
@@ -192,6 +215,7 @@ if (dom.installBanner) {
 
 if (dom.personalizationRail) {
   dom.personalizationRail.setAttribute('aria-hidden', dom.personalizationRail.hidden ? 'true' : 'false');
+  wirePersonalizationRailInteractions();
 }
 
 if (dom.accountCard) {
@@ -409,6 +433,11 @@ function syncSheetSnapPoints() {
 }
 
 function initMap() {
+  if (typeof L === 'undefined' || typeof L.map !== 'function') {
+    const error = new Error('Leaflet library failed to load');
+    error.code = 'leaflet_unavailable';
+    throw error;
+  }
   if (!dom.map) return;
   state.map = L.map(dom.map, {
     zoomControl: true,
@@ -431,6 +460,41 @@ function initMap() {
   attachLocateControl();
 }
 
+const LOCATE_ICON_MARKUP = `
+  <svg class="map-locate__icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+    <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.6" />
+    <circle cx="12" cy="12" r="2.4" fill="currentColor" />
+    <line x1="12" y1="3" x2="12" y2="6.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+    <line x1="12" y1="17.8" x2="12" y2="21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+    <line x1="3" y1="12" x2="6.2" y2="12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+    <line x1="17.8" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+  </svg>
+`.trim();
+
+function syncLocateButtonSize(button, container) {
+  if (!button || !container) return;
+
+  const anchor = container.querySelector('.leaflet-control-zoom-out')
+    || container.querySelector('.leaflet-control-zoom-in')
+    || container.querySelector('a');
+
+  if (!anchor) return;
+
+  const { offsetWidth, offsetHeight } = anchor;
+  if (offsetWidth > 0) {
+    button.style.width = `${offsetWidth}px`;
+    button.style.minWidth = `${offsetWidth}px`;
+  }
+  if (offsetHeight > 0) {
+    button.style.height = `${offsetHeight}px`;
+  }
+
+  if (typeof window !== 'undefined' && window.getComputedStyle) {
+    const computed = window.getComputedStyle(anchor);
+    button.style.borderRadius = computed.borderRadius;
+  }
+}
+
 function attachLocateControl() {
   if (!state.map) return;
   const zoomControl = state.map.zoomControl;
@@ -445,13 +509,25 @@ function attachLocateControl() {
     button.type = 'button';
     button.id = 'locateMe';
     button.className = 'map-locate';
-    button.setAttribute('aria-label', 'Center on my location');
-    button.setAttribute('title', 'Center on my location');
-    button.innerHTML = '<span class="map-locate__icon" aria-hidden="true">◎</span>';
     container.appendChild(button);
   }
 
+  if (!button.classList.contains('map-locate')) {
+    button.classList.add('map-locate');
+  }
+
+  button.type = 'button';
+  button.id = 'locateMe';
+  button.setAttribute('aria-label', 'Center on my location');
+  button.setAttribute('title', 'Center on my location');
+  button.innerHTML = LOCATE_ICON_MARKUP;
+
   dom.locateButton = button;
+
+  syncLocateButtonSize(button, container);
+  if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+    window.requestAnimationFrame(() => syncLocateButtonSize(button, container));
+  }
 
   if (typeof L !== 'undefined' && L?.DomEvent) {
     L.DomEvent.disableClickPropagation(button);
@@ -582,6 +658,54 @@ function hideSplash({ delay = 0 } = {}) {
   } else {
     apply();
   }
+}
+
+function handleBootstrapError(error) {
+  console.error('ClearPath failed to initialize', error);
+  state.bootstrapFailed = true;
+  const isLeafletUnavailable = error?.code === 'leaflet_unavailable';
+  const fallbackMessage = isLeafletUnavailable
+    ? 'We could not load the map tiles. Check your connection and refresh to try again.'
+    : 'We hit an unexpected issue while starting ClearPath. Refresh to try again.';
+  updateSplashMessage(fallbackMessage);
+  setSplashProgress(1);
+  if (dom.splashProgressBar) {
+    dom.splashProgressBar.setAttribute('aria-busy', 'false');
+  }
+
+  if (dom.map) {
+    dom.map.classList.add('map--unavailable');
+    dom.map.replaceChildren();
+
+    const container = document.createElement('div');
+    container.className = 'map__fallback';
+    container.setAttribute('role', 'alert');
+
+    const title = document.createElement('h2');
+    title.className = 'map__fallbackTitle';
+    title.textContent = isLeafletUnavailable ? 'Map unavailable' : 'ClearPath is unavailable';
+
+    const hint = document.createElement('p');
+    hint.className = 'map__fallbackHint';
+    hint.textContent = fallbackMessage;
+
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'map__fallbackAction';
+    action.textContent = 'Reload';
+    action.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    container.append(title, hint, action);
+    dom.map.appendChild(container);
+  }
+
+  setStatus(isLeafletUnavailable
+    ? 'Map failed to load. Refresh once you have a connection.'
+    : 'ClearPath could not finish loading. Refresh to try again.', 'error');
+
+  hideSplash({ delay: 0 });
 }
 
 function setStatus(message, type = 'info') {
@@ -856,6 +980,18 @@ function renderAccountSnapshot(snapshot) {
     state.lastRecordedResultKey = null;
     toggleAccountMenu(false);
   }
+  if (state.pendingAuthMode) {
+    openAuthDialog(state.pendingAuthMode);
+    state.pendingAuthMode = null;
+  }
+  if (state.pendingAccountOpen) {
+    if (user) {
+      toggleAccountMenu(true);
+      state.pendingAccountOpen = false;
+    } else {
+      openAuthDialog('login');
+    }
+  }
 }
 
 function updateAccountBadge(user) {
@@ -1019,9 +1155,9 @@ function renderPersonalization(user) {
   state.personalization.quickLinks = quickLinks;
   renderPersonalizationChips(quickLinks);
   renderPersonalizationRecents(recents);
-  const shouldShow = quickLinks.length > 0 || (recents && recents.length > 0);
-  dom.personalizationRail.hidden = !shouldShow;
-  dom.personalizationRail.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+  const hasContent = quickLinks.length > 0 || (recents && recents.length > 0);
+  state.personalization.hasContent = hasContent;
+  updatePersonalizationVisibility();
 }
 
 function renderPersonalizationChips(quickLinks) {
@@ -1070,6 +1206,43 @@ function renderPersonalizationRecents(recents) {
   });
   list.appendChild(fragment);
   dom.personalizationRecents.hidden = false;
+}
+
+function updatePersonalizationVisibility() {
+  if (!dom.personalizationRail) return;
+  const engaged = state.searchInputFocused || state.personalizationRailFocused || state.personalizationRailHovered;
+  const allowEmpty = dom.personalizationRail.dataset.allowEmpty !== 'false';
+  const shouldShow = engaged && (state.personalization.hasContent || allowEmpty);
+  dom.personalizationRail.hidden = !shouldShow;
+  dom.personalizationRail.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+}
+
+function wirePersonalizationRailInteractions() {
+  if (!dom.personalizationRail) return;
+  if (state.personalizationInteractionsWired) {
+    updatePersonalizationVisibility();
+    return;
+  }
+  state.personalizationInteractionsWired = true;
+  dom.personalizationRail.addEventListener('focusin', () => {
+    state.personalizationRailFocused = true;
+    updatePersonalizationVisibility();
+  });
+  dom.personalizationRail.addEventListener('focusout', (event) => {
+    if (!dom.personalizationRail.contains(event.relatedTarget)) {
+      state.personalizationRailFocused = false;
+      updatePersonalizationVisibility();
+    }
+  });
+  dom.personalizationRail.addEventListener('pointerenter', () => {
+    state.personalizationRailHovered = true;
+    updatePersonalizationVisibility();
+  });
+  dom.personalizationRail.addEventListener('pointerleave', () => {
+    state.personalizationRailHovered = false;
+    updatePersonalizationVisibility();
+  });
+  updatePersonalizationVisibility();
 }
 
 function handlePersonalizationChipClick(event) {
@@ -1485,6 +1658,7 @@ function wireAccountExperience() {
   if (dom.personalizationRecentsList) {
     dom.personalizationRecentsList.addEventListener('click', handleRecentClick);
   }
+  wirePersonalizationRailInteractions();
   if (dom.authSwitcher) {
     dom.authSwitcher.addEventListener('click', handleAuthSwitch);
   }
@@ -1821,10 +1995,13 @@ function updateRouteDropIndicator(clientY) {
 function clearRoutePlanner() {
   state.routeStops = [];
   state.routeStopCounter = 0;
+  state.routePlannerExpanded = false;
   if (dom.routeStops) dom.routeStops.innerHTML = '';
-  if (dom.routePlanner) dom.routePlanner.hidden = true;
+  if (dom.routePlanner) dom.routePlanner.hidden = false;
   if (dom.routeSummary) dom.routeSummary.hidden = true;
   if (dom.sheetReset) dom.sheetReset.hidden = true;
+  updateRouteOverview();
+  updateRoutePlannerVisibility();
 }
 
 function clearDestinationView() {
@@ -1863,8 +2040,52 @@ function clearDestinationView() {
   if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
   setStatus('');
   resetSheetHeadings();
+  updateRouteOverview();
+  updateRoutePlannerVisibility();
   if (dom.infoSheet) {
     window.requestAnimationFrame(() => applySheetSnap(0, { animate: true }));
+  }
+}
+
+function updateRouteOverview() {
+  if (!dom.routeOverview) return;
+  if (!state.lastResult || !state.routeStops.length) {
+    dom.routeOverview.textContent = 'Search to plan your route';
+    return;
+  }
+  const origin = (state.routeStops[0]?.value || 'Origin').trim() || 'Origin';
+  const destination = (state.routeStops[state.routeStops.length - 1]?.value || 'Destination').trim() || 'Destination';
+  const stopCount = Math.max(0, state.routeStops.length - 2);
+  const summary = stopCount > 0
+    ? `${origin} → ${stopCount} stop${stopCount === 1 ? '' : 's'} → ${destination}`
+    : `${origin} → ${destination}`;
+  dom.routeOverview.textContent = summary;
+}
+
+function updateRoutePlannerVisibility() {
+  const expanded = Boolean(state.routePlannerExpanded);
+  if (dom.routePlanner) {
+    dom.routePlanner.classList.toggle('route-planner--collapsed', !expanded);
+    dom.routePlanner.classList.toggle('route-planner--expanded', expanded);
+  }
+  if (dom.routeStops) dom.routeStops.hidden = !expanded;
+  if (dom.addRouteStop) dom.addRouteStop.hidden = !expanded;
+  if (dom.routeEditorToggle) {
+    dom.routeEditorToggle.hidden = !state.lastResult;
+    dom.routeEditorToggle.textContent = expanded ? 'Done' : 'Edit route';
+    dom.routeEditorToggle.setAttribute('aria-expanded', String(expanded));
+  }
+}
+
+function setRoutePlannerExpanded(expanded) {
+  state.routePlannerExpanded = Boolean(expanded);
+  updateRoutePlannerVisibility();
+}
+
+function toggleRoutePlannerExpanded() {
+  setRoutePlannerExpanded(!state.routePlannerExpanded);
+  if (state.routePlannerExpanded) {
+    applySheetSnap(Math.max(1, state.sheet.index || 1), { animate: true });
   }
 }
 
@@ -1946,6 +2167,8 @@ function renderRouteStops({ preserveFocus = true } = {}) {
   clearRouteDropIndicators();
   updateRouteResetState();
   refreshSheetSnap({ animate: false });
+  updateRouteOverview();
+  updateRoutePlannerVisibility();
 }
 
 function onRouteStopInput(id, value) {
@@ -1957,6 +2180,7 @@ function onRouteStopInput(id, value) {
   }
   updateRouteResetState();
   updateRouteSummary();
+  updateRouteOverview();
 }
 
 function updateRouteResetState() {
@@ -1982,6 +2206,8 @@ function resetRoutePlanner({ preserveFocus = false } = {}) {
     createRouteStop('origin', state.userLocation ? 'My Location' : '', originMeta),
     createRouteStop('destination', state.lastResult?.query || '', destinationMeta),
   ];
+  if (dom.routePlanner) dom.routePlanner.hidden = false;
+  setRoutePlannerExpanded(false);
   renderRouteStops({ preserveFocus });
   updateRouteSummary();
 }
@@ -1999,6 +2225,7 @@ function ensureRouteStops({ preserveFocus = false } = {}) {
 function addRouteStop() {
   if (!state.lastResult) return;
   ensureRouteStops({ preserveFocus: false });
+  setRoutePlannerExpanded(true);
   const insertIndex = Math.max(1, state.routeStops.length - 1);
   const stop = createRouteStop('stop', '');
   state.routeStops.splice(insertIndex, 0, stop);
@@ -2025,6 +2252,11 @@ function setRouteMode(mode) {
     return;
   }
   state.routeMode = mode;
+  if (isAuthenticated()) {
+    touchPreference({ defaultTravelMode: mode }).catch((error) => {
+      console.warn('Failed to sync preferred travel mode', error);
+    });
+  }
   updateRouteModeButtons();
   updateRouteSummary();
 }
@@ -2209,6 +2441,9 @@ function updateRouteSummary() {
 function initRoutePlanner() {
   clearRoutePlanner();
   updateRouteModeButtons();
+  if (dom.routeEditorToggle) {
+    dom.routeEditorToggle.addEventListener('click', toggleRoutePlannerExpanded);
+  }
   if (dom.addRouteStop) {
     dom.addRouteStop.addEventListener('click', addRouteStop);
   }
@@ -2318,7 +2553,7 @@ function updateUserMarker(lat, lon, accuracy) {
   }
 }
 
-function onGeolocation(position, { centerOnUser = false, preferFly = false } = {}) {
+function onGeolocation(position, { centerOnUser = false, preferFly = false, initiatedByUser = false } = {}) {
   const { latitude, longitude, accuracy } = position.coords;
   state.userLocation = {
     lat: latitude,
@@ -2331,17 +2566,23 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
   const shouldCenter = centerOnUser || !state.hasCenteredOnUser;
   if (state.map && shouldCenter) {
     const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
-    const targetZoom = centerOnUser ? Math.max(mapZoom, MIN_LOCATE_ZOOM + 1) : Math.max(mapZoom, MIN_LOCATE_ZOOM);
-    const zoom = Math.min(MAX_SATELLITE_ZOOM, targetZoom);
+    const desiredZoom = centerOnUser
+      ? Math.max(mapZoom + 1, MIN_LOCATE_ZOOM + 1.5)
+      : Math.max(mapZoom, MIN_LOCATE_ZOOM);
+    const zoom = Math.min(MAX_SATELLITE_ZOOM, desiredZoom);
     const latLng = [latitude, longitude];
     const reduceMotion = shouldReduceMotion();
-    const canFly = preferFly && typeof state.map.flyTo === 'function' && !reduceMotion;
+    const canFly = (preferFly || centerOnUser) && typeof state.map.flyTo === 'function' && !reduceMotion;
     if (canFly) {
-      state.map.flyTo(latLng, zoom, { duration: reduceMotion ? 0 : 0.6 });
+      state.map.flyTo(latLng, zoom, { duration: reduceMotion ? 0 : 0.75, easeLinearity: 0.15 });
     } else {
       state.map.setView(latLng, zoom, { animate: !reduceMotion });
     }
     state.hasCenteredOnUser = true;
+  }
+  if (initiatedByUser) {
+    flashLocateButtonState('success');
+    setStatus('Centered on your location. Zoom in to explore nearby entrances.', 'success');
   }
   updateDirections();
   updateRouteSummary();
@@ -2359,6 +2600,7 @@ function onGeolocationError(error, { userInitiated = false } = {}) {
   }
   setStatus(message, 'error');
   if (userInitiated && dom.locateButton) {
+    flashLocateButtonState();
     dom.locateButton.classList.add('map-locate--error');
     window.setTimeout(() => {
       dom.locateButton?.classList.remove('map-locate--error');
@@ -2380,9 +2622,33 @@ function ensureGeolocationWatch() {
   );
 }
 
+function clearLocateFeedback() {
+  if (state.locateFeedbackTimer !== null) {
+    window.clearTimeout(state.locateFeedbackTimer);
+    state.locateFeedbackTimer = null;
+  }
+  if (dom.locateButton) {
+    dom.locateButton.classList.remove('map-locate--active');
+  }
+}
+
+function flashLocateButtonState(mode = 'idle') {
+  if (!dom.locateButton) return;
+  clearLocateFeedback();
+  if (mode === 'success') {
+    dom.locateButton.classList.remove('map-locate--error');
+    dom.locateButton.classList.add('map-locate--active');
+    state.locateFeedbackTimer = window.setTimeout(() => {
+      dom.locateButton?.classList.remove('map-locate--active');
+      state.locateFeedbackTimer = null;
+    }, 1600);
+  }
+}
+
 function toggleLocateButtonBusy(isBusy) {
   if (!dom.locateButton) return;
   if (isBusy) {
+    flashLocateButtonState();
     dom.locateButton.setAttribute('aria-busy', 'true');
     dom.locateButton.disabled = true;
     dom.locateButton.classList.add('map-locate--loading');
@@ -2423,11 +2689,12 @@ function startGeolocation({ centerOnSuccess = false, userInitiated = false } = {
   state.locateInFlight = new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        onGeolocation(position, { centerOnUser: centerOnSuccess, preferFly: userInitiated });
+        onGeolocation(position, {
+          centerOnUser: centerOnSuccess,
+          preferFly: userInitiated,
+          initiatedByUser: userInitiated,
+        });
         ensureGeolocationWatch();
-        if (userInitiated) {
-          setStatus('Centered on your position.', 'success');
-        }
         resolve(true);
       },
       (error) => {
@@ -3565,9 +3832,15 @@ function wireSearch() {
     updateNavigationLinks();
   });
   dom.searchInput.addEventListener('focus', () => {
+    state.searchInputFocused = true;
+    updatePersonalizationVisibility();
     requestSuggestions();
   });
   dom.searchInput.addEventListener('blur', () => {
+    state.searchInputFocused = false;
+    window.setTimeout(() => {
+      updatePersonalizationVisibility();
+    }, 0);
     setTimeout(() => renderSuggestions([]), 150);
   });
   dom.searchInput.addEventListener('keydown', (evt) => {
@@ -3776,25 +4049,29 @@ function setupInstallPrompt() {
 
 function init() {
   showSplash({ mode: 'bootstrap', progress: 0.12 });
-  initMap();
-  advanceSplashProgress(0.28);
-  wireSearch();
-  wireLocateButton();
-  wireEntranceConfirmation();
-  wireCommunityEntranceControls();
-  initSheetInteractions();
-  wireSheetLauncher();
-  initRoutePlanner();
-  resetSheetHeadings();
-  advanceSplashProgress(0.55);
-  if (isStandaloneDisplayMode()) {
-    hideInstallBanner({ persistDismiss: true });
+  try {
+    initMap();
+    advanceSplashProgress(0.28);
+    wireSearch();
+    wireLocateButton();
+    wireEntranceConfirmation();
+    wireCommunityEntranceControls();
+    initSheetInteractions();
+    wireSheetLauncher();
+    initRoutePlanner();
+    resetSheetHeadings();
+    advanceSplashProgress(0.55);
+    if (isStandaloneDisplayMode()) {
+      hideInstallBanner({ persistDismiss: true });
+    }
+    setupInstallPrompt();
+    registerServiceWorker();
+    primeGeolocation();
+    advanceSplashProgress(0.82, 120);
+    hideSplash({ delay: 360 });
+  } catch (error) {
+    handleBootstrapError(error);
   }
-  setupInstallPrompt();
-  registerServiceWorker();
-  primeGeolocation();
-  advanceSplashProgress(0.82, 120);
-  hideSplash({ delay: 360 });
 }
 
 document.addEventListener('DOMContentLoaded', init);
