@@ -518,6 +518,47 @@ body {
   gap: clamp(10px, 2.4vw, 18px);
 }
 
+.brand__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(10px, 2.8vw, 16px);
+  margin-left: auto;
+}
+
+.brand__install {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 1.2vw + 6px, 12px) clamp(16px, 3vw + 10px, 22px);
+  border-radius: var(--radius-lg);
+  border: none;
+  background: var(--accent);
+  color: var(--text-invert);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: clamp(0.64rem, 0.6rem + 0.18vw, 0.72rem);
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(11, 111, 107, 0.28);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.brand__install:hover,
+.brand__install:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 28px rgba(11, 111, 107, 0.32);
+  outline: none;
+}
+
+.brand__install:active {
+  transform: translateY(0);
+  box-shadow: 0 10px 20px rgba(11, 111, 107, 0.24);
+}
+
+.brand__install[hidden] {
+  display: none;
+}
+
 .brand__copy {
   display: flex;
   flex-direction: column;

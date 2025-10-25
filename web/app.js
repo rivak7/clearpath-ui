@@ -295,18 +295,18 @@ function computeSheetSnapPoints() {
   const height = getViewportHeight();
   const isLandscape = typeof window.matchMedia === 'function' && window.matchMedia('(orientation: landscape)').matches;
   if (!Number.isFinite(height)) {
-    return [0.16, 0.56, 0.92];
+    return [0.3, 0.62, 0.92];
   }
   if (height <= 600) {
-    return [0.22, 0.52, 0.9];
+    return [0.36, 0.62, 0.92];
   }
   if (isLandscape && height <= 720) {
-    return [0.2, 0.5, 0.86];
+    return [0.32, 0.58, 0.9];
   }
   if (height >= 960) {
-    return [0.14, 0.58, 0.96];
+    return [0.24, 0.6, 0.96];
   }
-  return [0.16, 0.56, 0.92];
+  return [0.3, 0.62, 0.92];
 }
 
 function syncSheetSnapPoints() {
@@ -579,6 +579,15 @@ function applySheetSnap(index, { animate = true } = {}) {
 }
 
 function refreshSheetSnap({ animate = false } = {}) {
+  const changed = syncSheetSnapPoints();
+  if (!state.sheet.snapPoints.length) {
+    state.sheet.snapPoints = computeSheetSnapPoints();
+  }
+  state.sheet.baseline = computeSheetBaselineVisible();
+  if (changed) {
+    const maxIndex = state.sheet.snapPoints.length - 1;
+    state.sheet.index = Math.max(0, Math.min(state.sheet.index ?? 0, maxIndex));
+  }
   applySheetSnap(state.sheet.index ?? 0, { animate });
 }
 
@@ -676,8 +685,9 @@ function finishSheetDrag(evt) {
   const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
   let bestIndex = state.sheet.index;
   let bestDistance = Number.POSITIVE_INFINITY;
+  const baseline = state.sheet?.baseline || computeSheetBaselineVisible();
   snapPoints.forEach((fraction, idx) => {
-    const minVisible = idx === 0 ? Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE) : SHEET_MIN_VISIBLE;
+    const minVisible = idx === 0 ? Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE) : baseline;
     const { translate: candidate } = computeSheetPosition(fraction, { minVisible });
     const distance = Math.abs(candidate - targetTranslate);
     if (distance < bestDistance) {
@@ -690,16 +700,42 @@ function finishSheetDrag(evt) {
 
 function initSheetInteractions() {
   if (!dom.infoSheet) return;
+  syncSheetSnapPoints();
+  state.sheet.baseline = computeSheetBaselineVisible();
   refreshSheetSnap({ animate: false });
+  const scheduleSheetRefresh = () => {
+    if (state.sheet.resizeRaf) {
+      window.cancelAnimationFrame(state.sheet.resizeRaf);
+    }
+    state.sheet.resizeRaf = window.requestAnimationFrame(() => {
+      state.sheet.resizeRaf = null;
+      refreshSheetSnap({ animate: false });
+    });
+  };
   if (dom.sheetHandle) {
     dom.sheetHandle.addEventListener('pointerdown', startSheetDrag, { passive: false });
     dom.sheetHandle.addEventListener('keydown', onSheetHandleKeydown);
   }
   if ('ResizeObserver' in window && dom.sheetContent) {
-    state.sheet.observer = new ResizeObserver(() => refreshSheetSnap({ animate: false }));
+    state.sheet.observer = new ResizeObserver(() => scheduleSheetRefresh());
     state.sheet.observer.observe(dom.sheetContent);
   }
-  window.addEventListener('resize', () => refreshSheetSnap({ animate: false }));
+  window.addEventListener('resize', scheduleSheetRefresh);
+  if (window.visualViewport) {
+    const viewportRefresh = scheduleSheetRefresh;
+    window.visualViewport.addEventListener('resize', viewportRefresh);
+    window.visualViewport.addEventListener('scroll', viewportRefresh);
+    state.sheet.viewportCleanup = () => {
+      window.visualViewport.removeEventListener('resize', viewportRefresh);
+      window.visualViewport.removeEventListener('scroll', viewportRefresh);
+    };
+    window.addEventListener('pagehide', () => {
+      if (state.sheet.viewportCleanup) {
+        state.sheet.viewportCleanup();
+        state.sheet.viewportCleanup = null;
+      }
+    }, { once: true });
+  }
 }
 
 function createRouteStop(role, value = '', meta = '') {
