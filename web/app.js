@@ -25,7 +25,6 @@ const state = {
   pendingSuggest: null,
   lastResult: null,
   installPromptEvent: null,
-  isSheetCollapsed: false,
   voteLayer: null,
   entranceOptions: [],
   selectedEntranceId: null,
@@ -34,6 +33,17 @@ const state = {
   voteMarker: null,
   voteHandler: null,
   voteInFlight: false,
+  sheet: {
+    snapPoints: [0.28, 0.58, 0.92],
+    index: 1,
+    translate: 0,
+    observer: null,
+    isAnimating: false,
+  },
+  routeStops: [],
+  routeStopCounter: 0,
+  routeMode: 'drive',
+  draggingStop: null,
 };
 
 state.accessibility = new Set();
@@ -56,12 +66,21 @@ const dom = {
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
   sheetToggle: document.getElementById('sheetToggle'),
+  sheetContent: document.getElementById('sheetContent'),
+  sheetReset: document.getElementById('sheetReset'),
+  routePlanner: document.getElementById('routePlanner'),
+  routeStops: document.getElementById('routeStops'),
+  routeSummary: document.getElementById('routeSummary'),
+  addRouteStop: document.getElementById('addRouteStop'),
+  routeModes: Array.from(document.querySelectorAll('.route-mode')),
   entranceOptions: document.getElementById('entranceOptions'),
   entranceOptionList: document.getElementById('entranceOptionList'),
   entranceOptionsMeta: document.getElementById('entranceOptionsMeta'),
   startEntranceVote: document.getElementById('startEntranceVote'),
   entranceVoteHint: document.getElementById('entranceVoteHint'),
 };
+
+dom.sheetHandle = dom.sheetToggle;
 
 function collectDesignTokens() {
   const styles = getComputedStyle(document.documentElement);
@@ -105,6 +124,13 @@ function shouldReduceMotion() {
 
 function refreshDesignTokens({ preserveView = true } = {}) {
   state.designTokens = collectDesignTokens();
+  if (state.voteMarker) {
+    const tokens = state.designTokens;
+    state.voteMarker.setStyle({
+      color: tokens.markerSelectedBorder,
+      fillColor: tokens.markerSelectedFill,
+    });
+  }
   if (state.userLocation) {
     const { lat, lon, accuracy } = state.userLocation;
     updateUserMarker(lat, lon, accuracy);
@@ -133,6 +159,7 @@ const GEOLOCATION_OPTIONS = {
 const MIN_LOCATE_ZOOM = 17;
 
 const DEFAULT_VIEW = { lat: 47.6036, lon: -122.3294, zoom: 13 }; // Seattle downtown default
+const SHEET_MIN_VISIBLE = 192;
 
 function initMap() {
   if (!dom.map) return;
@@ -172,16 +199,545 @@ function setStatus(message, type = 'info') {
   if (type === 'success') dom.statusMessage.classList.add('status--success');
 }
 
-function setSheetCollapsed(collapsed) {
-  state.isSheetCollapsed = collapsed;
-  dom.infoSheet?.classList.toggle('sheet--collapsed', collapsed);
-  if (dom.sheetToggle) {
-    dom.sheetToggle.setAttribute('aria-expanded', String(!collapsed));
-    dom.sheetToggle.setAttribute('aria-label', collapsed ? 'Expand details' : 'Collapse details');
+function computeSheetTranslateForFraction(fraction) {
+  if (!dom.infoSheet) return 0;
+  const sheet = dom.infoSheet;
+  const sheetHeight = sheet.scrollHeight;
+  const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || sheetHeight;
+  const visible = Math.min(sheetHeight, Math.max(SHEET_MIN_VISIBLE, viewportHeight * fraction));
+  return Math.max(0, sheetHeight - visible);
+}
+
+function clampSheetTranslate(value) {
+  if (!dom.infoSheet) return 0;
+  const sheetHeight = dom.infoSheet.scrollHeight;
+  const maxTranslate = Math.max(0, sheetHeight - SHEET_MIN_VISIBLE);
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(Math.max(0, value), maxTranslate);
+}
+
+function updateSheetVisualState(index) {
+  if (!dom.infoSheet) return;
+  const snapPoints = state.sheet?.snapPoints || [];
+  dom.infoSheet.classList.toggle('sheet--peek', index === 0);
+  dom.infoSheet.classList.toggle('sheet--expanded', index === snapPoints.length - 1);
+}
+
+function applySheetSnap(index, { animate = true } = {}) {
+  if (!dom.infoSheet) return;
+  const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
+  const resolvedIndex = Math.max(0, Math.min(index, snapPoints.length - 1));
+  const translate = computeSheetTranslateForFraction(snapPoints[resolvedIndex]);
+  state.sheet.index = resolvedIndex;
+  state.sheet.translate = translate;
+  if (!animate) {
+    dom.infoSheet.classList.add('sheet--dragging');
+  } else {
+    dom.infoSheet.classList.remove('sheet--dragging');
+  }
+  dom.infoSheet.style.setProperty('--sheet-translate', `${translate}px`);
+  updateSheetVisualState(resolvedIndex);
+  if (dom.sheetHandle) {
+    dom.sheetHandle.setAttribute('aria-expanded', String(resolvedIndex === snapPoints.length - 1));
+  }
+  if (!animate) {
+    window.setTimeout(() => dom.infoSheet?.classList.remove('sheet--dragging'), 0);
   }
 }
 
-setSheetCollapsed(state.isSheetCollapsed);
+function refreshSheetSnap({ animate = false } = {}) {
+  applySheetSnap(state.sheet.index ?? 1, { animate });
+}
+
+function cycleSheetSnap(direction = 1) {
+  const snapPoints = state.sheet?.snapPoints || [];
+  if (!snapPoints.length) return;
+  const next = (state.sheet.index + direction + snapPoints.length) % snapPoints.length;
+  applySheetSnap(next);
+}
+
+function onSheetHandleKeydown(evt) {
+  if (!state.sheet?.snapPoints?.length) return;
+  if (evt.key === ' ' || evt.key === 'Enter') {
+    evt.preventDefault();
+    cycleSheetSnap(1);
+  } else if (evt.key === 'ArrowUp') {
+    evt.preventDefault();
+    cycleSheetSnap(1);
+  } else if (evt.key === 'ArrowDown') {
+    evt.preventDefault();
+    cycleSheetSnap(-1);
+  }
+}
+
+function startSheetDrag(evt) {
+  if (!dom.sheetHandle || !dom.infoSheet) return;
+  if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+  evt.preventDefault();
+  const drag = {
+    pointerId: evt.pointerId,
+    startY: evt.clientY,
+    startTranslate: state.sheet.translate || 0,
+  };
+  drag.maxTranslate = clampSheetTranslate(Number.MAX_SAFE_INTEGER);
+  state.sheet.drag = drag;
+  dom.infoSheet.classList.add('sheet--dragging');
+  dom.sheetHandle.setPointerCapture(evt.pointerId);
+  dom.sheetHandle.addEventListener('pointermove', handleSheetDragMove);
+  dom.sheetHandle.addEventListener('pointerup', finishSheetDrag);
+  dom.sheetHandle.addEventListener('pointercancel', finishSheetDrag);
+}
+
+function handleSheetDragMove(evt) {
+  const drag = state.sheet.drag;
+  if (!drag || evt.pointerId !== drag.pointerId) return;
+  const delta = evt.clientY - drag.startY;
+  const next = clampSheetTranslate(drag.startTranslate + delta);
+  state.sheet.translate = next;
+  dom.infoSheet?.style.setProperty('--sheet-translate', `${next}px`);
+}
+
+function finishSheetDrag(evt) {
+  const drag = state.sheet.drag;
+  if (!drag || evt.pointerId !== drag.pointerId) return;
+  if (dom.sheetHandle) {
+    dom.sheetHandle.releasePointerCapture(evt.pointerId);
+    dom.sheetHandle.removeEventListener('pointermove', handleSheetDragMove);
+    dom.sheetHandle.removeEventListener('pointerup', finishSheetDrag);
+    dom.sheetHandle.removeEventListener('pointercancel', finishSheetDrag);
+  }
+  state.sheet.drag = null;
+  dom.infoSheet?.classList.remove('sheet--dragging');
+  const targetTranslate = state.sheet.translate;
+  const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
+  let bestIndex = state.sheet.index;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  snapPoints.forEach((fraction, idx) => {
+    const candidate = computeSheetTranslateForFraction(fraction);
+    const distance = Math.abs(candidate - targetTranslate);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = idx;
+    }
+  });
+  applySheetSnap(bestIndex);
+}
+
+function initSheetInteractions() {
+  if (!dom.infoSheet) return;
+  refreshSheetSnap({ animate: false });
+  if (dom.sheetHandle) {
+    dom.sheetHandle.addEventListener('pointerdown', startSheetDrag, { passive: false });
+    dom.sheetHandle.addEventListener('keydown', onSheetHandleKeydown);
+  }
+  if ('ResizeObserver' in window && dom.sheetContent) {
+    state.sheet.observer = new ResizeObserver(() => refreshSheetSnap({ animate: false }));
+    state.sheet.observer.observe(dom.sheetContent);
+  }
+  window.addEventListener('resize', () => refreshSheetSnap({ animate: false }));
+}
+
+function createRouteStop(role, value = '', meta = '') {
+  state.routeStopCounter += 1;
+  return {
+    id: `route-stop-${state.routeStopCounter}`,
+    role,
+    value,
+    meta,
+  };
+}
+
+function normalizeRouteStopRoles() {
+  if (!state.routeStops.length) return;
+  state.routeStops.forEach((stop, index) => {
+    if (index === 0) {
+      stop.role = 'origin';
+    } else if (index === state.routeStops.length - 1) {
+      stop.role = 'destination';
+    } else {
+      stop.role = 'stop';
+    }
+  });
+}
+
+function getRouteStopLabel(index, role) {
+  if (role === 'origin') return 'From';
+  if (role === 'destination') return 'To';
+  return `Stop ${index}`;
+}
+
+function getRouteStopPlaceholder(role) {
+  if (role === 'origin') return 'Choose a starting point';
+  if (role === 'destination') return 'Add a destination';
+  return 'Add a stop';
+}
+
+function clearRouteDropIndicators() {
+  if (!dom.routeStops) return;
+  dom.routeStops.classList.remove('route-stops--drop-end');
+  dom.routeStops.querySelectorAll('.route-stop--drop-before').forEach((node) => {
+    node.classList.remove('route-stop--drop-before');
+  });
+}
+
+function updateRouteDropIndicator(clientY) {
+  if (!dom.routeStops || !state.draggingStop) return;
+  clearRouteDropIndicators();
+  const children = Array.from(dom.routeStops.children);
+  let dropIndex = state.routeStops.length;
+  for (let idx = 0; idx < children.length; idx += 1) {
+    const child = children[idx];
+    if (!child || child.dataset.id === state.draggingStop.id) continue;
+    const rect = child.getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) {
+      dropIndex = idx;
+      child.classList.add('route-stop--drop-before');
+      break;
+    }
+  }
+  if (dropIndex === children.length) {
+    dom.routeStops.classList.add('route-stops--drop-end');
+  }
+  state.draggingStop.dropIndex = dropIndex;
+}
+
+function renderRouteStops({ preserveFocus = true } = {}) {
+  if (!dom.routeStops) return;
+  normalizeRouteStopRoles();
+  const activeStopId = preserveFocus && document.activeElement?.dataset?.stopId;
+  dom.routeStops.innerHTML = '';
+  state.routeStops.forEach((stop, index) => {
+    const item = document.createElement('div');
+    item.className = 'route-stop';
+    item.dataset.id = stop.id;
+
+    const dragButton = document.createElement('button');
+    dragButton.type = 'button';
+    dragButton.className = 'route-stop__drag';
+    dragButton.innerHTML = '&#9776;';
+    dragButton.setAttribute('aria-label', 'Reorder stop');
+    dragButton.addEventListener('pointerdown', (evt) => startStopDrag(evt, stop.id, item));
+    item.appendChild(dragButton);
+
+    const marker = document.createElement('span');
+    marker.className = `route-stop__marker route-stop__marker--${stop.role}`;
+    marker.textContent = stop.role === 'origin' ? '●' : stop.role === 'destination' ? '◎' : '◆';
+    item.appendChild(marker);
+
+    const body = document.createElement('div');
+    body.className = 'route-stop__body';
+
+    const label = document.createElement('span');
+    label.className = 'route-stop__label';
+    label.textContent = getRouteStopLabel(index, stop.role);
+    body.appendChild(label);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'route-stop__input';
+    input.value = stop.value || '';
+    input.placeholder = getRouteStopPlaceholder(stop.role);
+    input.dataset.stopId = stop.id;
+    input.addEventListener('input', (evt) => onRouteStopInput(stop.id, evt.target.value));
+    body.appendChild(input);
+
+    if (stop.meta) {
+      const meta = document.createElement('span');
+      meta.className = 'route-stop__meta';
+      meta.textContent = stop.meta;
+      body.appendChild(meta);
+    }
+
+    item.appendChild(body);
+
+    const canRemove = state.routeStops.length > 2 && stop.role === 'stop';
+    if (canRemove) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'route-stop__remove';
+      remove.setAttribute('aria-label', `Remove ${label.textContent?.toLowerCase() || 'stop'}`);
+      remove.innerHTML = '&times;';
+      remove.addEventListener('click', () => removeRouteStop(stop.id));
+      item.appendChild(remove);
+    }
+
+    dom.routeStops.appendChild(item);
+
+    if (activeStopId && activeStopId === stop.id) {
+      window.requestAnimationFrame(() => {
+        const target = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
+        if (target) {
+          target.focus({ preventScroll: true });
+          const len = target.value.length;
+          target.setSelectionRange(len, len);
+        }
+      });
+    }
+  });
+  dom.routeStops.classList.remove('route-stops--dragging', 'route-stops--drop-end');
+  clearRouteDropIndicators();
+  updateRouteResetState();
+  refreshSheetSnap({ animate: false });
+}
+
+function onRouteStopInput(id, value) {
+  const stop = state.routeStops.find((candidate) => candidate.id === id);
+  if (!stop) return;
+  stop.value = value;
+  if (stop.role === 'origin' && value && value !== 'My Location') {
+    stop.meta = '';
+  }
+  updateRouteResetState();
+}
+
+function updateRouteResetState() {
+  if (!dom.sheetReset) return;
+  const hasExtraStops = state.routeStops.length > 2;
+  const hasCustomValues = state.routeStops.some((stop, index) => {
+    if (index === 0) return stop.value && stop.value !== 'My Location';
+    return Boolean(stop.value);
+  });
+  dom.sheetReset.hidden = !(hasExtraStops || hasCustomValues);
+}
+
+function resetRoutePlanner() {
+  state.routeStops = [
+    createRouteStop('origin', state.userLocation ? 'My Location' : ''),
+    createRouteStop('destination', state.lastResult?.query || ''),
+  ];
+  renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
+}
+
+function ensureRouteStops() {
+  if (!state.routeStops.length) {
+    resetRoutePlanner();
+  } else {
+    renderRouteStops({ preserveFocus: false });
+  }
+}
+
+function addRouteStop() {
+  ensureRouteStops();
+  const insertIndex = Math.max(1, state.routeStops.length - 1);
+  const stop = createRouteStop('stop', '');
+  state.routeStops.splice(insertIndex, 0, stop);
+  renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
+  window.requestAnimationFrame(() => {
+    const target = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
+    target?.focus({ preventScroll: true });
+  });
+}
+
+function removeRouteStop(id) {
+  if (state.routeStops.length <= 2) return;
+  const index = state.routeStops.findIndex((stop) => stop.id === id);
+  if (index <= 0 || index === state.routeStops.length - 1) return;
+  state.routeStops.splice(index, 1);
+  renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
+}
+
+function setRouteMode(mode) {
+  if (!mode || mode === state.routeMode) {
+    updateRouteModeButtons();
+    return;
+  }
+  state.routeMode = mode;
+  updateRouteModeButtons();
+  updateRouteSummary();
+}
+
+function updateRouteModeButtons() {
+  if (!Array.isArray(dom.routeModes)) return;
+  dom.routeModes.forEach((btn) => {
+    const mode = btn?.dataset?.mode || 'drive';
+    const isActive = mode === state.routeMode;
+    btn.classList.toggle('route-mode--active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  });
+}
+
+function startStopDrag(evt, stopId, element) {
+  if (!dom.routeStops || (evt.pointerType === 'mouse' && evt.button !== 0)) return;
+  evt.preventDefault();
+  const startIndex = state.routeStops.findIndex((stop) => stop.id === stopId);
+  if (startIndex < 0) return;
+  state.draggingStop = {
+    id: stopId,
+    pointerId: evt.pointerId,
+    startY: evt.clientY,
+    startIndex,
+    dropIndex: startIndex,
+    element,
+  };
+  element.classList.add('route-stop--dragging');
+  element.style.transition = 'none';
+  dom.routeStops.classList.add('route-stops--dragging');
+  element.setPointerCapture(evt.pointerId);
+  element.addEventListener('pointermove', handleStopDragMove);
+  element.addEventListener('pointerup', finishStopDrag);
+  element.addEventListener('pointercancel', finishStopDrag);
+}
+
+function handleStopDragMove(evt) {
+  const drag = state.draggingStop;
+  if (!drag || evt.pointerId !== drag.pointerId) return;
+  const delta = evt.clientY - drag.startY;
+  drag.element.style.transform = `translateY(${delta}px)`;
+  updateRouteDropIndicator(evt.clientY);
+}
+
+function finishStopDrag(evt) {
+  const drag = state.draggingStop;
+  if (!drag || evt.pointerId !== drag.pointerId) return;
+  drag.element.releasePointerCapture(evt.pointerId);
+  drag.element.removeEventListener('pointermove', handleStopDragMove);
+  drag.element.removeEventListener('pointerup', finishStopDrag);
+  drag.element.removeEventListener('pointercancel', finishStopDrag);
+  drag.element.classList.remove('route-stop--dragging');
+  drag.element.style.transition = '';
+  drag.element.style.transform = '';
+  dom.routeStops?.classList.remove('route-stops--dragging', 'route-stops--drop-end');
+  clearRouteDropIndicators();
+
+  const fromIndex = drag.startIndex;
+  let toIndex = drag.dropIndex ?? fromIndex;
+  if (toIndex > fromIndex) toIndex -= 1;
+  toIndex = Math.max(0, Math.min(toIndex, state.routeStops.length - 1));
+  state.draggingStop = null;
+  if (toIndex !== fromIndex) {
+    const [moved] = state.routeStops.splice(fromIndex, 1);
+    state.routeStops.splice(toIndex, 0, moved);
+    renderRouteStops({ preserveFocus: false });
+    updateRouteSummary();
+  }
+}
+
+function updateOriginStopFromLocation() {
+  if (!state.routeStops.length || !state.userLocation) return;
+  const origin = state.routeStops[0];
+  if (!origin.value || origin.value === 'My Location') {
+    origin.value = 'My Location';
+  }
+  if (Number.isFinite(state.userLocation.accuracy)) {
+    origin.meta = `Accuracy ±${formatDistance(state.userLocation.accuracy)}`;
+  }
+  renderRouteStops();
+}
+
+function updateDestinationStopFromResult(data) {
+  if (!state.routeStops.length) return;
+  const destination = state.routeStops[state.routeStops.length - 1];
+  const query = data?.query;
+  if (query) {
+    destination.value = query;
+  }
+  if (data?.entrance) {
+    const method = data.entrance.method ? data.entrance.method.toLowerCase() : 'verified';
+    destination.meta = `Entrance ${method}`;
+  }
+  renderRouteStops();
+}
+
+function focusOnRouteHighlights() {
+  if (!state.map || !state.lastResult) return;
+  const points = [];
+  if (state.lastResult.roadPoint) {
+    points.push([state.lastResult.roadPoint.lat, state.lastResult.roadPoint.lon]);
+  }
+  if (state.lastResult.entrance) {
+    points.push([state.lastResult.entrance.lat, state.lastResult.entrance.lon]);
+  }
+  if (!points.length) return;
+  const reduceMotion = shouldReduceMotion();
+  if (points.length === 1) {
+    state.map.setView(points[0], Math.max(state.map.getZoom() || 17, 18), { animate: !reduceMotion });
+  } else {
+    const bounds = L.latLngBounds(points);
+    state.map.fitBounds(bounds, { padding: [56, 56], maxZoom: 20, animate: !reduceMotion });
+  }
+}
+
+function updateRouteSummary() {
+  if (!dom.routeSummary) return;
+  dom.routeSummary.innerHTML = '';
+  const result = state.lastResult;
+  if (!result) {
+    dom.routeSummary.hidden = true;
+    return;
+  }
+  const card = document.createElement('div');
+  card.className = 'route-summary__card';
+
+  const meta = document.createElement('div');
+  meta.className = 'route-summary__meta';
+  const title = document.createElement('div');
+  title.className = 'route-summary__title';
+  if (state.routeMode === 'walk') {
+    title.textContent = 'Seamless walk';
+  } else if (state.routeMode === 'bike') {
+    title.textContent = 'Bike-friendly route';
+  } else if (state.routeMode === 'transit') {
+    title.textContent = 'Transit handoff';
+  } else {
+    title.textContent = 'Smart arrival';
+  }
+
+  const detail = document.createElement('div');
+  detail.className = 'route-summary__detail';
+  const detailParts = [];
+  if (result.roadPoint && state.userLocation) {
+    const driveDistance = haversine(state.userLocation, result.roadPoint);
+    if (driveDistance) detailParts.push(`Drive ${formatDistance(driveDistance)}`);
+  }
+  if (result.roadPoint && result.entrance) {
+    const walkDistance = haversine(result.roadPoint, result.entrance);
+    if (walkDistance) detailParts.push(`Walk ${formatDistance(walkDistance)}`);
+  } else if (result.entrance && state.userLocation) {
+    const approachDistance = haversine(state.userLocation, result.entrance);
+    if (approachDistance) detailParts.push(`Approach ${formatDistance(approachDistance)}`);
+  }
+  if (!detailParts.length) {
+    detailParts.push('Optimized for the verified entrance');
+  }
+  detail.textContent = detailParts.join(' • ');
+
+  meta.appendChild(title);
+  meta.appendChild(detail);
+  card.appendChild(meta);
+
+  const cta = document.createElement('button');
+  cta.type = 'button';
+  cta.className = 'route-summary__cta';
+  cta.textContent = 'Go';
+  cta.addEventListener('click', () => {
+    focusOnRouteHighlights();
+    cycleSheetSnap(-1);
+  });
+  card.appendChild(cta);
+
+  dom.routeSummary.appendChild(card);
+  dom.routeSummary.hidden = false;
+  refreshSheetSnap({ animate: false });
+}
+
+function initRoutePlanner() {
+  ensureRouteStops();
+  updateRouteModeButtons();
+  if (dom.addRouteStop) {
+    dom.addRouteStop.addEventListener('click', addRouteStop);
+  }
+  if (dom.sheetReset) {
+    dom.sheetReset.addEventListener('click', resetRoutePlanner);
+  }
+  if (Array.isArray(dom.routeModes)) {
+    dom.routeModes.forEach((btn) => {
+      btn.addEventListener('click', () => setRouteMode(btn.dataset.mode || 'drive'));
+    });
+  }
+}
 
 function formatDistance(meters) {
   if (!Number.isFinite(meters)) return 'n/a';
@@ -287,6 +843,7 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
     timestamp: position.timestamp,
   };
   updateUserMarker(latitude, longitude, accuracy);
+  updateOriginStopFromLocation();
   const shouldCenter = centerOnUser || !state.hasCenteredOnUser;
   if (state.map && shouldCenter) {
     const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
@@ -302,6 +859,7 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
     state.hasCenteredOnUser = true;
   }
   updateDirections();
+  updateRouteSummary();
 }
 
 function onGeolocationError(error, { userInitiated = false } = {}) {
@@ -505,8 +1063,43 @@ const requestSuggestions = debounce(async () => {
   }
 }, 180);
 
+function friendlyMethodLabel(source, method) {
+  const sourceKey = String(source || '').toLowerCase();
+  const methodKey = String(method || '').toLowerCase();
+  if (sourceKey === 'community' || methodKey === 'community_votes') return 'Community favorite';
+  if (sourceKey === 'cnn' || methodKey === 'cnn_regressor') return 'CNN inference';
+  if (methodKey.startsWith('nearest_road_projection_polygon')) return 'Footprint projection';
+  if (methodKey.startsWith('nearest_road_projection_bbox')) return 'Road projection';
+  if (methodKey.startsWith('center_projection_polygon')) return 'Footprint projection';
+  if (methodKey.startsWith('center_projection_bbox')) return 'Centroid projection';
+  if (methodKey === 'center_fallback') return 'Geocoded center';
+  return 'Model projection';
+}
+
+function normalizeEntranceResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  if (result.entrance && typeof result.entrance === 'object') {
+    const source = result.entrance.source || (String(result.entrance.method || '').includes('cnn') ? 'cnn' : 'heuristic');
+    result.entrance.source = source;
+    if (!result.entrance.label) {
+      result.entrance.label = source === 'community' ? 'Community entrance' : source === 'cnn' ? 'CNN entrance' : 'Projected entrance';
+    }
+    if (!result.entrance.methodLabel) {
+      result.entrance.methodLabel = friendlyMethodLabel(source, result.entrance.method);
+    }
+  }
+  if (result.communityEntrances && !Array.isArray(result.communityEntrances.clusters)) {
+    result.communityEntrances.clusters = [];
+  }
+  return result;
+}
+
 async function performSearch(query) {
   if (!query) return;
+  stopEntranceVoting({ clearMarker: true });
+  state.selectedEntranceId = null;
+  state.entranceOptions = [];
+  renderEntranceOptions({});
   renderSuggestions([]);
   dom.clearSearch.hidden = !query;
   setStatus('Finding satellite entrance...');
@@ -515,6 +1108,10 @@ async function performSearch(query) {
     const data = await resp.json();
     if (!resp.ok) {
       throw new Error(data?.error || 'search_failed');
+    }
+    normalizeEntranceResult(data);
+    if (data.entrance) {
+      data.baseEntrance = { ...data.entrance };
     }
     state.lastResult = data;
     renderResult(data);
@@ -535,6 +1132,10 @@ function renderResult(data, options = {}) {
   const tokens = getDesignTokens();
   const reduceMotion = shouldReduceMotion();
   const { bbox, center, entrance, cnnEntrance, roadPoint, footprint } = data;
+  const community = data?.communityEntrances || null;
+  state.communitySummary = community;
+  const entrancePoint = entrance ? { lat: entrance.lat, lon: entrance.lon } : null;
+
   if (bbox) {
     const bounds = L.latLngBounds([
       [bbox.south, bbox.west],
@@ -556,6 +1157,7 @@ function renderResult(data, options = {}) {
       }
     }
   }
+
   if (footprint) {
     try {
       L.geoJSON(footprint, {
@@ -570,6 +1172,7 @@ function renderResult(data, options = {}) {
       // ignore malformed geometry
     }
   }
+
   if (center) {
     L.circleMarker([center.lat, center.lon], {
       radius: 5,
@@ -579,15 +1182,41 @@ function renderResult(data, options = {}) {
       weight: 1,
     }).addTo(state.overlays).bindTooltip('Building centroid');
   }
+
   if (entrance) {
-    L.circleMarker([entrance.lat, entrance.lon], {
-      radius: 8,
-      color: tokens.markerEntranceBorder,
-      fillColor: tokens.markerEntranceFill,
-      fillOpacity: 0.85,
-      weight: 3,
-    }).addTo(state.overlays).bindTooltip('Heuristic entrance');
+    const isCommunity = entrance.source === 'community' || entrance.method === 'community_votes';
+    const marker = L.circleMarker([entrance.lat, entrance.lon], {
+      radius: entrance.userSelected ? 9 : 8,
+      color: isCommunity ? tokens.markerCommunityBorder : tokens.markerEntranceBorder,
+      fillColor: isCommunity ? tokens.markerCommunityFill : tokens.markerEntranceFill,
+      fillOpacity: 0.9,
+      weight: entrance.userSelected ? 3.5 : 3,
+    });
+    const label = entrance.methodLabel || entrance.label || (isCommunity ? 'Community entrance' : 'Verified entrance');
+    marker.addTo(state.overlays).bindTooltip(label);
   }
+
+  if (community && Array.isArray(community.clusters)) {
+    community.clusters.forEach((cluster) => {
+      if (!Number.isFinite(cluster?.lat) || !Number.isFinite(cluster?.lon)) return;
+      if (entrancePoint) {
+        const d = haversine(entrancePoint, cluster);
+        if (Number.isFinite(d) && d < 1.5) return;
+      }
+      const isSelected = state.selectedEntranceId === `community-${cluster.id}`;
+      const voteText = `${cluster.count} community vote${cluster.count === 1 ? '' : 's'}`;
+      const tooltip = cluster.label ? `${cluster.label} • ${voteText}` : voteText;
+      L.circleMarker([cluster.lat, cluster.lon], {
+        radius: isSelected ? 7.5 : 6,
+        color: tokens.markerCommunityBorder,
+        fillColor: tokens.markerCommunityFill,
+        fillOpacity: isSelected ? 0.95 : 0.65,
+        weight: isSelected ? 3 : 2,
+        opacity: 0.95,
+      }).addTo(state.overlays).bindTooltip(tooltip);
+    });
+  }
+
   if (cnnEntrance) {
     L.circleMarker([cnnEntrance.lat, cnnEntrance.lon], {
       radius: 8,
@@ -597,6 +1226,7 @@ function renderResult(data, options = {}) {
       weight: 3,
     }).addTo(state.overlays).bindTooltip('CNN entrance');
   }
+
   if (roadPoint) {
     L.circleMarker([roadPoint.lat, roadPoint.lon], {
       radius: 6,
@@ -606,6 +1236,7 @@ function renderResult(data, options = {}) {
       weight: 2,
     }).addTo(state.overlays).bindTooltip('Recommended drop-off');
   }
+
   if (roadPoint && entrance) {
     L.polyline(
       [
@@ -624,6 +1255,347 @@ function renderResult(data, options = {}) {
   updateDirections();
   updateNavigationLinks();
   updateSheetHeadings(data);
+  renderEntranceOptions(data);
+  updateDestinationStopFromResult(data);
+  updateRouteSummary();
+}
+
+function buildEntranceOptions(result) {
+  const options = [];
+  const seen = new Set();
+  const addOption = (option) => {
+    if (!option || !Number.isFinite(option.lat) || !Number.isFinite(option.lon)) return;
+    const key = option.id || `${option.source || 'option'}:${option.clusterId || ''}:${option.lat.toFixed(6)}:${option.lon.toFixed(6)}`;
+    const id = option.id || key;
+    if (seen.has(id)) return;
+    option.id = id;
+    seen.add(id);
+    options.push(option);
+  };
+
+  const candidates = Array.isArray(result?.candidates) ? result.candidates : [];
+  if (candidates.length) {
+    candidates.forEach((candidate, index) => {
+      if (!Number.isFinite(candidate?.lat) || !Number.isFinite(candidate?.lon)) return;
+      const source = candidate.source || (index === 0 ? 'heuristic' : 'candidate');
+      const id = candidate.communityClusterId ? `community-${candidate.communityClusterId}` : `${source}-${index}`;
+      addOption({
+        id,
+        lat: candidate.lat,
+        lon: candidate.lon,
+        label: candidate.label || (source === 'community' ? 'Community entrance' : source === 'cnn' ? 'CNN entrance' : 'Projected entrance'),
+        detail: source === 'community'
+          ? `${candidate.votes || 1} community vote${candidate.votes === 1 ? '' : 's'}`
+          : source === 'cnn'
+            ? 'AI vision pick'
+            : 'Model projection',
+        source,
+        votes: candidate.votes || null,
+        clusterId: candidate.communityClusterId || null,
+        score: candidate.score || null,
+      });
+    });
+  } else if (result?.entrance && Number.isFinite(result.entrance.lat) && Number.isFinite(result.entrance.lon)) {
+    addOption({
+      id: 'projected',
+      lat: result.entrance.lat,
+      lon: result.entrance.lon,
+      label: 'Projected entrance',
+      detail: 'Model projection',
+      source: 'heuristic',
+      votes: null,
+      clusterId: null,
+      score: 0.9,
+    });
+  }
+
+  const community = result?.communityEntrances;
+  if (community && Array.isArray(community.clusters)) {
+    community.clusters.forEach((cluster) => {
+      if (!Number.isFinite(cluster?.lat) || !Number.isFinite(cluster?.lon)) return;
+      addOption({
+        id: `community-${cluster.id}`,
+        lat: cluster.lat,
+        lon: cluster.lon,
+        label: cluster.label || 'Community entrance',
+        detail: `${cluster.count} community vote${cluster.count === 1 ? '' : 's'}`,
+        source: 'community',
+        votes: cluster.count,
+        clusterId: cluster.id,
+        updatedAt: cluster.updatedAt || null,
+      });
+    });
+  }
+
+  const priority = { heuristic: 0, community: 1, cnn: 2, candidate: 3 };
+  options.sort((a, b) => {
+    const diff = (priority[a.source] ?? 5) - (priority[b.source] ?? 5);
+    if (diff !== 0) return diff;
+    if (a.source === 'community' && b.source === 'community') {
+      return (b.votes || 0) - (a.votes || 0);
+    }
+    return (b.score || 0) - (a.score || 0);
+  });
+
+  return options;
+}
+
+function renderEntranceOptions(result) {
+  if (!dom.entranceOptions || !dom.entranceOptionList) return;
+  const options = buildEntranceOptions(result);
+  state.entranceOptions = options;
+
+  if (!options.length) {
+    dom.entranceOptionList.innerHTML = '';
+    dom.entranceOptions.hidden = true;
+    if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
+    if (dom.startEntranceVote) {
+      dom.startEntranceVote.hidden = true;
+      dom.startEntranceVote.disabled = false;
+    }
+    if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
+    dom.entranceOptions.classList.remove('entrance-options--voting');
+    return;
+  }
+
+  dom.entranceOptions.hidden = false;
+  dom.entranceOptionList.innerHTML = '';
+
+  const currentEntrance = result?.entrance;
+  if (currentEntrance) {
+    const match = options.find((option) => {
+      const distance = haversine({ lat: option.lat, lon: option.lon }, currentEntrance);
+      return Number.isFinite(distance) && distance < 1.2;
+    });
+    if (match) {
+      state.selectedEntranceId = match.id;
+    }
+  }
+  if (!state.selectedEntranceId && options[0]) {
+    state.selectedEntranceId = options[0].id;
+  }
+
+  options.forEach((option) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'entrance-option';
+    button.dataset.optionId = option.id;
+    button.setAttribute('role', 'listitem');
+    if (option.id === state.selectedEntranceId) {
+      button.classList.add('entrance-option--active');
+    }
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'entrance-option__text';
+
+    const labelNode = document.createElement('span');
+    labelNode.className = 'entrance-option__label';
+    labelNode.textContent = option.label;
+    textWrap.appendChild(labelNode);
+
+    const detailNode = document.createElement('span');
+    detailNode.className = 'entrance-option__detail';
+    detailNode.textContent = option.detail || '';
+    textWrap.appendChild(detailNode);
+
+    button.appendChild(textWrap);
+
+    if (option.votes) {
+      const badge = document.createElement('span');
+      badge.className = 'entrance-option__badge';
+      badge.textContent = `${option.votes} vote${option.votes === 1 ? '' : 's'}`;
+      button.appendChild(badge);
+    } else if (option.source === 'cnn') {
+      const badge = document.createElement('span');
+      badge.className = 'entrance-option__badge';
+      badge.textContent = 'AI';
+      button.appendChild(badge);
+    }
+
+    button.addEventListener('click', () => {
+      applyEntranceSelection(option);
+    });
+
+    dom.entranceOptionList.appendChild(button);
+  });
+
+  if (dom.entranceOptionsMeta) {
+    const totalVotes = state.communitySummary?.totalVotes || 0;
+    dom.entranceOptionsMeta.textContent = totalVotes ? `${totalVotes} community vote${totalVotes === 1 ? '' : 's'}` : '';
+  }
+  if (dom.startEntranceVote) {
+    dom.startEntranceVote.hidden = false;
+    dom.startEntranceVote.disabled = state.voteInFlight;
+    dom.startEntranceVote.textContent = state.isVoting ? 'Finish placement' : 'Suggest another entrance';
+  }
+  if (dom.entranceVoteHint) {
+    dom.entranceVoteHint.hidden = !state.isVoting;
+  }
+  dom.entranceOptions.classList.toggle('entrance-options--voting', state.isVoting);
+}
+
+function applyEntranceSelection(option, { silent = false } = {}) {
+  if (!option || !state.lastResult) return;
+  const result = state.lastResult;
+  const center = result.center && Number.isFinite(result.center.lat) && Number.isFinite(result.center.lon)
+    ? { lat: result.center.lat, lon: result.center.lon }
+    : null;
+  const baseMethod = result.baseEntrance?.method || result.entrance?.method || null;
+  const method = option.source === 'community'
+    ? 'community_votes'
+    : option.source === 'cnn'
+      ? 'cnn_regressor'
+      : baseMethod;
+  const entrance = {
+    lat: option.lat,
+    lon: option.lon,
+    label: option.label,
+    source: option.source || null,
+    communityClusterId: option.clusterId || null,
+    votes: option.votes || null,
+    method,
+    methodLabel: friendlyMethodLabel(option.source, method),
+    userSelected: option.source === 'community',
+  };
+  if (center) {
+    const distance = haversine(center, entrance);
+    if (Number.isFinite(distance)) entrance.distance_m = distance;
+  } else if (Number.isFinite(result.entrance?.distance_m)) {
+    entrance.distance_m = result.entrance.distance_m;
+  }
+  if (result.entrance && !result.baseEntrance) {
+    result.baseEntrance = { ...result.entrance };
+  }
+  result.entrance = entrance;
+  state.selectedEntranceId = option.id;
+  state.lastResult = result;
+  renderResult(state.lastResult, { preserveView: true, skipStateUpdate: true });
+  if (!silent) {
+    const descriptor = option.source === 'community' ? 'community entrance' : option.source === 'cnn' ? 'CNN candidate' : 'projected entrance';
+    setStatus(`Entrance updated to the ${descriptor}.`, 'success');
+  }
+}
+
+function startEntranceVoting() {
+  if (!state.map || state.isVoting) return;
+  state.isVoting = true;
+  if (state.voteLayer) state.voteLayer.clearLayers();
+  state.voteMarker = null;
+  if (state.voteHandler) {
+    state.map.off('click', state.voteHandler);
+  }
+  state.voteHandler = (evt) => handleVoteMapClick(evt);
+  state.map.on('click', state.voteHandler);
+  if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = false;
+  setStatus('Tap the entrance on the map to share it with others.', 'info');
+  renderEntranceOptions(state.lastResult || {});
+}
+
+function stopEntranceVoting({ clearMarker = true } = {}) {
+  if (state.map && state.voteHandler) {
+    state.map.off('click', state.voteHandler);
+    state.voteHandler = null;
+  }
+  if (clearMarker && state.voteLayer) state.voteLayer.clearLayers();
+  state.voteMarker = null;
+  state.isVoting = false;
+  if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
+  renderEntranceOptions(state.lastResult || {});
+}
+
+function handleVoteMapClick(evt) {
+  if (!state.isVoting || state.voteInFlight) return;
+  const lat = Number(evt?.latlng?.lat);
+  const lon = Number(evt?.latlng?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  const tokens = getDesignTokens();
+  if (!state.voteLayer) {
+    state.voteLayer = L.layerGroup().addTo(state.map);
+  }
+  if (!state.voteMarker) {
+    state.voteMarker = L.circleMarker([lat, lon], {
+      radius: 7,
+      color: tokens.markerSelectedBorder,
+      fillColor: tokens.markerSelectedFill,
+      fillOpacity: 0.92,
+      weight: 3,
+    }).addTo(state.voteLayer);
+  } else {
+    state.voteMarker.setLatLng([lat, lon]);
+    state.voteMarker.setStyle({
+      color: tokens.markerSelectedBorder,
+      fillColor: tokens.markerSelectedFill,
+    });
+  }
+  const confirmPlacement = window.confirm('Use this location as a community entrance?');
+  if (!confirmPlacement) return;
+  submitCommunityVote(lat, lon);
+}
+
+async function submitCommunityVote(lat, lon) {
+  if (state.voteInFlight) return;
+  const query = state.lastResult?.query;
+  if (!query) {
+    setStatus('Search for a destination before suggesting an entrance.', 'error');
+    return;
+  }
+  state.voteInFlight = true;
+  if (dom.startEntranceVote) dom.startEntranceVote.disabled = true;
+  setStatus('Recording your entrance...', 'info');
+  try {
+    const resp = await fetch('/entrance/community', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, lat, lon, label: 'Community entrance' }),
+    });
+    const payload = await resp.json();
+    if (!resp.ok) {
+      throw new Error(payload?.error || 'vote_failed');
+    }
+    if (payload?.summary) {
+      state.lastResult.communityEntrances = payload.summary;
+      state.communitySummary = payload.summary;
+      if (Array.isArray(state.lastResult.candidates)) {
+        state.lastResult.candidates = state.lastResult.candidates.filter((candidate) => candidate.source !== 'community');
+        const clusters = payload.summary.clusters || [];
+        if (clusters.length) {
+          const top = clusters[0];
+          state.lastResult.candidates.push({
+            lat: top.lat,
+            lon: top.lon,
+            score: 0.88,
+            label: `${top.count} community vote${top.count === 1 ? '' : 's'}`,
+            source: 'community',
+            communityClusterId: top.id,
+            votes: top.count,
+          });
+        }
+      }
+      if (payload.cluster) {
+        const option = {
+          id: `community-${payload.cluster.id}`,
+          lat: payload.cluster.lat,
+          lon: payload.cluster.lon,
+          label: payload.cluster.label || 'Community entrance',
+          detail: `${payload.cluster.count} community vote${payload.cluster.count === 1 ? '' : 's'}`,
+          source: 'community',
+          votes: payload.cluster.count,
+          clusterId: payload.cluster.id,
+        };
+        applyEntranceSelection(option, { silent: true });
+      } else {
+        renderResult(state.lastResult, { preserveView: true, skipStateUpdate: true });
+      }
+    }
+    setStatus('Thanks! Your entrance will help others.', 'success');
+  } catch (error) {
+    const message = error?.message === 'vote_failed' ? 'Unable to save that entrance right now.' : error?.message || 'Entrance vote failed.';
+    setStatus(message, 'error');
+  } finally {
+    state.voteInFlight = false;
+    if (dom.startEntranceVote) dom.startEntranceVote.disabled = false;
+    stopEntranceVoting({ clearMarker: true });
+  }
 }
 
 function updateSheetHeadings(data) {
@@ -642,12 +1614,15 @@ function updateInsights(data) {
   const items = [];
   const entrance = data?.entrance;
   if (entrance) {
+    const lines = [`Lat: ${formatCoord(entrance.lat)}, Lon: ${formatCoord(entrance.lon)}`];
+    const meta = [];
+    if (entrance.methodLabel) meta.push(entrance.methodLabel);
+    if (Number.isFinite(entrance.distance_m)) meta.push(`${formatDistance(entrance.distance_m)} from center`);
+    if (entrance.votes) meta.push(`${entrance.votes} community vote${entrance.votes === 1 ? '' : 's'}`);
+    if (meta.length) lines.push(meta.join(' • '));
     items.push({
-      title: 'Verified entrance',
-      lines: [
-        `Lat: ${formatCoord(entrance.lat)}, Lon: ${formatCoord(entrance.lon)}`,
-        `Method: ${entrance.method || 'projected'} • ${formatDistance(entrance.distance_m)} from center`,
-      ],
+      title: 'Selected entrance',
+      lines,
     });
   }
   if (data?.cnnEntrance) {
@@ -675,6 +1650,16 @@ function updateInsights(data) {
         `Lat: ${formatCoord(data.roadPoint.lat)}, Lon: ${formatCoord(data.roadPoint.lon)}`,
         'Closest public roadway access',
       ],
+    });
+  }
+  if (data?.communityEntrances?.totalVotes) {
+    const total = data.communityEntrances.totalVotes;
+    const radius = Number.isFinite(data.communityEntrances.clusterRadius) ? formatDistance(data.communityEntrances.clusterRadius) : null;
+    const lines = [`${total} community vote${total === 1 ? '' : 's'} recorded.`];
+    if (radius) lines.push(`Grouped within ~${radius}.`);
+    items.push({
+      title: 'Community activity',
+      lines,
     });
   }
 
@@ -868,10 +1853,14 @@ function wireLocateButton() {
   });
 }
 
-function wireSheetToggle() {
-  if (!dom.sheetToggle) return;
-  dom.sheetToggle.addEventListener('click', () => {
-    setSheetCollapsed(!state.isSheetCollapsed);
+function wireCommunityEntranceControls() {
+  if (!dom.startEntranceVote) return;
+  dom.startEntranceVote.addEventListener('click', () => {
+    if (state.isVoting) {
+      stopEntranceVoting({ clearMarker: true });
+    } else {
+      startEntranceVoting();
+    }
   });
 }
 
@@ -938,7 +1927,9 @@ function init() {
   initMap();
   wireSearch();
   wireLocateButton();
-  wireSheetToggle();
+  wireCommunityEntranceControls();
+  initSheetInteractions();
+  initRoutePlanner();
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();
@@ -948,6 +1939,7 @@ function init() {
 document.addEventListener('DOMContentLoaded', init);
 
 window.addEventListener('pagehide', () => {
+  stopEntranceVoting({ clearMarker: false });
   if (state.geolocationWatchId !== null && navigator.geolocation) {
     navigator.geolocation.clearWatch(state.geolocationWatchId);
     state.geolocationWatchId = null;
