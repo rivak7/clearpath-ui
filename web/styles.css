@@ -35,6 +35,18 @@
   --accent-soft: rgba(61, 214, 193, 0.32);
   --accent-outline: rgba(61, 214, 193, 0.55);
   --accent-glow: rgba(61, 214, 193, 0.24);
+  --sat-outline: rgba(22, 60, 114, 0.55);
+  --sat-footprint: var(--accent);
+  --sat-footprint-fill: rgba(61, 214, 193, 0.24);
+  --marker-centroid-border: rgba(12, 34, 56, 0.65);
+  --marker-centroid-fill: #ffffff;
+  --marker-entrance-border: var(--accent-dark);
+  --marker-entrance-fill: var(--accent);
+  --marker-cnn-border: #1a45cc;
+  --marker-cnn-fill: #3b6ffc;
+  --marker-dropoff-border: #b7620f;
+  --marker-dropoff-fill: #f0b44c;
+  --path-connector: var(--accent);
   --splash-bg: linear-gradient(160deg, rgba(14, 41, 74, 0.9), rgba(4, 22, 46, 0.82));
   font-family: "Inter", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
 }
@@ -80,6 +92,18 @@
   --accent-soft: rgba(61, 214, 193, 0.35);
   --accent-outline: rgba(61, 214, 193, 0.5);
   --accent-glow: rgba(61, 214, 193, 0.2);
+  --sat-outline: rgba(240, 245, 255, 0.6);
+  --sat-footprint: var(--accent);
+  --sat-footprint-fill: rgba(61, 214, 193, 0.2);
+  --marker-centroid-border: rgba(240, 245, 255, 0.8);
+  --marker-centroid-fill: rgba(12, 24, 36, 0.85);
+  --marker-entrance-border: var(--accent-dark);
+  --marker-entrance-fill: var(--accent);
+  --marker-cnn-border: #4d7bff;
+  --marker-cnn-fill: #7596ff;
+  --marker-dropoff-border: #f1ae32;
+  --marker-dropoff-fill: #fdd37a;
+  --path-connector: var(--accent);
   --splash-bg: linear-gradient(160deg, rgba(13, 38, 63, 0.95), rgba(3, 12, 22, 0.88));
 }
 
@@ -751,6 +775,145 @@ body {
   opacity: 1;
 }
 
+.accessibility-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.accessibility-section__header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.accessibility-section__header h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.65rem);
+}
+
+.accessibility-lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.accessibility-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.accessibility-card {
+  position: relative;
+  display: block;
+}
+
+.accessibility-card__control {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.accessibility-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--theme-border);
+  background: var(--card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  position: relative;
+}
+
+.accessibility-card:hover .accessibility-card__body {
+  border-color: var(--accent-soft);
+  transform: translateY(-2px);
+}
+
+.accessibility-card__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.accessibility-card__icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-invert);
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+}
+
+.accessibility-card__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.accessibility-card__title {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.accessibility-card__subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.accessibility-card__state {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: var(--accent-dark);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.accessibility-card__details {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.accessibility-card__details li {
+  list-style: disc;
+}
+
+.accessibility-card__control:focus-visible + .accessibility-card__body,
+.accessibility-card__control:focus + .accessibility-card__body {
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 2px;
+}
+
+.accessibility-card__control:checked + .accessibility-card__body {
+  border-color: var(--accent);
+  box-shadow: 0 10px 28px var(--accent-glow);
+}
+
+.accessibility-card__control:checked + .accessibility-card__body .accessibility-card__state {
+  opacity: 1;
+}
+
+.assistive-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .theme-status {
   display: flex;
   flex-direction: column;
@@ -957,6 +1120,9 @@ body {
     width: fit-content;
   }
   .theme-options__grid {
+    grid-template-columns: 1fr;
+  }
+  .accessibility-grid {
     grid-template-columns: 1fr;
   }
 }
