@@ -33,6 +33,7 @@ const state = {
   voteMarker: null,
   voteHandler: null,
   voteInFlight: false,
+  confirmationPrompt: null,
   sheet: {
     snapPoints: [0.28, 0.58, 0.92],
     index: 1,
@@ -47,11 +48,11 @@ const state = {
   searchInFlight: false,
   pendingSearch: null,
   splashHideTimer: null,
-  activeSplashMode: 'bootstrap',
 };
 
 state.accessibility = new Set();
 state.designTokens = null;
+state.confirmationHistory = new Set();
 
 const dom = {
   splash: document.getElementById('splash'),
@@ -84,12 +85,21 @@ const dom = {
   entranceOptionsMeta: document.getElementById('entranceOptionsMeta'),
   startEntranceVote: document.getElementById('startEntranceVote'),
   entranceVoteHint: document.getElementById('entranceVoteHint'),
+  entranceConfirm: document.getElementById('entranceConfirm'),
+  entranceConfirmMessage: document.getElementById('entranceConfirmMessage'),
+  entranceConfirmYes: document.getElementById('entranceConfirmYes'),
+  entranceConfirmNo: document.getElementById('entranceConfirmNo'),
+  entranceConfirmSuggest: document.getElementById('entranceConfirmSuggest'),
 };
 
 dom.sheetHandle = dom.sheetToggle;
 
 if (dom.splash) {
   dom.splash.setAttribute('aria-hidden', 'false');
+}
+
+if (dom.entranceOptions) {
+  dom.entranceOptions.setAttribute('aria-hidden', dom.entranceOptions.hidden ? 'true' : 'false');
 }
 
 const SPLASH_MESSAGES = {
@@ -219,7 +229,6 @@ function showSplash({ mode = 'bootstrap', message } = {}) {
   if (dom.splashMessage) {
     dom.splashMessage.textContent = resolvedMessage;
   }
-  state.activeSplashMode = mode;
 }
 
 function updateSplashMessage(message) {
@@ -233,7 +242,6 @@ function hideSplash({ delay = 0 } = {}) {
     dom.splash.classList.add('splash--hidden');
     dom.splash.setAttribute('aria-hidden', 'true');
     dom.splash.classList.remove('splash--search');
-    state.activeSplashMode = null;
     state.splashHideTimer = null;
   };
   if (delay > 0) {
@@ -1148,6 +1156,86 @@ function normalizeEntranceResult(result) {
   return result;
 }
 
+function normalizePromptKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .slice(0, 256);
+}
+
+function updateEntranceConfirmationMessage(result) {
+  if (!dom.entranceConfirmMessage) return;
+  const raw = String(result?.query || '').trim();
+  const label = raw ? (raw.length > 60 ? `${raw.slice(0, 57)}...` : raw) : 'this destination';
+  const votes = Number(result?.communityEntrances?.totalVotes) || 0;
+  const suffix = votes
+    ? `Join ${votes} other vote${votes === 1 ? '' : 's'}.`
+    : 'Your confirmation helps future visitors.';
+  dom.entranceConfirmMessage.textContent = `Does the highlighted entrance for "${label}" look correct? ${suffix}`;
+}
+
+function hideEntranceConfirmation({ mark = false } = {}) {
+  const key = state.confirmationPrompt?.key;
+  if (mark && key) state.confirmationHistory.add(key);
+  state.confirmationPrompt = null;
+  if (dom.entranceConfirm) dom.entranceConfirm.hidden = true;
+  if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = false;
+  if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = false;
+}
+
+function showEntranceConfirmation(result) {
+  if (!dom.entranceConfirm) return;
+  const key = normalizePromptKey(result?.query);
+  const entrance = result?.entrance;
+  if (!key || !entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon)) return;
+  state.confirmationPrompt = {
+    key,
+    query: result.query,
+    entrance: { lat: entrance.lat, lon: entrance.lon },
+  };
+  state.confirmationHistory.add(key);
+  updateEntranceConfirmationMessage(result);
+  dom.entranceConfirm.hidden = false;
+  if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = false;
+  if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = false;
+}
+
+function maybePromptEntranceConfirmation(result, { allowRandom = false } = {}) {
+  if (!dom.entranceConfirm) return;
+  const entrance = result?.entrance;
+  const query = result?.query;
+  if (!entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon) || !query) {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
+  if (state.isVoting || state.voteInFlight) {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
+  const key = normalizePromptKey(query);
+  if (!key) {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
+  if (state.confirmationPrompt && state.confirmationPrompt.key === key) {
+    updateEntranceConfirmationMessage(result);
+    return;
+  }
+  if (state.confirmationHistory.has(key)) {
+    hideEntranceConfirmation({ mark: true });
+    return;
+  }
+  if (!allowRandom) {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
+  if (Math.random() >= 0.1) {
+    return;
+  }
+  showEntranceConfirmation(result);
+}
+
 async function performSearch(query) {
   if (!query) return;
   stopEntranceVoting({ clearMarker: true });
@@ -1157,12 +1245,30 @@ async function performSearch(query) {
   renderSuggestions([]);
   dom.clearSearch.hidden = !query;
   setStatus('Finding satellite entrance...');
+
+  if (state.pendingSearch) {
+    state.pendingSearch.abort();
+  }
+  const controller = new AbortController();
+  state.pendingSearch = controller;
+  state.searchInFlight = true;
+  if (dom.searchInput) {
+    dom.searchInput.setAttribute('aria-busy', 'true');
+    dom.searchInput.disabled = true;
+  }
+  showSplash({ mode: 'search', message: 'Scanning satellite imagery for entrances...' });
+
   try {
-    const resp = await fetch(`/entrance?q=${encodeURIComponent(query)}`, { headers: { 'Accept': 'application/json' } });
+    const resp = await fetch(`/entrance?q=${encodeURIComponent(query)}`, {
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal,
+    });
     const data = await resp.json();
     if (!resp.ok) {
       throw new Error(data?.error || 'search_failed');
     }
+    if (state.pendingSearch !== controller) return;
+    updateSplashMessage('Aligning entrance guidance...');
     normalizeEntranceResult(data);
     if (data.entrance) {
       data.baseEntrance = { ...data.entrance };
@@ -1171,8 +1277,22 @@ async function performSearch(query) {
     renderResult(data);
     setStatus('Entrance updated with current imagery.', 'success');
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      return;
+    }
+    if (state.pendingSearch !== controller) return;
     const message = error?.message === 'search_failed' ? 'Unable to locate that address right now.' : error?.message || 'Entrance lookup failed.';
     setStatus(message, 'error');
+  } finally {
+    if (state.pendingSearch === controller) {
+      state.pendingSearch = null;
+      state.searchInFlight = false;
+      if (dom.searchInput) {
+        dom.searchInput.removeAttribute('aria-busy');
+        dom.searchInput.disabled = false;
+      }
+      hideSplash({ delay: 220 });
+    }
   }
 }
 
@@ -1402,6 +1522,7 @@ function renderEntranceOptions(result) {
   if (!options.length) {
     dom.entranceOptionList.innerHTML = '';
     dom.entranceOptions.hidden = true;
+    dom.entranceOptions.setAttribute('aria-hidden', 'true');
     if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
     if (dom.startEntranceVote) {
       dom.startEntranceVote.hidden = true;
@@ -1413,6 +1534,7 @@ function renderEntranceOptions(result) {
   }
 
   dom.entranceOptions.hidden = false;
+  dom.entranceOptions.setAttribute('aria-hidden', 'false');
   dom.entranceOptionList.innerHTML = '';
 
   const currentEntrance = result?.entrance;
@@ -2009,6 +2131,7 @@ function setupInstallPrompt() {
 }
 
 function init() {
+  showSplash({ mode: 'bootstrap' });
   initMap();
   wireSearch();
   wireLocateButton();
@@ -2018,7 +2141,7 @@ function init() {
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();
-  hideSplash();
+  hideSplash({ delay: 360 });
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -98,24 +98,46 @@
         </header>
 
         <section id="infoSheet" class="sheet" aria-labelledby="sheetTitle">
-          <button
-            id="sheetToggle"
+          <div
+            id="sheetHandle"
             class="sheet__handle"
-            type="button"
-            aria-label="Collapse details"
-            aria-expanded="true"
+            role="button"
+            tabindex="0"
+            aria-label="Drag up for more arrival details"
             aria-controls="sheetContent"
           >
-            <span class="sheet__handleBar" aria-hidden="true"></span>
-            <svg class="sheet__handleIcon" viewBox="0 0 24 24" role="presentation" aria-hidden="true">
-              <path d="M6.5 14.5 12 9l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+            <span class="sheet__handleGrip" aria-hidden="true"></span>
+          </div>
           <div id="sheetContent" class="sheet__content">
             <div class="sheet__header">
-              <h1 id="sheetTitle">Plan your arrival</h1>
-              <p id="sheetSubtitle" class="sheet__subtitle">Search for a building to see the verified entrance and drop-off.</p>
+              <div class="sheet__headerRow">
+                <h1 id="sheetTitle">Directions</h1>
+                <button id="sheetReset" class="sheet__reset" type="button" aria-label="Reset route planner" hidden>Reset</button>
+              </div>
+              <p id="sheetSubtitle" class="sheet__subtitle">Set your origin, add stops, and glide to the verified entrance.</p>
             </div>
+            <div id="routePlanner" class="route-planner" aria-live="polite">
+              <div class="route-planner__modes" role="tablist" aria-label="Travel mode">
+                <button class="route-mode route-mode--active" type="button" role="tab" aria-selected="true" data-mode="drive" aria-label="Driving">
+                  <span aria-hidden="true">🚗</span>
+                </button>
+                <button class="route-mode" type="button" role="tab" aria-selected="false" data-mode="walk" aria-label="Walking">
+                  <span aria-hidden="true">🚶‍♂️</span>
+                </button>
+                <button class="route-mode" type="button" role="tab" aria-selected="false" data-mode="transit" aria-label="Transit">
+                  <span aria-hidden="true">🚆</span>
+                </button>
+                <button class="route-mode" type="button" role="tab" aria-selected="false" data-mode="bike" aria-label="Cycling">
+                  <span aria-hidden="true">🚲</span>
+                </button>
+              </div>
+              <div id="routeStops" class="route-stops" role="list" aria-label="Route stops"></div>
+              <button id="addRouteStop" class="route-planner__add" type="button">
+                <span class="route-planner__addIcon" aria-hidden="true">＋</span>
+                Add stop
+              </button>
+            </div>
+            <div id="routeSummary" class="route-summary" hidden></div>
             <section id="entranceConfirm" class="entrance-confirm" hidden>
               <div class="entrance-confirm__body">
                 <h2 class="entrance-confirm__title">Is this entrance correct?</h2>
@@ -137,7 +159,7 @@
               <p id="entranceVoteHint" class="entrance-options__hint" hidden>Tap on the map to place the entrance and confirm to share it.</p>
             </section>
             <div id="insights" class="insights" hidden></div>
-            <div id="directions" class="directions" hidden></div>
+            <div id="directions" class="directions directions--cards" hidden></div>
             <div id="navLinks" class="nav-links" hidden></div>
             <div id="statusMessage" class="status"></div>
           </div>
