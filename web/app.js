@@ -26,6 +26,14 @@ const state = {
   lastResult: null,
   installPromptEvent: null,
   isSheetCollapsed: false,
+  voteLayer: null,
+  entranceOptions: [],
+  selectedEntranceId: null,
+  communitySummary: null,
+  isVoting: false,
+  voteMarker: null,
+  voteHandler: null,
+  voteInFlight: false,
 };
 
 state.accessibility = new Set();
@@ -48,6 +56,11 @@ const dom = {
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
   sheetToggle: document.getElementById('sheetToggle'),
+  entranceOptions: document.getElementById('entranceOptions'),
+  entranceOptionList: document.getElementById('entranceOptionList'),
+  entranceOptionsMeta: document.getElementById('entranceOptionsMeta'),
+  startEntranceVote: document.getElementById('startEntranceVote'),
+  entranceVoteHint: document.getElementById('entranceVoteHint'),
 };
 
 function collectDesignTokens() {
