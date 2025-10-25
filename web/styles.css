@@ -2121,7 +2121,7 @@ body {
 }
 
 .settings-shell {
-  width: min(1100px, 100%);
+  width: min(1400px, 100%);
   display: flex;
   flex-direction: column;
   gap: clamp(32px, 4vw, 48px);
@@ -2379,8 +2379,14 @@ body {
 .settings-main {
   display: grid;
   gap: clamp(24px, 4vw, 32px);
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
+}
+
+@media (min-width: 960px) {
+  .settings-main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .settings-card {
@@ -2674,9 +2680,16 @@ body {
 }
 
 .settings-toggle--pill:has(input:checked) {
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-  border-color: transparent;
+  background: #2f7bff;
+  color: #f5f8ff;
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+:root.accessibility-lowvision .settings-toggle--pill:has(input:checked) {
+  background: var(--accent);
+  color: #0b0b0b;
+  border-color: rgba(0, 0, 0, 0.85);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .theme-options {
@@ -2788,6 +2801,24 @@ body {
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+/* Encourage multi-column layout for the long accessibility list on wide screens */
+.settings-card--accessibility .accessibility-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-auto-flow: dense;
+}
+
+@media (min-width: 1024px) {
+  .settings-card--accessibility .accessibility-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  .settings-card--accessibility .accessibility-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .accessibility-card {
@@ -3143,25 +3174,25 @@ body {
   --sheet-text: #f9f9f9;
   --text-strong: #f8f8f8;
   --text-muted: rgba(248, 248, 248, 0.7);
-  --accent: #f7b500;
-  --accent-dark: #c98700;
-  --accent-soft: rgba(247, 181, 0, 0.3);
-  --accent-outline: rgba(247, 181, 0, 0.72);
-  --accent-glow: rgba(247, 181, 0, 0.28);
-  --badge-bg: rgba(247, 181, 0, 0.18);
-  --suggestion-hover: rgba(247, 181, 0, 0.22);
-  --subtle-border: rgba(247, 181, 0, 0.3);
-  --theme-border: rgba(247, 181, 0, 0.55);
+  --accent: #ff8c32;
+  --accent-dark: #d46500;
+  --accent-soft: rgba(255, 140, 50, 0.3);
+  --accent-outline: rgba(255, 140, 50, 0.72);
+  --accent-glow: rgba(255, 140, 50, 0.28);
+  --badge-bg: rgba(255, 140, 50, 0.18);
+  --suggestion-hover: rgba(255, 140, 50, 0.22);
+  --subtle-border: rgba(255, 140, 50, 0.3);
+  --theme-border: rgba(255, 140, 50, 0.55);
   --input-bg: #0b0b0b;
-  --input-border: rgba(247, 181, 0, 0.55);
-  --input-shadow: inset 0 0 0 2px rgba(247, 181, 0, 0.45);
+  --input-border: rgba(255, 140, 50, 0.55);
+  --input-shadow: inset 0 0 0 2px rgba(255, 140, 50, 0.45);
   --sheet-shadow: 0 -18px 38px rgba(0, 0, 0, 0.65);
-  --sat-outline: rgba(247, 181, 0, 0.85);
+  --sat-outline: rgba(255, 140, 50, 0.85);
   --marker-centroid-border: #fefefe;
   --marker-centroid-fill: #0a0a0a;
-  --marker-dropoff-border: #f7b500;
-  --marker-dropoff-fill: #fdd067;
-  --path-connector: #f7b500;
+  --marker-dropoff-border: #ff8c32;
+  --marker-dropoff-fill: #ffb36f;
+  --path-connector: #ff8c32;
 }
 
 :root.accessibility-lowvision body {
@@ -3173,22 +3204,22 @@ body {
 :root.accessibility-lowvision .top-shell,
 :root.accessibility-lowvision .install-banner,
 :root.accessibility-lowvision .sheet {
-  border: 2px solid rgba(247, 181, 0, 0.45);
+  border: 2px solid rgba(255, 140, 50, 0.45);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
 }
 
 :root.accessibility-lowvision .search input {
   background: #0f0f0f;
   color: #f8f8f8;
-  box-shadow: inset 0 0 0 2px rgba(247, 181, 0, 0.45);
+  box-shadow: inset 0 0 0 2px rgba(255, 140, 50, 0.45);
 }
 
 :root.accessibility-lowvision .suggestion {
-  border-bottom: 1px solid rgba(247, 181, 0, 0.45);
+  border-bottom: 1px solid rgba(255, 140, 50, 0.45);
 }
 
 :root.accessibility-lowvision .map-locate {
-  border: 2px solid rgba(247, 181, 0, 0.45);
+  border: 2px solid rgba(255, 140, 50, 0.45);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
 
@@ -3211,13 +3242,13 @@ body {
 :root.accessibility-lowvision .leaflet-control-zoom a,
 :root.accessibility-lowvision .leaflet-control-zoom .map-locate {
   background: rgba(12, 12, 12, 0.92) !important;
-  color: #f7b500 !important;
+  color: #ff8c32 !important;
 }
 
 :root.accessibility-lowvision .map-locate--active {
-  background: #f7b500 !important;
+  background: #ff8c32 !important;
   color: #0b0b0b !important;
-  box-shadow: 0 0 0 3px rgba(247, 181, 0, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(255, 140, 50, 0.55) !important;
 }
 
 :root.accessibility-lowvision .map-locate--error {
