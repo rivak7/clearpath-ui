@@ -1,0 +1,65 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ClearPath - Smarter Building Arrivals</title>
+    <meta name="description" content="ClearPath guides riders and couriers to real building entrances with satellite intelligence." />
+    <meta name="theme-color" content="#0b1c2c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="/icons/icon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <noscript>ClearPath requires JavaScript to locate entrances and provide navigation.</noscript>
+    <div id="app" class="app-shell">
+      <div id="splash" class="splash">Loading ClearPath...</div>
+      <div class="map-stage" aria-live="polite">
+        <div id="map" class="map"></div>
+        <button id="locateMe" class="fab fab--locate" type="button" aria-label="Center on my location">
+          <span class="fab__icon" aria-hidden="true">◎</span>
+        </button>
+        <button id="openInstall" class="fab fab--install" type="button" hidden>Install</button>
+
+        <header class="top-shell" role="search">
+          <div class="brand">
+            <div class="brand__logo" aria-hidden="true">CP</div>
+            <div class="brand__copy">
+              <span class="brand__title">ClearPath</span>
+              <span class="brand__subtitle">Accessible entrance routing</span>
+            </div>
+          </div>
+          <form id="searchForm" class="search" autocomplete="off">
+            <label class="search__label" for="searchInput">Destination</label>
+            <div class="search__inputWrap">
+              <input id="searchInput" name="q" type="text" inputmode="search" placeholder="Search address, place, or building" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" />
+              <button id="clearSearch" class="search__clear" type="button" aria-label="Clear search" hidden>×</button>
+              <div id="suggestions" class="suggestions" role="listbox" aria-label="Address suggestions" hidden></div>
+            </div>
+          </form>
+        </header>
+
+        <section id="infoSheet" class="sheet" aria-labelledby="sheetTitle">
+          <div class="sheet__handle" aria-hidden="true"></div>
+          <div class="sheet__content">
+            <div class="sheet__header">
+              <h1 id="sheetTitle">Plan your arrival</h1>
+              <p id="sheetSubtitle" class="sheet__subtitle">Search for a building to see the verified entrance and drop-off.</p>
+            </div>
+            <div id="insights" class="insights" hidden></div>
+            <div id="directions" class="directions" hidden></div>
+            <div id="statusMessage" class="status"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

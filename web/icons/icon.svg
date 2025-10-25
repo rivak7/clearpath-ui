@@ -1,0 +1,16 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>ClearPath icon</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c293f" />
+      <stop offset="100%" stop-color="#02111d" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3dd6c1" />
+      <stop offset="100%" stop-color="#0b6f6b" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  <path d="M156 352c24 28 57 44 100 44 72 0 128-52 128-122 0-70-55-118-128-118-48 0-85 21-108 60l48 26c13-23 31-34 60-34 39 0 68 26 68 66 0 40-29 68-70 68-23 0-40-6-54-20l-44 30zm106 52c-90 0-162-70-162-162S172 80 262 80s162 70 162 162-72 162-162 162z" fill="url(#accent)" />
+  <circle cx="256" cy="256" r="56" fill="#03121f" opacity="0.2" />
+</svg>

@@ -1,0 +1,8 @@
+When adding or updating API endpoints in `server.js`, also:
+- Ensure the UI in `web/index.html` exposes input fields and displays results.
+- Maintain the single-command flow via `npm start`.
+- Keep CORS and security middleware sane for production.
+
+Primary app entry points:
+- Backend: `server.js`
+- Frontend: `web/index.html`
