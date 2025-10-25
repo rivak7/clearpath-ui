@@ -521,15 +521,18 @@ body {
 .brand__actions {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: clamp(10px, 2.8vw, 16px);
+  flex-wrap: wrap;
   margin-left: auto;
+  row-gap: clamp(8px, 2vw, 12px);
 }
 
 .brand__install {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(8px, 1.2vw + 6px, 12px) clamp(16px, 3vw + 10px, 22px);
+  padding: clamp(8px, 1.2vw + 6px, 12px) clamp(14px, 3vw + 8px, 20px);
   border-radius: var(--radius-lg);
   border: none;
   background: var(--accent);
@@ -537,9 +540,9 @@ body {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-size: clamp(0.64rem, 0.6rem + 0.18vw, 0.72rem);
+  font-size: clamp(0.62rem, 0.58rem + 0.2vw, 0.7rem);
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(11, 111, 107, 0.28);
+  box-shadow: 0 12px 24px rgba(11, 111, 107, 0.26);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -620,6 +623,53 @@ body {
 
 .brand__settingsText {
   text-transform: uppercase;
+}
+
+.brand__account {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(6px, 2vw, 10px);
+  padding: 0 clamp(12px, 3vw, 16px);
+  min-height: var(--touch-target);
+  border-radius: 999px;
+  border: 1px solid var(--theme-border);
+  background: var(--surface-soft, rgba(255, 255, 255, 0.08));
+  color: var(--text-strong);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.brand__account:hover,
+.brand__account[aria-expanded='true'] {
+  background: var(--suggestion-hover);
+  border-color: var(--accent-soft);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.brand__account:focus-visible {
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 3px;
+}
+
+.brand__accountAvatar {
+  width: clamp(26px, 3vw + 16px, 34px);
+  height: clamp(26px, 3vw + 16px, 34px);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: clamp(0.9rem, 2.2vw, 1.1rem);
+  line-height: 1;
+}
+
+.brand__accountLabel {
+  display: inline-flex;
+  align-items: center;
 }
 
 .search {
@@ -1751,10 +1801,47 @@ body {
     justify-content: flex-end;
     gap: clamp(10px, 3vw, 18px);
   }
+  .brand__actions {
+    justify-content: space-between;
+  }
+  .brand__install {
+    flex: 1 1 100%;
+    max-width: none;
+    justify-content: center;
+    order: 3;
+  }
+}
+
+@media (max-width: 480px) {
+  .install-banner {
+    top: auto;
+    bottom: calc(var(--safe-area-bottom) + clamp(96px, 30vh, 180px));
+  }
+  .install-banner__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .install-banner__primary {
+    flex: 1 1 100%;
+  }
+  .install-banner__dismiss {
+    flex: 0 0 auto;
+  }
 }
 
 @media (max-width: 560px) {
-
+  .fab-tray {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(12px, 4vw, 18px);
+    bottom: calc(var(--safe-area-bottom) + clamp(16px, 6vh, 44px));
+  }
+  .fab-tray .fab--install {
+    order: -1;
+  }
   .route-stops::after {
     left: clamp(20px, 7vw, 28px);
   }
@@ -1807,6 +1894,15 @@ body {
   }
   .sheet {
     max-height: min(88vh, 620px);
+  }
+  .fab-tray {
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(10px, 3vw, 16px);
+    bottom: calc(var(--safe-area-bottom) + clamp(12px, 4vh, 24px));
+    right: clamp(12px, 4vw, 20px);
+    left: auto;
+    transform: none;
   }
 
 }

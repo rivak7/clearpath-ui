@@ -70,6 +70,7 @@ const state = {
   routeStops: [],
   routeStopCounter: 0,
   routeMode: 'drive',
+  routePlannerExpanded: false,
   draggingStop: null,
   searchInFlight: false,
   pendingSearch: null,
