@@ -587,6 +587,931 @@ function setStatus(message, type = 'info') {
   if (type === 'success') dom.statusMessage.classList.add('status--success');
 }
 
+function deepClone(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch {
+      // fallthrough to JSON clone
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+}
+
+function derivePlaceLabel(result) {
+  if (!result) return '';
+  if (typeof result.label === 'string' && result.label.trim()) return result.label.trim();
+  if (typeof result.title === 'string' && result.title.trim()) return result.title.trim();
+  if (typeof result.name === 'string' && result.name.trim()) return result.name.trim();
+  if (result.raw?.name) return String(result.raw.name).trim();
+  if (typeof result.query === 'string' && result.query.trim()) return result.query.trim();
+  if (result.raw?.display_name) {
+    const [first] = String(result.raw.display_name).split(',');
+    if (first) return first.trim();
+  }
+  if (dom.searchInput && dom.searchInput.value.trim()) return dom.searchInput.value.trim();
+  return 'Saved place';
+}
+
+function derivePlaceAddress(result) {
+  if (!result) return '';
+  if (result.formatted) return String(result.formatted);
+  if (result.raw?.display_name) return String(result.raw.display_name);
+  if (Array.isArray(result.lines)) return result.lines.join(', ');
+  return result.query || '';
+}
+
+function buildResultSignature(result) {
+  if (!result) return null;
+  const center = result.entrance || result.roadPoint || result.center || null;
+  const lat = Number(center?.lat);
+  const lon = Number(center?.lon);
+  const query = String(result.query || derivePlaceLabel(result)).toLowerCase();
+  const latKey = Number.isFinite(lat) ? lat.toFixed(5) : 'x';
+  const lonKey = Number.isFinite(lon) ? lon.toFixed(5) : 'x';
+  return `${query}:${latKey}:${lonKey}`;
+}
+
+function createResultSnapshot(result) {
+  if (!result) return null;
+  const snapshot = {
+    query: result.query || derivePlaceLabel(result),
+    center: result.center ? { lat: Number(result.center.lat), lon: Number(result.center.lon) } : null,
+    bbox: result.bbox ? { ...result.bbox } : null,
+    entrance: result.entrance ? { ...result.entrance } : null,
+    roadPoint: result.roadPoint ? { ...result.roadPoint } : null,
+    communityEntrances: result.communityEntrances ? deepClone(result.communityEntrances) : null,
+    candidates: result.candidates ? deepClone(result.candidates) : null,
+    promptEligible: false,
+    provider: result.provider || null,
+  };
+  if (result.raw?.display_name) snapshot.formatted = String(result.raw.display_name);
+  return snapshot;
+}
+
+function buildPlacePayloadFromResult(result, { category = 'favorite' } = {}) {
+  if (!result) return null;
+  const center = result.entrance || result.roadPoint || result.center;
+  if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lon)) return null;
+  const label = derivePlaceLabel(result);
+  const address = derivePlaceAddress(result);
+  const signature = buildResultSignature(result);
+  const snapshot = createResultSnapshot(result);
+  return {
+    label,
+    address,
+    lat: Number(center.lat),
+    lon: Number(center.lon),
+    category,
+    metadata: {
+      query: result.query || null,
+      signature,
+      snapshot,
+      bbox: result.bbox || null,
+      roadPoint: result.roadPoint || null,
+      entrance: result.entrance || null,
+      center: result.center || null,
+      savedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function matchesSavedPlace(savedPlace, result) {
+  if (!savedPlace || !result) return false;
+  const placeSignature = savedPlace.metadata?.signature;
+  const resultSignature = buildResultSignature(result);
+  if (placeSignature && resultSignature && placeSignature === resultSignature) return true;
+  const center = result.entrance || result.roadPoint || result.center;
+  if (center && Number.isFinite(savedPlace.lat) && Number.isFinite(savedPlace.lon) && Number.isFinite(center.lat) && Number.isFinite(center.lon)) {
+    const latDiff = Math.abs(Number(savedPlace.lat) - Number(center.lat));
+    const lonDiff = Math.abs(Number(savedPlace.lon) - Number(center.lon));
+    if (latDiff <= 0.0004 && lonDiff <= 0.0004) return true;
+  }
+  if (savedPlace.metadata?.query && result.query) {
+    if (savedPlace.metadata.query.toLowerCase() === result.query.toLowerCase()) return true;
+  }
+  return false;
+}
+
+function updatePlaceButton(button, savedPlace, result, label) {
+  if (!button) return;
+  if (!result) {
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
+    button.textContent = `Set as ${label}`;
+    return;
+  }
+  button.disabled = false;
+  button.removeAttribute('aria-disabled');
+  if (savedPlace && matchesSavedPlace(savedPlace, result)) {
+    button.textContent = `Update ${label}`;
+    button.dataset.mode = 'update';
+  } else if (savedPlace) {
+    button.textContent = `Replace ${label}`;
+    button.dataset.mode = 'replace';
+  } else {
+    button.textContent = `Set as ${label}`;
+    button.dataset.mode = 'create';
+  }
+}
+
+function updateFavoriteButton(favorites, result) {
+  if (!dom.saveAsFavorite) return;
+  if (!result) {
+    dom.saveAsFavorite.disabled = true;
+    dom.saveAsFavorite.setAttribute('aria-disabled', 'true');
+    dom.saveAsFavorite.textContent = 'Add to Favorites';
+    return;
+  }
+  dom.saveAsFavorite.disabled = false;
+  dom.saveAsFavorite.removeAttribute('aria-disabled');
+  const exists = Array.isArray(favorites) && favorites.some((place) => matchesSavedPlace(place, result));
+  dom.saveAsFavorite.textContent = exists ? 'Update favorite' : 'Add to Favorites';
+  dom.saveAsFavorite.dataset.mode = exists ? 'update' : 'create';
+}
+
+function setPlaceActionBusy(busy) {
+  [dom.saveAsHome, dom.saveAsWork, dom.saveAsFavorite]
+    .filter(Boolean)
+    .forEach((button) => {
+      if (busy) {
+        button.setAttribute('disabled', 'true');
+        button.setAttribute('aria-busy', 'true');
+      } else {
+        button.removeAttribute('disabled');
+        button.removeAttribute('aria-busy');
+      }
+    });
+}
+
+function updatePlaceActions() {
+  if (!dom.placeActions) return;
+  const user = state.account?.user;
+  const result = state.lastResult;
+  const shouldShow = Boolean(user && result);
+  dom.placeActions.hidden = !shouldShow;
+  dom.placeActions.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+  if (!shouldShow) return;
+  const saved = user?.savedPlaces || {};
+  updatePlaceButton(dom.saveAsHome, saved.home || null, result, 'Home');
+  updatePlaceButton(dom.saveAsWork, saved.work || null, result, 'Work');
+  updateFavoriteButton(saved.favorites || [], result);
+}
+
+function resolvePlaceFromType(type, placeId) {
+  const user = state.account?.user;
+  if (!user || !user.savedPlaces) return null;
+  const saved = user.savedPlaces;
+  if (type === 'home') return saved.home || null;
+  if (type === 'work') return saved.work || null;
+  if (type === 'favorite') {
+    return Array.isArray(saved.favorites)
+      ? saved.favorites.find((fav) => fav.id === placeId) || null
+      : null;
+  }
+  return null;
+}
+
+function openSavedPlace(place) {
+  if (!place) return;
+  if (place.metadata?.snapshot) {
+    const snapshot = deepClone(place.metadata.snapshot);
+    if (snapshot) {
+      if (!snapshot.query) snapshot.query = place.metadata?.query || place.label;
+      if ((!snapshot.center || !Number.isFinite(snapshot.center.lat) || !Number.isFinite(snapshot.center.lon))
+        && Number.isFinite(place.lat) && Number.isFinite(place.lon)) {
+        snapshot.center = { lat: Number(place.lat), lon: Number(place.lon) };
+      }
+      renderResult(snapshot, { preserveView: false, skipStateUpdate: false, seedRouteStops: true });
+      if (dom.searchInput) {
+        dom.searchInput.value = place.label || snapshot.query || '';
+        dom.clearSearch.hidden = !dom.searchInput.value;
+      }
+      updateNavigationLinks();
+      return;
+    }
+  }
+  const fallbackQuery = place.metadata?.query || place.address || place.label;
+  if (fallbackQuery) {
+    if (dom.searchInput) {
+      dom.searchInput.value = fallbackQuery;
+      dom.clearSearch.hidden = !dom.searchInput.value;
+    }
+    performSearch(fallbackQuery);
+    return;
+  }
+  if (Number.isFinite(place.lat) && Number.isFinite(place.lon) && state.map) {
+    state.map.setView([Number(place.lat), Number(place.lon)], 18, { animate: true });
+  }
+}
+
+function maybeRecordRecent(result) {
+  if (!isAuthenticated() || !result) return;
+  const center = result.entrance || result.roadPoint || result.center;
+  if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lon)) return;
+  const signature = buildResultSignature(result);
+  if (signature && signature === state.lastRecordedResultKey) return;
+  const entry = {
+    label: derivePlaceLabel(result),
+    address: derivePlaceAddress(result),
+    query: result.query || derivePlaceLabel(result),
+    lat: Number(center.lat),
+    lon: Number(center.lon),
+    type: 'search',
+    metadata: {
+      signature,
+      snapshot: createResultSnapshot(result),
+    },
+  };
+  recordRecent(entry)
+    .then(() => {
+      state.lastRecordedResultKey = signature;
+    })
+    .catch((error) => {
+      console.warn('Failed to record recent search', error);
+    });
+}
+
+function renderAccountSnapshot(snapshot) {
+  const user = snapshot?.user || null;
+  const token = snapshot?.token || null;
+  state.account.user = user;
+  state.account.token = token;
+  state.account.ready = true;
+  updateAccountBadge(user);
+  renderAccountMenu(user);
+  renderPersonalization(user);
+  updatePlaceActions();
+  if (!user) {
+    state.lastRecordedResultKey = null;
+    toggleAccountMenu(false);
+  }
+}
+
+function updateAccountBadge(user) {
+  if (!dom.accountButton) return;
+  const labelEl = dom.accountLabel;
+  const avatarEl = dom.accountAvatar;
+  if (!user) {
+    if (labelEl) labelEl.textContent = 'Sign in';
+    if (avatarEl) avatarEl.textContent = '👤';
+    dom.accountButton.setAttribute('aria-label', 'Sign in to ClearPath');
+    dom.accountButton.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  const name = user.name || user.email || 'Explorer';
+  const firstName = name.split(/\s+/)[0] || name;
+  if (labelEl) labelEl.textContent = `Hi, ${firstName}`;
+  if (avatarEl) {
+    const initials = firstName.charAt(0).toUpperCase() || '🙂';
+    avatarEl.textContent = user.avatarEmoji || initials;
+  }
+  dom.accountButton.setAttribute('aria-label', `Account menu for ${name}`);
+  dom.accountButton.setAttribute('aria-expanded', state.accountMenuOpen ? 'true' : 'false');
+}
+
+function renderAccountMenu(user) {
+  if (!dom.accountCard) return;
+  if (!user) {
+    dom.accountCard.hidden = true;
+    dom.accountCard.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  dom.accountCard.hidden = false;
+  dom.accountCard.setAttribute('aria-hidden', state.accountMenuOpen ? 'false' : 'true');
+  if (dom.accountName) dom.accountName.textContent = user.name || 'Explorer';
+  if (dom.accountEmail) {
+    const emailText = user.email || 'Sign in to sync across devices.';
+    dom.accountEmail.textContent = emailText;
+  }
+  if (dom.accountCardAvatar) {
+    const initials = (user.name || user.email || '🙂').trim().charAt(0).toUpperCase() || '🙂';
+    dom.accountCardAvatar.textContent = user.avatarEmoji || initials;
+  }
+  renderAccountSavedPlaces(user.savedPlaces || {});
+  renderPreferenceSummary(user.preferences || {});
+}
+
+function renderAccountSavedPlaces(savedPlaces) {
+  if (!dom.accountSavedPlaces) return;
+  const list = dom.accountSavedPlaces;
+  list.innerHTML = '';
+  const items = [];
+  if (savedPlaces.home) {
+    items.push({ type: 'home', icon: '🏠', title: 'Home', place: savedPlaces.home });
+  }
+  if (savedPlaces.work) {
+    items.push({ type: 'work', icon: '🏢', title: 'Work', place: savedPlaces.work });
+  }
+  if (Array.isArray(savedPlaces.favorites)) {
+    savedPlaces.favorites.slice(0, 6).forEach((fav) => {
+      items.push({ type: 'favorite', icon: fav.icon || '⭐', title: fav.label || 'Favorite', place: fav });
+    });
+  }
+  if (!items.length) {
+    const empty = document.createElement('li');
+    empty.className = 'account-card__empty';
+    empty.textContent = 'Save entrances you love to reach them faster.';
+    list.appendChild(empty);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  items.forEach((item) => {
+    if (!item.place) return;
+    const li = document.createElement('li');
+    li.className = 'account-card__item';
+    li.dataset.placeType = item.type;
+    li.dataset.placeId = item.place.id || `${item.type}-${item.place.label || ''}`;
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'account-card__itemMain';
+    const icon = document.createElement('span');
+    icon.className = 'account-card__itemIcon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = item.icon;
+    const body = document.createElement('span');
+    body.className = 'account-card__itemBody';
+    const title = document.createElement('span');
+    title.className = 'account-card__itemTitle';
+    title.textContent = item.type === 'favorite' ? (item.place.label || 'Favorite') : item.title;
+    const subtitle = document.createElement('span');
+    subtitle.className = 'account-card__itemSubtitle';
+    subtitle.textContent = item.place.address || item.place.label || '';
+    body.appendChild(title);
+    body.appendChild(subtitle);
+    main.appendChild(icon);
+    main.appendChild(body);
+    li.appendChild(main);
+
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'account-card__itemAction';
+    if (item.type === 'favorite') {
+      action.dataset.action = 'remove';
+      action.textContent = 'Remove';
+    } else {
+      action.dataset.action = 'clear';
+      action.textContent = 'Clear';
+    }
+    li.appendChild(action);
+    fragment.appendChild(li);
+  });
+  list.appendChild(fragment);
+}
+
+function renderPreferenceSummary(preferences) {
+  if (!dom.accountPreferenceSummary) return;
+  if (!preferences || typeof preferences !== 'object') {
+    dom.accountPreferenceSummary.textContent = 'Pick your go-to travel styles to get smarter routes.';
+    return;
+  }
+  const pieces = [];
+  const modeLabels = { drive: 'Drive', walk: 'Walk', transit: 'Transit', bike: 'Bike' };
+  if (preferences.defaultTravelMode && modeLabels[preferences.defaultTravelMode]) {
+    pieces.push(`Default · ${modeLabels[preferences.defaultTravelMode]}`);
+  }
+  const mapLabels = { auto: 'Auto', light: 'Light', dark: 'Dark', satellite: 'Satellite', terrain: 'Terrain' };
+  if (preferences.mapStyle && mapLabels[preferences.mapStyle]) {
+    pieces.push(`Map · ${mapLabels[preferences.mapStyle]}`);
+  }
+  const avoids = [];
+  if (preferences.avoids?.tolls) avoids.push('tolls');
+  if (preferences.avoids?.highways) avoids.push('highways');
+  if (preferences.avoids?.ferries) avoids.push('ferries');
+  if (avoids.length) {
+    pieces.push(`Avoid · ${avoids.join(', ')}`);
+  }
+  if (preferences.liveTransitAlerts) {
+    pieces.push('Transit alerts on');
+  }
+  if (Array.isArray(preferences.accessibilityProfiles) && preferences.accessibilityProfiles.length) {
+    const count = preferences.accessibilityProfiles.length;
+    pieces.push(`${count} accessibility boost${count > 1 ? 's' : ''}`);
+  }
+  dom.accountPreferenceSummary.textContent = pieces.length
+    ? pieces.join(' · ')
+    : 'Tailor your commute, map appearance, and accessibility boosts.';
+}
+
+function renderPersonalization(user) {
+  if (!dom.personalizationRail) return;
+  const saved = user?.savedPlaces || {};
+  const recents = user?.recents || [];
+  const quickLinks = [];
+  if (saved.home) quickLinks.push({ type: 'home', label: 'Home', icon: '🏠', place: saved.home });
+  if (saved.work) quickLinks.push({ type: 'work', label: 'Work', icon: '🏢', place: saved.work });
+  if (Array.isArray(saved.favorites)) {
+    saved.favorites.slice(0, 6).forEach((fav) => {
+      quickLinks.push({ type: 'favorite', label: fav.label || 'Favorite', icon: fav.icon || '⭐', place: fav });
+    });
+  }
+  state.personalization.quickLinks = quickLinks;
+  renderPersonalizationChips(quickLinks);
+  renderPersonalizationRecents(recents);
+  const shouldShow = quickLinks.length > 0 || (recents && recents.length > 0);
+  dom.personalizationRail.hidden = !shouldShow;
+  dom.personalizationRail.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+}
+
+function renderPersonalizationChips(quickLinks) {
+  if (!dom.personalizationQuickLinks) return;
+  const container = dom.personalizationQuickLinks;
+  container.innerHTML = '';
+  if (!quickLinks.length) {
+    container.dataset.empty = 'true';
+    return;
+  }
+  container.removeAttribute('data-empty');
+  const fragment = document.createDocumentFragment();
+  quickLinks.forEach((item) => {
+    if (!item.place) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'personalization__chip';
+    button.dataset.placeType = item.type;
+    button.dataset.placeId = item.place.id || `${item.type}-${item.place.label || ''}`;
+    button.textContent = `${item.icon} ${item.label}`;
+    fragment.appendChild(button);
+  });
+  container.appendChild(fragment);
+}
+
+function renderPersonalizationRecents(recents) {
+  if (!dom.personalizationRecents || !dom.personalizationRecentsList) return;
+  const list = dom.personalizationRecentsList;
+  list.innerHTML = '';
+  if (!recents || !recents.length) {
+    dom.personalizationRecents.hidden = true;
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  recents.slice(0, 5).forEach((recent) => {
+    const li = document.createElement('li');
+    li.className = 'personalization__recentItem';
+    li.dataset.placeId = recent.id || '';
+    li.dataset.signature = recent.metadata?.signature || '';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'personalization__recentButton';
+    button.textContent = recent.label || recent.address || 'Recent search';
+    li.appendChild(button);
+    fragment.appendChild(li);
+  });
+  list.appendChild(fragment);
+  dom.personalizationRecents.hidden = false;
+}
+
+function handlePersonalizationChipClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.classList.contains('personalization__chip')) return;
+  const type = target.dataset.placeType;
+  const placeId = target.dataset.placeId;
+  const place = resolvePlaceFromType(type, placeId);
+  if (place) {
+    openSavedPlace(place);
+    toggleAccountMenu(false);
+  }
+}
+
+function handleRecentClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.classList.contains('personalization__recentButton')) return;
+  const item = target.closest('.personalization__recentItem');
+  if (!item) return;
+  const signature = item.dataset.signature;
+  const id = item.dataset.placeId;
+  const recents = state.account?.user?.recents || [];
+  const recent = recents.find((entry) => {
+    if (signature && entry.metadata?.signature === signature) return true;
+    if (id && entry.id === id) return true;
+    return false;
+  });
+  openRecentEntry(recent || null);
+}
+
+function openRecentEntry(entry) {
+  if (!entry) return;
+  if (entry.metadata?.snapshot) {
+    const snapshot = deepClone(entry.metadata.snapshot);
+    if (snapshot) {
+      if (!snapshot.query) snapshot.query = entry.query || entry.label || '';
+      renderResult(snapshot, { preserveView: false, skipStateUpdate: false, seedRouteStops: true });
+      if (dom.searchInput) {
+        dom.searchInput.value = entry.query || entry.label || '';
+        dom.clearSearch.hidden = !dom.searchInput.value;
+      }
+      return;
+    }
+  }
+  if (entry.query) {
+    if (dom.searchInput) {
+      dom.searchInput.value = entry.query;
+      dom.clearSearch.hidden = !dom.searchInput.value;
+    }
+    performSearch(entry.query);
+    return;
+  }
+  if (Number.isFinite(entry.lat) && Number.isFinite(entry.lon) && state.map) {
+    state.map.setView([Number(entry.lat), Number(entry.lon)], 18, { animate: true });
+  }
+}
+
+function handleAccountButtonClick() {
+  if (!isAuthenticated()) {
+    openAuthDialog(state.authMode === 'signup' ? 'signup' : 'login');
+    return;
+  }
+  toggleAccountMenu();
+}
+
+function toggleAccountMenu(force) {
+  if (!dom.accountCard || !dom.accountButton) return;
+  if (!state.account?.user) {
+    state.accountMenuOpen = false;
+    dom.accountCard.hidden = true;
+    dom.accountCard.setAttribute('aria-hidden', 'true');
+    dom.accountButton.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  const shouldOpen = typeof force === 'boolean' ? force : !state.accountMenuOpen;
+  state.accountMenuOpen = shouldOpen;
+  dom.accountCard.hidden = !shouldOpen;
+  dom.accountCard.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+  dom.accountButton.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+  if (shouldOpen) {
+    dom.accountCard.setAttribute('tabindex', '-1');
+    try {
+      dom.accountCard.focus({ preventScroll: true });
+    } catch {
+      dom.accountCard.focus && dom.accountCard.focus();
+    }
+  }
+}
+
+function closeAccountMenu() {
+  toggleAccountMenu(false);
+}
+
+function handleGlobalPointerDown(event) {
+  if (!state.accountMenuOpen) return;
+  if (!dom.accountCard || !dom.accountButton) return;
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (dom.accountCard.contains(target) || dom.accountButton.contains(target)) return;
+  closeAccountMenu();
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === 'Escape') {
+    if (dom.authDialog && !dom.authDialog.hidden) {
+      event.preventDefault();
+      closeAuthDialog();
+      return;
+    }
+    if (state.accountMenuOpen) {
+      event.preventDefault();
+      closeAccountMenu();
+    }
+  }
+}
+
+async function handleAccountSavedPlaceClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const item = target.closest('.account-card__item');
+  if (!item) return;
+  const type = item.dataset.placeType;
+  const placeId = item.dataset.placeId;
+  if (target.dataset.action === 'remove') {
+    event.preventDefault();
+    if (!isAuthenticated()) {
+      openAuthDialog('login');
+      return;
+    }
+    try {
+      await removeFavorite(placeId);
+      setStatus('Favorite removed.', 'success');
+    } catch (error) {
+      console.warn('Failed to remove favorite', error);
+      setStatus('Unable to remove that favorite right now.', 'error');
+    }
+    return;
+  }
+  if (target.dataset.action === 'clear') {
+    event.preventDefault();
+    if (!isAuthenticated()) {
+      openAuthDialog('login');
+      return;
+    }
+    try {
+      if (type === 'home') {
+        await clearHome();
+        setStatus('Home cleared.', 'success');
+      } else if (type === 'work') {
+        await clearWork();
+        setStatus('Work cleared.', 'success');
+      }
+    } catch (error) {
+      console.warn('Failed to clear saved location', error);
+      setStatus('Unable to update that saved place right now.', 'error');
+    }
+    return;
+  }
+  const place = resolvePlaceFromType(type, placeId);
+  if (place) {
+    openSavedPlace(place);
+    closeAccountMenu();
+  }
+}
+
+function handleAuthSwitch() {
+  const nextMode = state.authMode === 'signup' ? 'login' : 'signup';
+  applyAuthMode(nextMode);
+  const form = nextMode === 'signup' ? dom.signupForm : dom.loginForm;
+  const focusTarget = form?.querySelector('input');
+  focusTarget?.focus();
+}
+
+function applyAuthMode(mode) {
+  state.authMode = mode;
+  const isSignup = mode === 'signup';
+  if (dom.loginForm) dom.loginForm.hidden = isSignup;
+  if (dom.signupForm) dom.signupForm.hidden = !isSignup;
+  if (dom.authTitle) {
+    dom.authTitle.textContent = isSignup
+      ? 'Create your ClearPath account'
+      : 'Welcome back';
+  }
+  if (dom.authSubtitle) {
+    dom.authSubtitle.textContent = isSignup
+      ? 'Personalize ClearPath with home, work, favorites, and commute routines.'
+      : 'Sign in to sync saved entrances, commute plans, and custom themes.';
+  }
+  if (dom.authHint) {
+    const prefix = isSignup ? 'Already have an account? ' : 'New here? ';
+    const firstNode = dom.authHint.firstChild;
+    if (firstNode && firstNode.nodeType === Node.TEXT_NODE) {
+      firstNode.textContent = prefix;
+    } else {
+      dom.authHint.textContent = prefix;
+      if (dom.authSwitcher) dom.authHint.appendChild(dom.authSwitcher);
+    }
+  }
+  if (dom.authSwitcher) {
+    dom.authSwitcher.textContent = isSignup ? 'Sign in instead' : 'Create an account';
+  }
+}
+
+function openAuthDialog(mode = 'login') {
+  if (!dom.authDialog) return;
+  applyAuthMode(mode);
+  setAuthStatus('');
+  setAuthBusy(false);
+  dom.authDialog.hidden = false;
+  dom.authDialog.setAttribute('aria-hidden', 'false');
+  const form = mode === 'signup' ? dom.signupForm : dom.loginForm;
+  const input = form?.querySelector('input');
+  window.requestAnimationFrame(() => {
+    input?.focus();
+  });
+}
+
+function closeAuthDialog({ delay = 0 } = {}) {
+  if (!dom.authDialog) return;
+  const hide = () => {
+    dom.authDialog.hidden = true;
+    dom.authDialog.setAttribute('aria-hidden', 'true');
+    setAuthStatus('');
+    setAuthBusy(false);
+  };
+  if (delay > 0) {
+    window.setTimeout(hide, delay);
+  } else {
+    hide();
+  }
+}
+
+function setAuthStatus(message, type = 'info') {
+  if (!dom.authStatus) return;
+  dom.authStatus.textContent = message || '';
+  dom.authStatus.className = 'auth-modal__status';
+  if (!message) {
+    dom.authStatus.hidden = true;
+    return;
+  }
+  dom.authStatus.hidden = false;
+  if (type === 'error') dom.authStatus.classList.add('auth-modal__status--error');
+  if (type === 'success') dom.authStatus.classList.add('auth-modal__status--success');
+}
+
+function setAuthBusy(busy) {
+  state.authBusy = busy;
+  [dom.loginForm, dom.signupForm].filter(Boolean).forEach((form) => {
+    const controls = form.querySelectorAll('input, select, button');
+    controls.forEach((control) => {
+      if (busy) {
+        control.setAttribute('disabled', 'true');
+      } else {
+        control.removeAttribute('disabled');
+      }
+    });
+  });
+  if (dom.authDialog) {
+    dom.authDialog.setAttribute('aria-busy', busy ? 'true' : 'false');
+  }
+}
+
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  if (state.authBusy) return;
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const formData = new FormData(form);
+  const email = String(formData.get('email') || '').trim();
+  const password = String(formData.get('password') || '');
+  if (!email || !password) {
+    setAuthStatus('Enter your email and password to continue.', 'error');
+    return;
+  }
+  setAuthBusy(true);
+  setAuthStatus('Signing in…', 'info');
+  try {
+    await login({ email, password });
+    setAuthStatus('Signed in! Loading your places…', 'success');
+    closeAuthDialog({ delay: 360 });
+    setStatus('Signed in. Personalization unlocked.', 'success');
+  } catch (error) {
+    console.warn('Login failed', error);
+    const message = error?.payload?.error === 'invalid_credentials'
+      ? 'Email or password did not match.'
+      : 'Unable to sign in right now. Try again shortly.';
+    setAuthStatus(message, 'error');
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleSignupSubmit(event) {
+  event.preventDefault();
+  if (state.authBusy) return;
+  const form = event.currentTarget;
+  if (!(form instanceof HTMLFormElement)) return;
+  const formData = new FormData(form);
+  const email = String(formData.get('email') || '').trim();
+  const password = String(formData.get('password') || '');
+  if (!email || !password) {
+    setAuthStatus('Enter a valid email and password.', 'error');
+    return;
+  }
+  const name = String(formData.get('name') || '').trim();
+  const defaultTravelMode = String(formData.get('defaultTravelMode') || 'drive');
+  const mapStyle = String(formData.get('mapStyle') || 'auto');
+  const liveTransitAlerts = formData.get('liveTransitAlerts') === 'on';
+  const preferences = {
+    defaultTravelMode,
+    mapStyle,
+    liveTransitAlerts,
+    proactiveSuggestions: true,
+    notifications: {
+      arrivalReminders: true,
+      commuteInsights: true,
+      savedPlaceUpdates: true,
+    },
+    haptics: true,
+  };
+  setAuthBusy(true);
+  setAuthStatus('Creating your account…', 'info');
+  try {
+    await signup({ email, password, name, preferences });
+    setAuthStatus('Account created! Personalizing your map…', 'success');
+    closeAuthDialog({ delay: 420 });
+    setStatus('Welcome aboard! Your shortcuts will sync in a moment.', 'success');
+  } catch (error) {
+    console.warn('Signup failed', error);
+    const message = error?.payload?.error === 'email_in_use'
+      ? 'That email already has an account. Try signing in instead.'
+      : 'Unable to create an account right now. Try again soon.';
+    setAuthStatus(message, 'error');
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
+async function handleSignOut() {
+  try {
+    await logout();
+    setStatus('Signed out. Personalization paused until you sign in again.', 'info');
+  } catch (error) {
+    console.warn('Sign out failed', error);
+    setStatus('We signed you out locally. Refresh to confirm.', 'error');
+  }
+  closeAccountMenu();
+}
+
+async function handleSavePlace(target) {
+  if (!state.lastResult) {
+    setStatus('Search for an entrance before saving.', 'info');
+    return;
+  }
+  if (!isAuthenticated()) {
+    openAuthDialog('signup');
+    return;
+  }
+  const payload = buildPlacePayloadFromResult(state.lastResult, { category: target === 'favorite' ? 'favorite' : target });
+  if (!payload) {
+    setStatus('Unable to capture this entrance. Try another search.', 'error');
+    return;
+  }
+  setPlaceActionBusy(true);
+  try {
+    if (target === 'home') {
+      await setHome(payload);
+      setStatus('Home updated with this entrance.', 'success');
+    } else if (target === 'work') {
+      await setWork(payload);
+      setStatus('Work updated with this entrance.', 'success');
+    } else if (target === 'favorite') {
+      await saveFavorite(payload);
+      setStatus('Favorite saved for quick access.', 'success');
+    }
+  } catch (error) {
+    console.warn('Failed to save place', error);
+    setStatus('Unable to save that place right now. Try again later.', 'error');
+  } finally {
+    setPlaceActionBusy(false);
+    updatePlaceActions();
+  }
+}
+
+function handleManagePersonalization() {
+  window.location.href = '/settings.html';
+}
+
+function wireAccountExperience() {
+  if (dom.accountButton) {
+    dom.accountButton.addEventListener('click', handleAccountButtonClick);
+  }
+  if (dom.accountClose) {
+    dom.accountClose.addEventListener('click', () => closeAccountMenu());
+  }
+  if (dom.accountSignOut) {
+    dom.accountSignOut.addEventListener('click', handleSignOut);
+  }
+  if (dom.accountOpenSettings) {
+    dom.accountOpenSettings.addEventListener('click', handleManagePersonalization);
+  }
+  if (dom.managePersonalization) {
+    dom.managePersonalization.addEventListener('click', handleManagePersonalization);
+  }
+  if (dom.accountSavedPlaces) {
+    dom.accountSavedPlaces.addEventListener('click', handleAccountSavedPlaceClick);
+  }
+  if (dom.personalizationQuickLinks) {
+    dom.personalizationQuickLinks.addEventListener('click', handlePersonalizationChipClick);
+  }
+  if (dom.personalizationRecentsList) {
+    dom.personalizationRecentsList.addEventListener('click', handleRecentClick);
+  }
+  if (dom.authSwitcher) {
+    dom.authSwitcher.addEventListener('click', handleAuthSwitch);
+  }
+  if (dom.authClose) {
+    dom.authClose.addEventListener('click', () => closeAuthDialog());
+  }
+  if (dom.authDialog) {
+    dom.authDialog.addEventListener('click', (event) => {
+      if (event.target instanceof HTMLElement && event.target.dataset.authDismiss) {
+        closeAuthDialog();
+      }
+    });
+  }
+  if (dom.loginForm) {
+    dom.loginForm.addEventListener('submit', handleLoginSubmit);
+  }
+  if (dom.signupForm) {
+    dom.signupForm.addEventListener('submit', handleSignupSubmit);
+  }
+  if (dom.saveAsHome) {
+    dom.saveAsHome.addEventListener('click', () => handleSavePlace('home'));
+  }
+  if (dom.saveAsWork) {
+    dom.saveAsWork.addEventListener('click', () => handleSavePlace('work'));
+  }
+  if (dom.saveAsFavorite) {
+    dom.saveAsFavorite.addEventListener('click', () => handleSavePlace('favorite'));
+  }
+  document.addEventListener('pointerdown', handleGlobalPointerDown);
+  document.addEventListener('keydown', handleGlobalKeydown);
+}
+
 function computeSheetPosition(fraction, { minVisible } = {}) {
   if (!dom.infoSheet) {
     const baseline = typeof minVisible === 'number' ? minVisible : computeSheetBaselineVisible();
@@ -2811,6 +3736,7 @@ function init() {
   wireEntranceConfirmation();
   wireCommunityEntranceControls();
   initSheetInteractions();
+  wireSheetLauncher();
   initRoutePlanner();
   resetSheetHeadings();
   advanceSplashProgress(0.55);

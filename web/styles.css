@@ -1511,6 +1511,81 @@ body {
   color: var(--success);
 }
 
+.fab-tray {
+  position: absolute;
+  right: clamp(12px, 5vw, 24px);
+  bottom: calc(var(--safe-area-bottom) + clamp(24px, 8vh, 64px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: clamp(12px, 4vw, 20px);
+  width: max-content;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.fab {
+  position: relative;
+  width: clamp(52px, 9vw, 64px);
+  height: clamp(52px, 9vw, 64px);
+  border-radius: clamp(18px, 5vw, 24px);
+  display: grid;
+  place-items: center;
+  border: none;
+  cursor: pointer;
+  background: var(--fab-bg);
+  color: var(--fab-color);
+  box-shadow: var(--fab-shadow);
+  pointer-events: auto;
+  font-size: clamp(1rem, 0.6vw + 0.94rem, 1.35rem);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab:focus-visible {
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 4px;
+}
+
+.fab:active {
+  transform: scale(0.97);
+}
+
+.fab__icon {
+  pointer-events: none;
+  line-height: 1;
+}
+
+.fab--install {
+  width: auto;
+  min-height: clamp(46px, 7vw, 60px);
+  padding: 0 clamp(18px, 5vw, 24px);
+  border-radius: clamp(22px, 8vw, 32px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: clamp(0.75rem, 0.2vw + 0.7rem, 0.88rem);
+}
+
+.fab--loading .fab__icon {
+  opacity: 0.25;
+}
+
+.fab--loading::after {
+  content: '';
+  position: absolute;
+  width: clamp(20px, 5vw, 26px);
+  height: clamp(20px, 5vw, 26px);
+  border-radius: 50%;
+  border: 2px solid rgba(248, 251, 255, 0.32);
+  border-top-color: var(--accent);
+  animation: fabSpin 0.9s linear infinite;
+}
+
+.fab--error {
+  animation: fabError 0.45s ease-in-out 0s 2;
+}
+
 .leaflet-control-attribution {
   background: var(--leaflet-control-bg) !important;
   color: var(--leaflet-control-text) !important;
@@ -1585,6 +1660,27 @@ body {
 
 .map-locate--error {
   animation: mapLocateError 0.45s ease-in-out 0s 2;
+}
+
+@keyframes fabSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fabError {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
 }
 
 @keyframes mapLocateSpin {
