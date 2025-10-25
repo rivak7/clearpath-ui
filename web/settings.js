@@ -75,6 +75,8 @@ const themeOverview = document.getElementById('settingsThemeSummary');
 const accessibilityOverview = document.getElementById('settingsAccessibilitySummary');
 const commuteOverview = document.getElementById('settingsCommuteSummary');
 const placesOverview = document.getElementById('settingsPlacesSummary');
+const navItems = Array.from(document.querySelectorAll('.settings-anchorNav__item'));
+const overviewLinks = Array.from(document.querySelectorAll('.settings-overview__link'));
 
 const accessibilityControls = new Map();
 const featureMeta = new Map(ACCESSIBILITY_FEATURES.map((feature) => [feature.id, feature]));
@@ -190,6 +192,78 @@ function summarizeSavedPlaces(savedPlaces) {
     pieces.push(`${favoriteCount} favorite${favoriteCount > 1 ? 's' : ''}`);
   }
   return pieces.join(' • ');
+}
+
+function resolveSectionFromId(targetId) {
+  if (!targetId) return null;
+  const anchor = document.getElementById(targetId);
+  if (!anchor) return null;
+  return anchor.closest('.settings-card') || anchor.closest('section') || anchor;
+}
+
+function setActiveNavTarget(targetId) {
+  navItems.forEach((item) => {
+    if (item.dataset.targetId === targetId) {
+      item.setAttribute('aria-current', 'true');
+      item.classList.add('settings-anchorNav__item--active');
+    } else {
+      item.removeAttribute('aria-current');
+      item.classList.remove('settings-anchorNav__item--active');
+    }
+  });
+}
+
+function smoothScrollToTarget(targetId) {
+  if (!targetId) return;
+  const section = resolveSectionFromId(targetId);
+  if (!section) return;
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  section.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+}
+
+function wireNavigation() {
+  if (!navItems.length) return;
+  const sectionMap = navItems.map((item) => {
+    const hash = item.getAttribute('href') || '';
+    const targetId = hash.startsWith('#') ? hash.slice(1) : hash;
+    item.dataset.targetId = targetId;
+    return { item, targetId, section: resolveSectionFromId(targetId) };
+  }).filter((entry) => entry.section);
+
+  navItems.forEach((item) => {
+    item.addEventListener('click', (event) => {
+      const targetId = item.dataset.targetId;
+      if (!targetId) return;
+      event.preventDefault();
+      setActiveNavTarget(targetId);
+      smoothScrollToTarget(targetId);
+    });
+  });
+
+  overviewLinks.forEach((link) => {
+    const hash = link.getAttribute('href') || '';
+    const targetId = hash.startsWith('#') ? hash.slice(1) : hash;
+    if (!targetId) return;
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      setActiveNavTarget(targetId);
+      smoothScrollToTarget(targetId);
+    });
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+    if (!visible.length) return;
+    const active = visible[0].target.dataset.anchorId;
+    if (active) setActiveNavTarget(active);
+  }, { rootMargin: '-40% 0px -45% 0px', threshold: [0.2, 0.4, 0.6] });
+
+  sectionMap.forEach(({ section, targetId }) => {
+    section.dataset.anchorId = targetId;
+    observer.observe(section);
+  });
 }
 
 function updateThemeStatus({ mode, theme }) {

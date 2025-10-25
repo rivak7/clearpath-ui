@@ -2744,12 +2744,13 @@ body {
   position: relative;
   border-radius: 24px;
   border: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
-  background: color-mix(in srgb, var(--sheet-bg) 92%, transparent);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--overview-accent) 22%, transparent) 0%, color-mix(in srgb, var(--sheet-bg) 92%, transparent) 62%);
   box-shadow: 0 22px 42px rgba(6, 24, 42, 0.24);
   overflow: hidden;
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   --overview-accent: rgba(61, 214, 193, 0.9);
   --overview-glow: rgba(61, 214, 193, 0.22);
+  color: #f8fbff;
 }
 
 .settings-overview__card::before {
@@ -2787,6 +2788,11 @@ body {
   padding: clamp(18px, 4vw, 22px);
   text-decoration: none;
   color: inherit;
+}
+
+.settings-overview__link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 4px;
 }
 
 .settings-overview__icon {

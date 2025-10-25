@@ -64,6 +64,7 @@ const state = {
     isAnimating: false,
     resizeRaf: null,
     viewportCleanup: null,
+    radius: null,
   },
   routeStops: [],
   routeStopCounter: 0,
@@ -132,6 +133,7 @@ const dom = {
   splashProgress: document.getElementById('splashProgress'),
   splashProgressBar: document.getElementById('splashProgressBar'),
   map: document.getElementById('map'),
+  topShell: document.querySelector('.top-shell'),
   brandHome: document.getElementById('brandHome'),
   searchForm: document.getElementById('searchForm'),
   searchInput: document.getElementById('searchInput'),
@@ -1996,6 +1998,22 @@ function evaluateSheetOverlap() {
   }
 }
 
+function evaluateSheetOverlap() {
+  if (!dom.infoSheet) return;
+  const sheetRect = dom.infoSheet.getBoundingClientRect();
+  const margin = 12;
+  if (dom.topShell) {
+    const shellRect = dom.topShell.getBoundingClientRect();
+    const overlapsShell = sheetRect.top <= shellRect.bottom - margin;
+    dom.topShell.classList.toggle('top-shell--sheet-covered', overlapsShell);
+  }
+  if (dom.installBanner && !dom.installBanner.hidden) {
+    const bannerRect = dom.installBanner.getBoundingClientRect();
+    const overlapsBanner = sheetRect.top <= bannerRect.bottom - margin;
+    dom.installBanner.classList.toggle('install-banner--sheet-covered', overlapsBanner);
+  }
+}
+
 function applySheetSnap(index, { animate = true } = {}) {
   if (!dom.infoSheet) return;
   const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
@@ -3317,8 +3335,11 @@ function debounce(fn, delay) {
   };
 }
 
-const requestSuggestions = debounce(async () => {
-  const query = dom.searchInput.value.trim();
+const requestSuggestions = debounce(async (target, context) => {
+  if (!target || !target.isConnected) return;
+  setSuggestionTarget(target, context, { preserveList: true });
+  if (state.suggestionTarget !== target) return;
+  const query = target.value.trim();
   if (query.length < 3) {
     renderSuggestions([]);
     return;
@@ -3337,10 +3358,14 @@ const requestSuggestions = debounce(async () => {
     const resp = await fetch(`/geocode/suggest?${params.toString()}`, { signal: controller.signal });
     if (!resp.ok) throw new Error('suggest_failed');
     const data = await resp.json();
-    renderSuggestions(data.results || []);
+    if (state.suggestionTarget === target) {
+      renderSuggestions(data.results || []);
+    }
   } catch (error) {
     if (error?.name === 'AbortError') return;
-    renderSuggestions([]);
+    if (state.suggestionTarget === target) {
+      renderSuggestions([]);
+    }
   } finally {
     if (state.pendingSuggest === controller) state.pendingSuggest = null;
   }
@@ -4387,44 +4412,31 @@ function wireSearch() {
 
   dom.searchInput.addEventListener('input', () => {
     const value = dom.searchInput.value.trim();
-    dom.clearSearch.hidden = !value;
-    requestSuggestions();
+    if (dom.clearSearch) dom.clearSearch.hidden = !value;
+    requestSuggestions(dom.searchInput, { type: 'search' });
     updateNavigationLinks();
   });
   dom.searchInput.addEventListener('focus', () => {
     state.searchInputFocused = true;
     updatePersonalizationVisibility();
-    requestSuggestions();
+    setSuggestionTarget(dom.searchInput, { type: 'search' }, { preserveList: true });
+    renderSuggestions([]);
+    requestSuggestions(dom.searchInput, { type: 'search' });
     showFocusActions();
   });
   dom.searchInput.addEventListener('pointerdown', () => {
+    setSuggestionTarget(dom.searchInput, { type: 'search' }, { preserveList: true });
     showFocusActions();
   });
-  dom.searchInput.addEventListener('blur', () => {
+  dom.searchInput.addEventListener('blur', (event) => {
     state.searchInputFocused = false;
     window.setTimeout(() => {
       updatePersonalizationVisibility();
     }, 0);
-    setTimeout(() => renderSuggestions([]), 150);
+    handleSuggestionBlur(event);
     scheduleHideFocusActions();
   });
-  dom.searchInput.addEventListener('keydown', (evt) => {
-    if (!state.suggestions.length) return;
-    if (evt.key === 'ArrowDown') {
-      evt.preventDefault();
-      const next = (state.activeSuggestion + 1) % state.suggestions.length;
-      highlightSuggestion(next);
-    } else if (evt.key === 'ArrowUp') {
-      evt.preventDefault();
-      const prev = (state.activeSuggestion - 1 + state.suggestions.length) % state.suggestions.length;
-      highlightSuggestion(prev);
-    } else if (evt.key === 'Enter' && state.activeSuggestion >= 0) {
-      evt.preventDefault();
-      applySuggestion(state.activeSuggestion);
-    } else if (evt.key === 'Escape') {
-      renderSuggestions([]);
-    }
-  });
+  dom.searchInput.addEventListener('keydown', handleSuggestionKeydown);
   if (dom.clearSearch) {
     dom.clearSearch.addEventListener('click', () => {
       if (!dom.searchInput) return;
