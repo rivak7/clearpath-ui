@@ -128,6 +128,7 @@ try {
 } catch {}
 
 const dom = {
+  appShell: document.querySelector('.app-shell'),
   splash: document.getElementById('splash'),
   splashMessage: document.getElementById('splashMessage'),
   splashProgress: document.getElementById('splashProgress'),
@@ -620,6 +621,11 @@ function showSplash({ mode = 'bootstrap', message, progress } = {}) {
   dom.splash.classList.remove('splash--hidden');
   dom.splash.setAttribute('aria-hidden', 'false');
   dom.splash.classList.toggle('splash--search', mode === 'search');
+  if (mode === 'bootstrap') {
+    dom.appShell?.classList.add('app-shell--splashing');
+  } else {
+    dom.appShell?.classList.remove('app-shell--splashing');
+  }
   const resolvedMessage = message || SPLASH_MESSAGES[mode] || SPLASH_MESSAGES.bootstrap;
   if (dom.splashMessage) {
     dom.splashMessage.textContent = resolvedMessage;
@@ -654,6 +660,7 @@ function hideSplash({ delay = 0 } = {}) {
     dom.splash.classList.add('splash--hidden');
     dom.splash.setAttribute('aria-hidden', 'true');
     dom.splash.classList.remove('splash--search');
+    dom.appShell?.classList.remove('app-shell--splashing');
     if (dom.splashProgressBar) {
       dom.splashProgressBar.setAttribute('aria-valuetext', 'Experience ready');
     }

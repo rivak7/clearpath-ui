@@ -172,6 +172,13 @@ body {
   position: relative;
 }
 
+.app-shell--splashing .map-stage {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
 .splash {
   position: absolute;
   inset: 0;
@@ -374,6 +381,7 @@ body {
   flex: 1;
   background: var(--bg);
   overflow: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
 .map {
