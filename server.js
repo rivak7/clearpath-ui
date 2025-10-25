@@ -37,6 +37,12 @@ const CNN_ZOOM = Number(process.env.CNN_ZOOM || 19);
 const CNN_TIMEOUT_MS = Number(process.env.CNN_TIMEOUT_MS || 25000);
 const CNN_FETCH_TIMEOUT_SEC = Number(process.env.CNN_FETCH_TIMEOUT_SEC || 15);
 const PYTHON_BIN = pickPythonBinary();
+const COMMUNITY_DATA_DIR = path.resolve(__dirname, 'data');
+const COMMUNITY_DATA_FILE = path.join(COMMUNITY_DATA_DIR, 'community-entrances.json');
+const COMMUNITY_CLUSTER_METERS = Number(process.env.COMMUNITY_CLUSTER_METERS || 12);
+
+try { fs.mkdirSync(COMMUNITY_DATA_DIR, { recursive: true }); } catch {}
+ensureCommunityStore();
 
 
 // Security middlewares
@@ -519,6 +525,160 @@ function footprintToPolylines(geojson) {
   return out;
 }
 
+function ensureCommunityStore() {
+  if (!fs.existsSync(COMMUNITY_DATA_FILE)) {
+    const seed = { version: 1, updatedAt: new Date().toISOString(), entries: {} };
+    try {
+      fs.writeFileSync(COMMUNITY_DATA_FILE, JSON.stringify(seed, null, 2));
+    } catch {
+      // best-effort persistence; failures are surfaced on next write
+    }
+  }
+}
+
+function readCommunityStore() {
+  try {
+    const raw = fs.readFileSync(COMMUNITY_DATA_FILE, 'utf8');
+    if (!raw) return { version: 1, updatedAt: null, entries: {} };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return { version: 1, updatedAt: null, entries: {} };
+    if (!parsed.entries || typeof parsed.entries !== 'object') parsed.entries = {};
+    return parsed;
+  } catch {
+    return { version: 1, updatedAt: null, entries: {} };
+  }
+}
+
+function writeCommunityStore(store) {
+  const payload = {
+    version: 1,
+    updatedAt: store?.updatedAt || new Date().toISOString(),
+    entries: store?.entries || {},
+  };
+  try {
+    fs.writeFileSync(COMMUNITY_DATA_FILE, JSON.stringify(payload, null, 2));
+  } catch {
+    console.warn('Unable to persist community entrance data');
+  }
+}
+
+function normalizeQueryKey(q) {
+  return String(q || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .slice(0, 256);
+}
+
+function buildCommunitySummaryFromStore(store, key) {
+  const entry = store?.entries?.[key];
+  if (!entry || !Array.isArray(entry.clusters) || !entry.clusters.length) {
+    return {
+      key,
+      totalVotes: 0,
+      clusters: [],
+      clusterRadius: COMMUNITY_CLUSTER_METERS,
+      updatedAt: entry?.updatedAt || null,
+    };
+  }
+  const clusters = entry.clusters
+    .map((cluster) => ({
+      id: cluster.id,
+      lat: cluster.lat,
+      lon: cluster.lon,
+      count: cluster.count,
+      label: cluster.label || null,
+      createdAt: cluster.createdAt || null,
+      updatedAt: cluster.updatedAt || entry.updatedAt || store.updatedAt || null,
+    }))
+    .filter((cluster) => Number.isFinite(cluster.lat) && Number.isFinite(cluster.lon) && Number(cluster.count) > 0);
+  clusters.sort((a, b) => {
+    const diff = Number(b.count) - Number(a.count);
+    if (diff !== 0) return diff;
+    const aTime = a.updatedAt ? Date.parse(a.updatedAt) || 0 : 0;
+    const bTime = b.updatedAt ? Date.parse(b.updatedAt) || 0 : 0;
+    return bTime - aTime;
+  });
+  const totalVotes = clusters.reduce((sum, cluster) => sum + (Number(cluster.count) || 0), 0);
+  return {
+    key,
+    totalVotes,
+    clusters,
+    clusterRadius: COMMUNITY_CLUSTER_METERS,
+    updatedAt: entry.updatedAt || store.updatedAt || null,
+  };
+}
+
+function summarizeCommunityEntrances(query) {
+  const key = normalizeQueryKey(query);
+  if (!key) {
+    return { key, totalVotes: 0, clusters: [], clusterRadius: COMMUNITY_CLUSTER_METERS, updatedAt: null };
+  }
+  const store = readCommunityStore();
+  return buildCommunitySummaryFromStore(store, key);
+}
+
+function recordCommunityVote({ query, lat, lon, label }) {
+  const key = normalizeQueryKey(query);
+  if (!key) throw new Error('invalid_query_key');
+  const store = readCommunityStore();
+  if (!store.entries || typeof store.entries !== 'object') store.entries = {};
+  const now = new Date().toISOString();
+  let entry = store.entries[key];
+  if (!entry) {
+    entry = { query, createdAt: now, updatedAt: now, clusters: [] };
+    store.entries[key] = entry;
+  }
+  if (!Array.isArray(entry.clusters)) entry.clusters = [];
+
+  let best = null;
+  for (const cluster of entry.clusters) {
+    if (!Number.isFinite(cluster.lat) || !Number.isFinite(cluster.lon) || !Number.isFinite(cluster.count)) continue;
+    const distance = haversineMeters(lat, lon, cluster.lat, cluster.lon);
+    if (distance <= COMMUNITY_CLUSTER_METERS) {
+      if (!best || distance < best.distance) {
+        best = { cluster, distance };
+      }
+    }
+  }
+
+  if (best) {
+    const target = best.cluster;
+    const existingCount = Number(target.count) || 0;
+    const newCount = existingCount + 1;
+    target.lat = ((target.lat * existingCount) + lat) / newCount;
+    target.lon = ((target.lon * existingCount) + lon) / newCount;
+    target.count = newCount;
+    if (label && typeof label === 'string' && label.trim()) {
+      target.label = label.trim().slice(0, 120);
+    }
+    target.updatedAt = now;
+  } else {
+    const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : crypto.randomBytes(6).toString('hex');
+    const cluster = {
+      id,
+      lat,
+      lon,
+      count: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (label && typeof label === 'string' && label.trim()) {
+      cluster.label = label.trim().slice(0, 120);
+    }
+    entry.clusters.push(cluster);
+  }
+
+  entry.updatedAt = now;
+  store.updatedAt = now;
+  writeCommunityStore(store);
+
+  const summary = buildCommunitySummaryFromStore(store, key);
+  const targetId = best ? best.cluster.id : entry.clusters[entry.clusters.length - 1].id;
+  const cluster = summary.clusters.find((c) => c.id === targetId) || null;
+  return { cluster, summary };
+}
+
 // Find most-likely entrance by projecting nearest road point to bbox edge
 // GET /entrance?q=<address>
 // Returns: { center, bbox, roadPoint, entrance, candidates[], session artifacts }
@@ -639,6 +799,20 @@ app.get('/entrance', async (req, res) => {
       }
     }
 
+    const communitySummary = summarizeCommunityEntrances(q);
+    if (communitySummary && Array.isArray(communitySummary.clusters) && communitySummary.clusters.length) {
+      const topCluster = communitySummary.clusters[0];
+      candidates.push({
+        lat: topCluster.lat,
+        lon: topCluster.lon,
+        score: 0.88,
+        label: `${topCluster.count} community vote${topCluster.count === 1 ? '' : 's'}`,
+        source: 'community',
+        communityClusterId: topCluster.id,
+        votes: topCluster.count,
+      });
+    }
+
     const sessionJson = {
       sessionId,
       receivedAt: new Date().toISOString(),
@@ -654,6 +828,7 @@ app.get('/entrance', async (req, res) => {
         cnn: cnnSummary,
         cnnDiagnostics,
         candidates,
+        communityEntrances: communitySummary,
       },
     };
     try { fs.writeFileSync(path.join(sessionDir, 'session.json'), JSON.stringify(sessionJson, null, 2)); } catch {}
@@ -717,6 +892,7 @@ app.get('/entrance', async (req, res) => {
       cnnEntrance: cnnSummary,
       cnnDiagnostics,
       candidates,
+      communityEntrances: communitySummary,
       sessionId,
       sessionDir: `/sessions/${sessionId}/`,
       mapUrl,
@@ -725,6 +901,27 @@ app.get('/entrance', async (req, res) => {
     const isAbort = e && (e.name === 'AbortError' || e.code === 'ABORT_ERR');
     if (isAbort) return res.status(504).json({ error: 'timeout' });
     return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.post('/entrance/community', (req, res) => {
+  try {
+    const query = typeof req.body?.query === 'string' ? req.body.query.trim() : '';
+    if (!query) return res.status(400).json({ error: 'missing_query', message: 'Provide address text in body.query' });
+    const lat = Number(req.body?.lat);
+    const lon = Number(req.body?.lon);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+      return res.status(400).json({ error: 'invalid_lat' });
+    }
+    if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+      return res.status(400).json({ error: 'invalid_lon' });
+    }
+    const label = typeof req.body?.label === 'string' ? req.body.label.trim() : '';
+    const result = recordCommunityVote({ query, lat, lon, label });
+    return res.status(200).json({ ok: true, cluster: result.cluster, summary: result.summary });
+  } catch (error) {
+    console.warn('Failed to record community entrance vote', error);
+    return res.status(500).json({ error: 'vote_failed' });
   }
 });
 
@@ -896,8 +1093,4 @@ async function geocodeAddress(query) {
 
   return null;
 }
-
-
-
-
 
