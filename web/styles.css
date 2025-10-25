@@ -688,9 +688,11 @@ body {
 .brand__settings {
   display: inline-flex;
   align-items: center;
-  gap: clamp(6px, 2vw, 10px);
-  padding: 0 clamp(10px, 3vw, 14px);
-  min-height: var(--touch-target);
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  width: clamp(42px, 7vw, 52px);
+  min-height: clamp(42px, 7vw, 52px);
   border-radius: var(--radius-sm);
   border: 1px solid var(--theme-border);
   color: var(--text-strong);
@@ -710,11 +712,8 @@ body {
 }
 
 .brand__settingsIcon {
-  font-size: 1rem;
-}
-
-.brand__settingsText {
-  text-transform: uppercase;
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .brand__account {
