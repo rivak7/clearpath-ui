@@ -19,7 +19,7 @@ ClearPath ships with a stack of assistive profiles that can be layered together.
 
 1. **Always hook into the profile classes**. When you introduce a component, add style variants under the relevant class selectors shown above. Examples live in `web/styles.css` (search for `accessibility-`).
 2. **Lean on design tokens**. `web/app.js` pulls colors for map markers and overlays via CSS custom properties (e.g. `--marker-entrance-fill`). When a profile needs a palette shift, define the token override under that profile’s selector instead of hard-coding values.
-3. **Keep changes dramatic and obvious.** Each profile intentionally “feels” different so users know it is active. If you add a component, reflect the profile visually (size, spacing, contrast, motion) rather than hiding the adaptation in subtle tweaks.
+3. **Keep changes dramatic and obvious.** Each profile intentionally “feels” different so users know it is active. If you add a component, reflect the profile visually (size, spacing, contrast, motion) rather than hiding the adaptation in subtle tweaks. For combined profiles, layer your rules (e.g. `.accessibility-focus.accessibility-colorblind`) so the experience stays intentional when users enable more than one option.
 4. **Respect reduced motion.** If you introduce animations, gate them behind `shouldReduceMotion()` from `web/app.js`, or read `data-accessibility` and disable them when `calm` is active.
 
 ## JavaScript guidelines
@@ -39,7 +39,7 @@ ClearPath ships with a stack of assistive profiles that can be layered together.
 1. Extend `AccessibilityFeature` in `web/accessibility.js` and add an entry to `rawFeatures`.
 2. Provide human-friendly `summary`, two bullet points, an icon, and at least one dramatic UI change.
 3. Add CSS overrides in `web/styles.css` under the new class.
-4. Update documentation (this file) and ensure `/settings.html` renders the card automatically (it uses the metadata from `rawFeatures`).
+4. Update documentation (this file) and ensure `/settings.html` renders the card automatically (it uses the metadata from `rawFeatures`). When you add CSS, include any needed combo selectors so it plays nicely with the existing profiles and both light/dark themes.
 
 ## QA checklist
 
