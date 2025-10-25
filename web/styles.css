@@ -556,10 +556,6 @@ body {
   padding: 0 26px 0;
 }
 
-.sheet--collapsed .sheet__content {
-  opacity: 0.92;
-}
-
 .sheet__header h1 {
   margin: 10px 0 2px;
   font-size: 1.25rem;

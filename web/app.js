@@ -44,6 +44,10 @@ const state = {
   routeStopCounter: 0,
   routeMode: 'drive',
   draggingStop: null,
+  searchInFlight: false,
+  pendingSearch: null,
+  splashHideTimer: null,
+  activeSplashMode: 'bootstrap',
 };
 
 state.accessibility = new Set();
@@ -51,6 +55,8 @@ state.designTokens = null;
 
 const dom = {
   splash: document.getElementById('splash'),
+  splashMessage: document.getElementById('splashMessage'),
+  splashProgress: document.getElementById('splashProgress'),
   map: document.getElementById('map'),
   searchForm: document.getElementById('searchForm'),
   searchInput: document.getElementById('searchInput'),
@@ -81,6 +87,15 @@ const dom = {
 };
 
 dom.sheetHandle = dom.sheetToggle;
+
+if (dom.splash) {
+  dom.splash.setAttribute('aria-hidden', 'false');
+}
+
+const SPLASH_MESSAGES = {
+  bootstrap: 'Preparing your experience...',
+  search: 'Finding the best entrance...',
+};
 
 function collectDesignTokens() {
   const styles = getComputedStyle(document.documentElement);
@@ -182,12 +197,49 @@ function initMap() {
   state.map.setView([DEFAULT_VIEW.lat, DEFAULT_VIEW.lon], DEFAULT_VIEW.zoom);
 }
 
-function hideSplash() {
-  if (dom.splash) {
-    dom.splash.style.opacity = '0';
-    setTimeout(() => {
-      dom.splash?.remove();
-    }, 500);
+function resetSplashAnimation() {
+  if (!dom.splashProgress) return;
+  dom.splashProgress.style.animation = 'none';
+  // Force reflow so the CSS animation restarts when we show it again.
+  void dom.splashProgress.offsetWidth;
+  dom.splashProgress.style.animation = '';
+}
+
+function showSplash({ mode = 'bootstrap', message } = {}) {
+  if (!dom.splash) return;
+  if (state.splashHideTimer) {
+    clearTimeout(state.splashHideTimer);
+    state.splashHideTimer = null;
+  }
+  resetSplashAnimation();
+  dom.splash.classList.remove('splash--hidden');
+  dom.splash.setAttribute('aria-hidden', 'false');
+  dom.splash.classList.toggle('splash--search', mode === 'search');
+  const resolvedMessage = message || SPLASH_MESSAGES[mode] || SPLASH_MESSAGES.bootstrap;
+  if (dom.splashMessage) {
+    dom.splashMessage.textContent = resolvedMessage;
+  }
+  state.activeSplashMode = mode;
+}
+
+function updateSplashMessage(message) {
+  if (!message || !dom.splashMessage) return;
+  dom.splashMessage.textContent = message;
+}
+
+function hideSplash({ delay = 0 } = {}) {
+  if (!dom.splash) return;
+  const apply = () => {
+    dom.splash.classList.add('splash--hidden');
+    dom.splash.setAttribute('aria-hidden', 'true');
+    dom.splash.classList.remove('splash--search');
+    state.activeSplashMode = null;
+    state.splashHideTimer = null;
+  };
+  if (delay > 0) {
+    state.splashHideTimer = window.setTimeout(apply, delay);
+  } else {
+    apply();
   }
 }
 
@@ -488,6 +540,7 @@ function onRouteStopInput(id, value) {
     stop.meta = '';
   }
   updateRouteResetState();
+  updateRouteSummary();
 }
 
 function updateRouteResetState() {
