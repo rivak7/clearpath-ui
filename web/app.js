@@ -2991,6 +2991,14 @@ function startGeolocation({ centerOnSuccess = false, userInitiated = false } = {
   return state.locateInFlight;
 }
 
+function formatSuggestionQuery(item) {
+  if (!item) return '';
+  const primary = String(item.label || '').trim();
+  const context = String(item.context || '').trim();
+  if (primary && context) return `${primary}, ${context}`;
+  return primary || context;
+}
+
 function buildSuggestionNode(item, index) {
   const node = document.createElement('div');
   node.className = 'suggestion';
@@ -3052,15 +3060,14 @@ function highlightSuggestion(index) {
 function applySuggestion(index) {
   const item = state.suggestions[index];
   if (!item || !dom.searchInput) return;
-  const label = item.label || '';
-  dom.searchInput.value = label;
+  const query = formatSuggestionQuery(item);
+  dom.searchInput.value = query;
   dom.searchInput.focus();
   renderSuggestions([]);
-  dom.clearSearch.hidden = !label;
+  dom.clearSearch.hidden = !query;
   updateNavigationLinks();
-  const query = label.trim();
-  if (query) {
-    performSearch(query);
+  if (query.trim()) {
+    performSearch(query.trim());
   }
 }
 
