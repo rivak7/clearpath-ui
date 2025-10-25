@@ -218,7 +218,10 @@ function smoothScrollToTarget(targetId) {
   const section = resolveSectionFromId(targetId);
   if (!section) return;
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  section.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+  const headerOffset = 96;
+  const rect = section.getBoundingClientRect();
+  const offset = rect.top + window.pageYOffset - headerOffset;
+  window.scrollTo({ top: offset, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
 }
 
 function wireNavigation() {
