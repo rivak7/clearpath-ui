@@ -63,9 +63,9 @@ function updateThemeStatus({ mode, theme }) {
     const { next, upcomingTheme } = getNextAutoBoundary();
     const formattedTime = formatTime(next);
     const readableUpcoming = titleCase(upcomingTheme);
-    themeStatusChip.textContent = `Auto is using the ${readableTheme} theme right now. It will switch to ${readableUpcoming} around ${formattedTime}.`;
+    themeStatusChip.textContent = `Auto · ${readableTheme} now → ${readableUpcoming} at ${formattedTime}.`;
   } else {
-    themeStatusChip.textContent = `You locked ClearPath to the ${readableTheme} theme.`;
+    themeStatusChip.textContent = `Locked to ${readableTheme}.`;
   }
 }
 
@@ -184,7 +184,7 @@ function updateAccessibilityStatus(state) {
   if (!accessibilityStatusChip) return;
   const active = state?.features || [];
   if (!active.length) {
-    accessibilityStatusChip.textContent = 'Select one or more profiles to tailor navigation, vision, and motion.';
+    accessibilityStatusChip.textContent = 'Pick the boosts you need.';
     return;
   }
   const labels = active
@@ -192,11 +192,11 @@ function updateAccessibilityStatus(state) {
     .filter(Boolean)
     .map((feature) => feature.shortLabel || feature.label);
   if (active.length === ACCESSIBILITY_FEATURES.length) {
-    accessibilityStatusChip.textContent = `All assistive profiles are active: ${labels.join(', ')}. ClearPath now runs in full ADA showcase mode.`;
+    accessibilityStatusChip.textContent = `All profiles on: ${labels.join(', ')}.`;
     return;
   }
   const readableList = labels.join(', ');
-  accessibilityStatusChip.textContent = `${readableList} ${active.length === 1 ? 'profile is' : 'profiles are'} active. Every screen honors these adaptations.`;
+  accessibilityStatusChip.textContent = `${readableList} ${active.length === 1 ? 'profile' : 'profiles'} active.`;
 }
 
 function onAccessibilityToggle(event) {

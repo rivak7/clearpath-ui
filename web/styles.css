@@ -1057,6 +1057,76 @@ body {
   text-underline-offset: 3px;
 }
 
+:root.accessibility-lowvision {
+  --bg: #060606;
+  --bg-elevated: rgba(10, 10, 10, 0.94);
+  --sheet-bg: rgba(12, 12, 12, 0.96);
+  --sheet-text: #f9f9f9;
+  --text-strong: #f8f8f8;
+  --text-muted: rgba(248, 248, 248, 0.7);
+  --accent: #f7b500;
+  --accent-dark: #c98700;
+  --accent-soft: rgba(247, 181, 0, 0.3);
+  --accent-outline: rgba(247, 181, 0, 0.72);
+  --accent-glow: rgba(247, 181, 0, 0.28);
+  --badge-bg: rgba(247, 181, 0, 0.18);
+  --suggestion-hover: rgba(247, 181, 0, 0.22);
+  --sat-outline: rgba(247, 181, 0, 0.85);
+  --marker-centroid-border: #fefefe;
+  --marker-centroid-fill: #0a0a0a;
+  --marker-dropoff-border: #f7b500;
+  --marker-dropoff-fill: #fdd067;
+  --path-connector: #f7b500;
+}
+
+:root.accessibility-lowvision body {
+  font-size: 115%;
+  letter-spacing: 0.01em;
+  background: #060606;
+}
+
+:root.accessibility-lowvision .top-shell,
+:root.accessibility-lowvision .sheet {
+  border: 2px solid rgba(247, 181, 0, 0.45);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+}
+
+:root.accessibility-lowvision .search input {
+  background: #0f0f0f;
+  color: #f8f8f8;
+  box-shadow: inset 0 0 0 2px rgba(247, 181, 0, 0.45);
+}
+
+:root.accessibility-lowvision .suggestion {
+  border-bottom: 1px solid rgba(247, 181, 0, 0.45);
+}
+
+:root.accessibility-lowvision .fab {
+  border: 2px solid rgba(247, 181, 0, 0.45);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+:root.accessibility-lowvision .brand__title,
+:root.accessibility-lowvision .theme-option__title,
+:root.accessibility-lowvision .accessibility-card__title {
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+}
+
+:root.accessibility-lowvision .accessibility-card__body,
+:root.accessibility-lowvision .theme-option__body {
+  border-width: 2px;
+}
+
+:root.accessibility-lowvision .leaflet-control-attribution {
+  background: rgba(12, 12, 12, 0.95) !important;
+  color: #f9f9f9 !important;
+}
+
+:root.accessibility-lowvision .leaflet-control-zoom a {
+  background: rgba(12, 12, 12, 0.92) !important;
+  color: #f7b500 !important;
+}
+
 :root.accessibility-focus *:focus-visible {
   outline: 3px solid #ffb100 !important;
   box-shadow: 0 0 0 4px rgba(255, 177, 0, 0.4) !important;
