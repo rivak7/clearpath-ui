@@ -128,6 +128,8 @@ const dom = {
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
   routePlanner: document.getElementById('routePlanner'),
+  routeOverview: document.getElementById('routeOverview'),
+  routeEditorToggle: document.getElementById('routeEditorToggle'),
   routeStops: document.getElementById('routeStops'),
   routeSummary: document.getElementById('routeSummary'),
   addRouteStop: document.getElementById('addRouteStop'),
