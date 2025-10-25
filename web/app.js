@@ -2527,7 +2527,30 @@ function renderRouteStops({ preserveFocus = true } = {}) {
     input.value = stop.value || '';
     input.placeholder = getRouteStopPlaceholder(stop.role);
     input.dataset.stopId = stop.id;
-    input.addEventListener('input', (evt) => onRouteStopInput(stop.id, evt.target.value));
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('aria-controls', 'suggestions');
+    input.setAttribute('aria-autocomplete', 'list');
+    const context = { type: 'route', stopId: stop.id };
+    input.addEventListener('input', (evt) => {
+      onRouteStopInput(stop.id, evt.target.value);
+      setSuggestionTarget(evt.target, context, { preserveList: true });
+      requestSuggestions(evt.target, context);
+    });
+    input.addEventListener('focus', () => {
+      const isSameTarget = state.suggestionTarget === input
+        && state.suggestionContext?.type === 'route'
+        && state.suggestionContext.stopId === stop.id;
+      setSuggestionTarget(input, context, { preserveList: isSameTarget });
+      if (!isSameTarget) {
+        renderSuggestions([]);
+      }
+      requestSuggestions(input, context);
+    });
+    input.addEventListener('pointerdown', () => {
+      setSuggestionTarget(input, context, { preserveList: true });
+    });
+    input.addEventListener('keydown', handleSuggestionKeydown);
+    input.addEventListener('blur', handleSuggestionBlur);
     body.appendChild(input);
 
     if (stop.meta) {
@@ -2538,6 +2561,10 @@ function renderRouteStops({ preserveFocus = true } = {}) {
     }
 
     item.appendChild(body);
+
+    if (state.suggestionContext?.type === 'route' && state.suggestionContext.stopId === stop.id) {
+      setSuggestionTarget(input, state.suggestionContext, { preserveList: true });
+    }
 
     const canRemove = state.routeStops.length > 2 && stop.role === 'stop';
     if (canRemove) {
@@ -2558,7 +2585,9 @@ function renderRouteStops({ preserveFocus = true } = {}) {
         if (target) {
           target.focus({ preventScroll: true });
           const len = target.value.length;
-          target.setSelectionRange(len, len);
+          if (typeof target.setSelectionRange === 'function') {
+            target.setSelectionRange(len, len);
+          }
         }
       });
     }

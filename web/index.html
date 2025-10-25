@@ -153,6 +153,138 @@
         </div>
       </div>
 
+      <div
+        id="authDialog"
+        class="auth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="authTitle"
+        aria-describedby="authSubtitle"
+        aria-hidden="true"
+        hidden
+      >
+        <div class="auth-modal__backdrop" data-auth-dismiss="true"></div>
+        <div class="auth-modal__panel" role="document">
+          <button id="authClose" class="auth-modal__close" type="button" aria-label="Close sign in window">×</button>
+          <header class="auth-modal__header">
+            <span class="auth-modal__eyebrow">ClearPath account</span>
+            <h2 id="authTitle" class="auth-modal__title">Welcome back</h2>
+            <p id="authSubtitle" class="auth-modal__subtitle">
+              Sign in to sync saved entrances, commute plans, and custom themes.
+            </p>
+          </header>
+          <p id="authStatus" class="auth-modal__status" hidden></p>
+
+          <form id="loginForm" class="auth-form" autocomplete="on" aria-describedby="authStatus">
+            <div class="auth-form__group">
+              <label class="auth-form__label" for="loginEmail">Email</label>
+              <input
+                id="loginEmail"
+                name="email"
+                type="email"
+                class="auth-form__control"
+                inputmode="email"
+                autocomplete="email"
+                required
+              />
+            </div>
+            <div class="auth-form__group">
+              <label class="auth-form__label" for="loginPassword">Password</label>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                class="auth-form__control"
+                autocomplete="current-password"
+                minlength="8"
+                required
+              />
+            </div>
+            <div class="auth-form__footer">
+              <button class="auth-form__submit" type="submit">Sign in</button>
+            </div>
+          </form>
+
+          <form
+            id="signupForm"
+            class="auth-form"
+            autocomplete="on"
+            aria-describedby="authStatus"
+            hidden
+          >
+            <div class="auth-form__group">
+              <label class="auth-form__label" for="signupName">Name (optional)</label>
+              <input
+                id="signupName"
+                name="name"
+                type="text"
+                class="auth-form__control"
+                maxlength="80"
+                autocomplete="name"
+                placeholder="ClearPath Explorer"
+              />
+            </div>
+            <div class="auth-form__group">
+              <label class="auth-form__label" for="signupEmail">Email</label>
+              <input
+                id="signupEmail"
+                name="email"
+                type="email"
+                class="auth-form__control"
+                inputmode="email"
+                autocomplete="email"
+                required
+              />
+            </div>
+            <div class="auth-form__group">
+              <label class="auth-form__label" for="signupPassword">Password</label>
+              <input
+                id="signupPassword"
+                name="password"
+                type="password"
+                class="auth-form__control"
+                autocomplete="new-password"
+                minlength="8"
+                required
+              />
+            </div>
+            <div class="auth-form__row">
+              <div class="auth-form__group">
+                <label class="auth-form__label" for="signupTravelMode">Default travel mode</label>
+                <select id="signupTravelMode" name="defaultTravelMode" class="auth-form__control">
+                  <option value="drive">Driving</option>
+                  <option value="walk">Walking</option>
+                  <option value="transit">Transit</option>
+                  <option value="bike">Cycling</option>
+                </select>
+              </div>
+              <div class="auth-form__group">
+                <label class="auth-form__label" for="signupMapStyle">Map style</label>
+                <select id="signupMapStyle" name="mapStyle" class="auth-form__control">
+                  <option value="auto">Auto</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="satellite">Satellite</option>
+                  <option value="terrain">Terrain</option>
+                </select>
+              </div>
+            </div>
+            <label class="auth-form__checkbox">
+              <input id="signupAlerts" name="liveTransitAlerts" type="checkbox" checked />
+              <span>Send live transit alerts</span>
+            </label>
+            <p class="auth-form__fineprint">
+              We encrypt your password with scrypt and store preferences only on this device and our JSON vault.
+            </p>
+            <div class="auth-form__footer">
+              <button class="auth-form__submit" type="submit">Create account</button>
+            </div>
+          </form>
+
+          <p id="authHint" class="auth-modal__hint">New here? <button id="authSwitcher" class="auth-modal__switcher" type="button">Create an account</button></p>
+        </div>
+      </div>
+
       <div id="installBanner" class="install-banner" role="alert" aria-live="polite" aria-hidden="true" hidden>
           <div class="install-banner__content">
             <strong class="install-banner__title">Install ClearPath</strong>
