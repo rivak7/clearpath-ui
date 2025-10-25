@@ -27,6 +27,7 @@ import {
   clearHome,
   clearWork,
   touchPreference,
+  updateCommutePlan,
 } from './account.js';
 
 initTheme();
@@ -59,6 +60,14 @@ const arrivalRemindersToggle = document.getElementById('arrivalReminders');
 const commuteInsightsToggle = document.getElementById('commuteInsights');
 const savedPlaceUpdatesToggle = document.getElementById('savedPlaceUpdates');
 const preferencesStatus = document.getElementById('preferencesStatus');
+const commuteForm = document.getElementById('commuteForm');
+const morningTimeInput = document.getElementById('morningTime');
+const morningDestinationSelect = document.getElementById('morningDestination');
+const morningModeSelect = document.getElementById('morningMode');
+const eveningTimeInput = document.getElementById('eveningTime');
+const eveningDestinationSelect = document.getElementById('eveningDestination');
+const eveningModeSelect = document.getElementById('eveningMode');
+const commuteStatus = document.getElementById('commuteStatus');
 
 const accessibilityControls = new Map();
 const featureMeta = new Map(ACCESSIBILITY_FEATURES.map((feature) => [feature.id, feature]));
@@ -66,6 +75,7 @@ let autoHeartbeat = null;
 let accountSnapshot = { user: null, ready: false };
 
 const PENDING_AUTH_KEY = 'clearpath-ui:pending-auth-mode';
+let commuteDebounce = null;
 
 function titleCase(value) {
   if (!value) return '';

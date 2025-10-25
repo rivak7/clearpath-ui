@@ -1316,6 +1316,50 @@ body {
   gap: 18px;
 }
 
+.route-planner__headerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(8px, 2.4vw, 16px);
+}
+
+.route-planner__overview {
+  font-size: clamp(0.8rem, 1vw + 0.54rem, 0.95rem);
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.route-planner__toggle {
+  border: none;
+  border-radius: var(--radius-full);
+  padding: clamp(8px, 2.3vw, 12px) clamp(14px, 4vw, 18px);
+  background: rgba(61, 214, 193, 0.12);
+  color: var(--accent-dark);
+  font-weight: 600;
+  font-size: clamp(0.72rem, 0.9vw + 0.55rem, 0.82rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.route-planner__toggle:hover,
+.route-planner__toggle:focus-visible {
+  background: rgba(61, 214, 193, 0.22);
+  color: var(--accent-dark);
+}
+
+.route-planner__toggle:focus-visible {
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 2px;
+}
+
+.route-planner--collapsed #routeStops,
+.route-planner--collapsed .route-planner__add {
+  display: none;
+}
+
 .route-planner__modes {
   display: grid;
   gap: clamp(6px, 2vw, 12px);
@@ -2610,6 +2654,29 @@ body {
 .settings-toggle input {
   width: 20px;
   height: 20px;
+}
+
+.settings-toggle--pill {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 8px 14px;
+  gap: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.settings-toggle--pill input {
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+}
+
+.settings-toggle--pill:has(input:checked) {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border-color: transparent;
 }
 
 .theme-options {

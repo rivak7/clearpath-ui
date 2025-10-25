@@ -289,3 +289,8 @@ export async function touchPreference(changes) {
   const merged = await updateProfile({ preferences: changes });
   return merged;
 }
+
+export async function updateCommutePlan(plan) {
+  if (!authToken) throw new Error('not_authenticated');
+  return updateProfile({ commutePlan: plan });
+}
