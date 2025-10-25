@@ -15,6 +15,19 @@ import {
   onAccessibilityChange,
   setFeatureState,
 } from './accessibility.js';
+import {
+  initAccount,
+  onAccountChange,
+  isAuthenticated,
+  logout,
+  saveFavorite,
+  removeFavorite,
+  setHome,
+  setWork,
+  clearHome,
+  clearWork,
+  touchPreference,
+} from './account.js';
 
 initTheme();
 initAccessibility();
