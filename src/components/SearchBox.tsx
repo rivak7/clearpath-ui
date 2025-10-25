@@ -50,26 +50,21 @@ export default function SearchBox({
     if (!isPanelOpen) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (suggestions.length === 0) return;
       setHighlightedIndex((prev) => (prev + 1) % suggestions.length);
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (suggestions.length === 0) return;
       setHighlightedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (suggestions.length === 0) {
+      const choice =
+        highlightedIndex >= 0 ? suggestions[highlightedIndex] : suggestions[0];
+      if (choice) {
+        onSelect(choice);
         setPanelOpen(false);
         setHighlightedIndex(-1);
-        return;
       }
-      const choice = highlightedIndex >= 0 ? suggestions[highlightedIndex] : suggestions[0];
-      if (!choice) return;
-      onSelect(choice);
-      setPanelOpen(false);
-      setHighlightedIndex(-1);
     }
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -112,14 +107,14 @@ export default function SearchBox({
         {query.length > 0 && (
           <button
             type="button"
-            className="ml-2 flex h-10 items-center justify-center rounded-full bg-white/10 px-3 text-textDark/70 transition hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint-500 focus-visible:ring-offset-2"
+            className="ml-2 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-textDark/70 transition hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint-500 focus-visible:ring-offset-2"
             onClick={() => {
               onClear();
               inputRef.current?.focus();
             }}
             aria-label="Clear search"
           >
-            Clear
+            ×
           </button>
         )}
       </div>
@@ -166,7 +161,7 @@ export default function SearchBox({
             );
           })}
           {loading && (
-            <div className="px-4 py-3 text-sm text-textDark/60">Searching...</div>
+            <div className="px-4 py-3 text-sm text-textDark/60">Searching…</div>
           )}
           {!loading && suggestions.length === 0 && query.trim().length > 0 && (
             <div className="px-4 py-3 text-sm text-textDark/60">No matches yet. Try refining your search.</div>
@@ -176,4 +171,3 @@ export default function SearchBox({
     </div>
   );
 }
-

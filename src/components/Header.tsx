@@ -31,7 +31,7 @@ export default function Header({ theme, prefs, onPrefsChange, onOpenSettings, ch
           <details className="relative">
             <summary className="flex cursor-pointer list-none items-center gap-1 rounded-full border border-white/15 px-3 py-2 text-xs text-textDark/80 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint-500 focus-visible:ring-offset-2">
               Preferences
-              <span aria-hidden="true" className="text-lg leading-none">v</span>
+              <span aria-hidden="true" className="text-lg leading-none">⋯</span>
             </summary>
             <div className={`${shellTone} absolute right-0 top-12 z-20 w-56 rounded-2xl px-4 py-3 text-sm shadow-lg`}>
               <HighContrastToggle prefs={prefs} onChange={onPrefsChange} />

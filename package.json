@@ -10,7 +10,7 @@
     "dev:server": "nodemon --watch server --ext js,json --exec \"node server/server.js\"",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "start": "cross-env NODE_ENV=production node server/server.js",
+    "start": "NODE_ENV=production node server/server.js",
     "lint": "tsc --noEmit"
   },
   "engines": {
@@ -50,7 +50,6 @@
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",
     "vite": "^5.0.2",
-    "vite-plugin-pwa": "^0.16.4",
-    "cross-env": "^7.0.3"
+    "vite-plugin-pwa": "^0.16.4"
   }
 }
