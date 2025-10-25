@@ -25,7 +25,6 @@ const state = {
   pendingSuggest: null,
   lastResult: null,
   installPromptEvent: null,
-  isSheetCollapsed: false,
   voteLayer: null,
   entranceOptions: [],
   selectedEntranceId: null,
@@ -34,6 +33,17 @@ const state = {
   voteMarker: null,
   voteHandler: null,
   voteInFlight: false,
+  sheet: {
+    snapPoints: [0.28, 0.58, 0.92],
+    index: 1,
+    translate: 0,
+    observer: null,
+    isAnimating: false,
+  },
+  routeStops: [],
+  routeStopCounter: 0,
+  routeMode: 'drive',
+  draggingStop: null,
 };
 
 state.accessibility = new Set();
@@ -55,7 +65,14 @@ const dom = {
   sheetSubtitle: document.getElementById('sheetSubtitle'),
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
-  sheetToggle: document.getElementById('sheetToggle'),
+  sheetHandle: document.getElementById('sheetHandle'),
+  sheetContent: document.getElementById('sheetContent'),
+  sheetReset: document.getElementById('sheetReset'),
+  routePlanner: document.getElementById('routePlanner'),
+  routeStops: document.getElementById('routeStops'),
+  routeSummary: document.getElementById('routeSummary'),
+  addRouteStop: document.getElementById('addRouteStop'),
+  routeModes: document.querySelectorAll('.route-mode'),
   entranceOptions: document.getElementById('entranceOptions'),
   entranceOptionList: document.getElementById('entranceOptionList'),
   entranceOptionsMeta: document.getElementById('entranceOptionsMeta'),
@@ -505,8 +522,42 @@ const requestSuggestions = debounce(async () => {
   }
 }, 180);
 
+function friendlyMethodLabel(source, method) {
+  const sourceKey = String(source || '').toLowerCase();
+  const methodKey = String(method || '').toLowerCase();
+  if (sourceKey === 'community' || methodKey === 'community_votes') return 'Community favorite';
+  if (sourceKey === 'cnn' || methodKey === 'cnn_regressor') return 'CNN inference';
+  if (methodKey.startsWith('nearest_road_projection_polygon')) return 'Footprint projection';
+  if (methodKey.startsWith('nearest_road_projection_bbox')) return 'Road projection';
+  if (methodKey.startsWith('center_projection_polygon')) return 'Footprint projection';
+  if (methodKey.startsWith('center_projection_bbox')) return 'Centroid projection';
+  if (methodKey === 'center_fallback') return 'Geocoded center';
+  return 'Model projection';
+}
+
+function normalizeEntranceResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  if (result.entrance && typeof result.entrance === 'object') {
+    const source = result.entrance.source || (String(result.entrance.method || '').includes('cnn') ? 'cnn' : 'heuristic');
+    result.entrance.source = source;
+    if (!result.entrance.label) {
+      result.entrance.label = source === 'community' ? 'Community entrance' : source === 'cnn' ? 'CNN entrance' : 'Projected entrance';
+    }
+    if (!result.entrance.methodLabel) {
+      result.entrance.methodLabel = friendlyMethodLabel(source, result.entrance.method);
+    }
+  }
+  if (result.communityEntrances && !Array.isArray(result.communityEntrances.clusters)) {
+    result.communityEntrances.clusters = [];
+  }
+  return result;
+}
+
 async function performSearch(query) {
   if (!query) return;
+  stopEntranceVoting({ clearMarker: true });
+  state.selectedEntranceId = null;
+  state.entranceOptions = [];
   renderSuggestions([]);
   dom.clearSearch.hidden = !query;
   setStatus('Finding satellite entrance...');
@@ -515,6 +566,10 @@ async function performSearch(query) {
     const data = await resp.json();
     if (!resp.ok) {
       throw new Error(data?.error || 'search_failed');
+    }
+    normalizeEntranceResult(data);
+    if (data.entrance) {
+      data.baseEntrance = { ...data.entrance };
     }
     state.lastResult = data;
     renderResult(data);
