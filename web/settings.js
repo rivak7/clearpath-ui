@@ -312,6 +312,13 @@ function setPreferencesDisabled(disabled) {
     });
 }
 
+function setCommuteDisabled(disabled) {
+  if (!commuteForm) return;
+  commuteForm.querySelectorAll('input, select, button').forEach((control) => {
+    control.disabled = disabled;
+  });
+}
+
 function requestAuthFromMap(mode) {
   try {
     window.localStorage.setItem(PENDING_AUTH_KEY, mode);
@@ -402,6 +409,48 @@ function renderPreferences(preferences) {
   if (savedPlaceUpdatesToggle) savedPlaceUpdatesToggle.checked = Boolean(preferences.notifications?.savedPlaceUpdates);
 }
 
+function renderCommutePlan(plan) {
+  if (morningTimeInput) morningTimeInput.value = '';
+  if (eveningTimeInput) eveningTimeInput.value = '';
+  if (morningDestinationSelect) morningDestinationSelect.value = 'off';
+  if (eveningDestinationSelect) eveningDestinationSelect.value = 'off';
+  if (morningModeSelect) morningModeSelect.value = 'drive';
+  if (eveningModeSelect) eveningModeSelect.value = 'drive';
+  if (!commuteForm) return;
+
+  const morning = plan?.morning || {};
+  const evening = plan?.evening || {};
+  const morningEnabled = morning.enabled !== false && (morning.destinationKey || morning.placeId || '').toLowerCase() !== 'off';
+  const morningKey = (morning.destinationKey || morning.placeId || (morning.destinationLabel || '')).toLowerCase();
+  if (morningDestinationSelect) {
+    morningDestinationSelect.value = morningEnabled ? (morningKey === 'home' ? 'home' : 'work') : 'off';
+  }
+  if (morningTimeInput) {
+    morningTimeInput.value = morningEnabled && morning.time ? morning.time : '';
+  }
+  if (morningModeSelect) {
+    morningModeSelect.value = morning.travelMode || 'drive';
+  }
+
+  const eveningEnabled = evening.enabled !== false && (evening.destinationKey || evening.placeId || '').toLowerCase() !== 'off';
+  const eveningKey = (evening.destinationKey || evening.placeId || (evening.destinationLabel || '')).toLowerCase();
+  if (eveningDestinationSelect) {
+    eveningDestinationSelect.value = eveningEnabled ? (eveningKey === 'work' ? 'work' : 'home') : 'off';
+  }
+  if (eveningTimeInput) {
+    eveningTimeInput.value = eveningEnabled && evening.time ? evening.time : '';
+  }
+  if (eveningModeSelect) {
+    eveningModeSelect.value = evening.travelMode || 'drive';
+  }
+
+  const checkboxes = commuteForm.querySelectorAll('input[name="commuteDays"]');
+  const days = new Set(Array.isArray(plan?.days) ? plan.days : []);
+  checkboxes.forEach((box) => {
+    box.checked = days.has(box.value);
+  });
+}
+
 function renderAccountSettings(snapshot) {
   const user = snapshot?.user || null;
   accountSnapshot = { user, ready: true };
@@ -422,6 +471,7 @@ function renderAccountSettings(snapshot) {
   }
   setSavedPlacesDisabled(!signedIn);
   setPreferencesDisabled(!signedIn);
+  setCommuteDisabled(!signedIn);
   if (!signedIn) {
     if (homeAddressInput) homeAddressInput.value = '';
     if (workAddressInput) workAddressInput.value = '';
@@ -430,6 +480,8 @@ function renderAccountSettings(snapshot) {
     if (mapStylePreferenceSelect) mapStylePreferenceSelect.value = 'auto';
     if (savedPlacesStatus) showStatus(savedPlacesStatus, 'Sign in to update saved places.');
     if (preferencesStatus) showStatus(preferencesStatus, 'Sign in to change travel preferences.');
+    if (commuteStatus) showStatus(commuteStatus, 'Sign in to schedule your commute.');
+    renderCommutePlan(null);
     return;
   }
 
@@ -437,8 +489,10 @@ function renderAccountSettings(snapshot) {
   if (workAddressInput) workAddressInput.value = user.savedPlaces?.work?.address || '';
   renderFavoriteList(user.savedPlaces?.favorites || []);
   renderPreferences(user.preferences || {});
+  renderCommutePlan(user.commutePlan || {});
   if (savedPlacesStatus) showStatus(savedPlacesStatus, '');
   if (preferencesStatus) showStatus(preferencesStatus, '');
+  if (commuteStatus) showStatus(commuteStatus, '');
 }
 
 async function handleSavedPlaceAction(action) {
@@ -577,6 +631,69 @@ async function handlePreferenceChange() {
   }
 }
 
+function collectCommutePlan() {
+  if (!commuteForm) return null;
+  const selectedDays = Array.from(commuteForm.querySelectorAll('input[name="commuteDays"]:checked')).map((input) => input.value);
+  const days = selectedDays.length ? selectedDays : ['mon', 'tue', 'wed', 'thu', 'fri'];
+
+  const buildLeg = (timeInput, destinationSelect, modeSelect, fallbackKey) => {
+    const key = destinationSelect ? destinationSelect.value : fallbackKey;
+    const timeValue = timeInput?.value || '';
+    const travelMode = modeSelect?.value || 'drive';
+    if (!key || key === 'off' || !timeValue) {
+      return {
+        time: timeValue || '08:30',
+        destinationLabel: 'Off',
+        travelMode,
+        placeId: null,
+        destinationKey: 'off',
+        enabled: false,
+      };
+    }
+    const label = key === 'home' ? 'Home' : key === 'work' ? 'Work' : key;
+    return {
+      time: timeValue,
+      destinationLabel: label,
+      travelMode,
+      placeId: key,
+      destinationKey: key,
+      enabled: true,
+    };
+  };
+
+  return {
+    days,
+    morning: buildLeg(morningTimeInput, morningDestinationSelect, morningModeSelect, 'work'),
+    evening: buildLeg(eveningTimeInput, eveningDestinationSelect, eveningModeSelect, 'home'),
+  };
+}
+
+async function submitCommutePlan() {
+  if (!isAuthenticated()) return;
+  const plan = collectCommutePlan();
+  if (!plan) return;
+  try {
+    await updateCommutePlan(plan);
+    showStatus(commuteStatus, 'Commute schedule saved.', 'success');
+  } catch (error) {
+    console.warn('Failed to update commute plan', error);
+    showStatus(commuteStatus, 'Unable to update commute schedule right now.', 'error');
+  }
+}
+
+function handleCommuteChange() {
+  if (!isAuthenticated()) {
+    showStatus(commuteStatus, 'Sign in to schedule your commute.', 'error');
+    return;
+  }
+  if (commuteStatus) showStatus(commuteStatus, 'Saving commute…');
+  if (commuteDebounce) window.clearTimeout(commuteDebounce);
+  commuteDebounce = window.setTimeout(() => {
+    commuteDebounce = null;
+    submitCommutePlan();
+  }, 400);
+}
+
 function handleAccountPrimaryAction() {
   if (isAuthenticated()) {
     requestAccountViewOnMap();
@@ -623,6 +740,9 @@ function wireAccountSettings() {
   if (favoriteList) favoriteList.addEventListener('click', handleFavoriteListClick);
   if (preferencesForm) {
     preferencesForm.addEventListener('change', handlePreferenceChange);
+  }
+  if (commuteForm) {
+    commuteForm.addEventListener('change', handleCommuteChange);
   }
   onAccountChange((snapshot) => {
     renderAccountSettings(snapshot);

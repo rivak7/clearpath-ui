@@ -74,8 +74,22 @@ function createDefaultPreferences() {
 
 function createDefaultCommutePlan() {
   return {
-    morning: { time: '08:30', destinationLabel: 'Work', travelMode: 'drive' },
-    evening: { time: '17:30', destinationLabel: 'Home', travelMode: 'drive' },
+    morning: {
+      time: '08:30',
+      destinationLabel: 'Work',
+      travelMode: 'drive',
+      placeId: 'work',
+      destinationKey: 'work',
+      enabled: false,
+    },
+    evening: {
+      time: '17:30',
+      destinationLabel: 'Home',
+      travelMode: 'drive',
+      placeId: 'home',
+      destinationKey: 'home',
+      enabled: false,
+    },
     days: ['mon', 'tue', 'wed', 'thu', 'fri'],
   };
 }
@@ -1036,15 +1050,45 @@ function mergeCommutePlan(raw = {}) {
 }
 
 function normalizeCommuteLeg(leg, fallback) {
-  const defaults = fallback || { time: '08:30', destinationLabel: 'Work', travelMode: 'drive', placeId: null };
+  const defaults = fallback || {
+    time: '08:30',
+    destinationLabel: 'Work',
+    travelMode: 'drive',
+    placeId: 'work',
+    destinationKey: 'work',
+    enabled: false,
+  };
   if (!leg || typeof leg !== 'object') return { ...defaults };
+
+  const travelMode = isValidTravelMode(leg.travelMode) ? leg.travelMode : defaults.travelMode;
   const time = typeof leg.time === 'string' && /^\d{2}:\d{2}$/.test(leg.time) ? leg.time : defaults.time;
-  const destinationLabel = leg.destinationLabel && typeof leg.destinationLabel === 'string'
+  const rawLabel = leg.destinationLabel && typeof leg.destinationLabel === 'string'
     ? leg.destinationLabel.trim().slice(0, 80)
     : defaults.destinationLabel;
-  const travelMode = isValidTravelMode(leg.travelMode) ? leg.travelMode : defaults.travelMode;
   const placeId = leg.placeId && typeof leg.placeId === 'string' ? leg.placeId : null;
-  return { time, destinationLabel, travelMode, placeId };
+  const destinationKeyRaw = typeof leg.destinationKey === 'string' ? leg.destinationKey.toLowerCase() : null;
+  const destinationKey = destinationKeyRaw || (placeId ? placeId : rawLabel?.toLowerCase() || defaults.destinationKey || defaults.destinationLabel?.toLowerCase());
+  const disabled = String(leg.enabled) === 'false' || destinationKey === 'off' || destinationKey === 'none';
+
+  if (disabled) {
+    return {
+      time,
+      destinationLabel: 'Off',
+      travelMode,
+      placeId: null,
+      destinationKey: 'off',
+      enabled: false,
+    };
+  }
+
+  return {
+    time,
+    destinationLabel: rawLabel || defaults.destinationLabel,
+    travelMode,
+    placeId: placeId || destinationKey,
+    destinationKey: destinationKey || (placeId || '').toLowerCase(),
+    enabled: true,
+  };
 }
 
 function normalizePlace(place, category = 'favorite') {

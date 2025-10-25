@@ -1146,6 +1146,8 @@ function renderPersonalization(user) {
   const saved = user?.savedPlaces || {};
   const recents = user?.recents || [];
   const quickLinks = [];
+  const commuteLinks = computeCommuteSuggestions(user);
+  quickLinks.push(...commuteLinks);
   if (saved.home) quickLinks.push({ type: 'home', label: 'Home', icon: '🏠', place: saved.home });
   if (saved.work) quickLinks.push({ type: 'work', label: 'Work', icon: '🏢', place: saved.work });
   if (Array.isArray(saved.favorites)) {
@@ -1178,7 +1180,28 @@ function renderPersonalizationChips(quickLinks) {
     button.className = 'personalization__chip';
     button.dataset.placeType = item.type;
     button.dataset.placeId = item.place.id || `${item.type}-${item.place.label || ''}`;
-    button.textContent = `${item.icon} ${item.label}`;
+    if (item.type === 'commute' && item.commute) {
+      button.dataset.commuteSlot = item.commute.slot;
+      button.dataset.destinationKey = item.commute.destinationKey;
+      button.dataset.travelMode = item.commute.travelMode;
+      button.title = `${item.label} · ${item.commute.meta}`;
+    } else {
+      button.title = item.place?.address || item.label;
+    }
+    const icon = document.createElement('span');
+    icon.className = 'personalization__chipIcon';
+    icon.textContent = item.icon || '⭐';
+    const label = document.createElement('span');
+    label.className = 'personalization__chipLabel';
+    label.textContent = item.label;
+    button.appendChild(icon);
+    button.appendChild(label);
+    if (item.subtitle || (item.commute && item.commute.meta)) {
+      const meta = document.createElement('span');
+      meta.className = 'personalization__chipMeta';
+      meta.textContent = item.subtitle || item.commute.meta;
+      button.appendChild(meta);
+    }
     fragment.appendChild(button);
   });
   container.appendChild(fragment);
@@ -1201,7 +1224,15 @@ function renderPersonalizationRecents(recents) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'personalization__recentButton';
-    button.textContent = recent.label || recent.address || 'Recent search';
+    button.title = recent.address || recent.label || 'Recent search';
+    const icon = document.createElement('span');
+    icon.className = 'personalization__recentIcon';
+    icon.textContent = recent.icon || '⏱';
+    const label = document.createElement('span');
+    label.className = 'personalization__recentLabel';
+    label.textContent = recent.label || recent.address || 'Recent search';
+    button.appendChild(icon);
+    button.appendChild(label);
     li.appendChild(button);
     fragment.appendChild(li);
   });
@@ -2213,6 +2244,7 @@ function resetRoutePlanner({ preserveFocus = false } = {}) {
 }
 
 function ensureRouteStops({ preserveFocus = false } = {}) {
+  if (!state.lastResult) return;
   if (!state.routeStops.length) {
     state.routeStopCounter = 0;
     const originMeta = state.userLocation && Number.isFinite(state.userLocation.accuracy)
@@ -2237,6 +2269,9 @@ function addRouteStop() {
   const stop = createRouteStop('stop', '');
   state.routeStops.splice(insertIndex, 0, stop);
   renderRouteStops({ preserveFocus: false });
+  if (dom.searchFocusActions) {
+    dom.searchFocusActions.hidden = true;
+  }
   window.requestAnimationFrame(() => {
     const target = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
     target?.focus({ preventScroll: true });
