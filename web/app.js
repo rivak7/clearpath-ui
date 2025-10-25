@@ -4405,6 +4405,12 @@ function wireSearch() {
       const active = document.activeElement;
       if (active === dom.searchInput) return;
       if (dom.searchFocusActions?.contains(active)) return;
+      if (shouldKeepRoutePlannerInline()) {
+        dom.searchFocusActions.hidden = false;
+        mountRoutePlannerInSearch();
+        setRoutePlannerExpanded(true);
+        return;
+      }
       dom.searchFocusActions.hidden = true;
       restoreRoutePlannerToDock();
     }, 120);
