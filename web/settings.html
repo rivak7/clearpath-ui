@@ -132,21 +132,45 @@
 
         <div class="settings-mainWrap">
           <section class="settings-overview" aria-label="Personalization status">
-            <article class="settings-overview__card">
-              <span class="settings-overview__label">Theme</span>
-              <p id="settingsThemeSummary" class="settings-overview__value">Loading current theme…</p>
+            <article class="settings-overview__card settings-overview__card--theme">
+              <a class="settings-overview__link" href="#themeCardTitle">
+                <span class="settings-overview__icon" aria-hidden="true">🎨</span>
+                <div class="settings-overview__content">
+                  <span class="settings-overview__label">Theme</span>
+                  <p id="settingsThemeSummary" class="settings-overview__value">Loading current theme…</p>
+                </div>
+                <span class="settings-overview__cta" aria-hidden="true">Adjust</span>
+              </a>
             </article>
-            <article class="settings-overview__card">
-              <span class="settings-overview__label">Assistive profiles</span>
-              <p id="settingsAccessibilitySummary" class="settings-overview__value">Pick the boosts you need.</p>
+            <article class="settings-overview__card settings-overview__card--accessibility">
+              <a class="settings-overview__link" href="#accessibilityTitle">
+                <span class="settings-overview__icon" aria-hidden="true">✨</span>
+                <div class="settings-overview__content">
+                  <span class="settings-overview__label">Assistive profiles</span>
+                  <p id="settingsAccessibilitySummary" class="settings-overview__value">Pick the boosts you need.</p>
+                </div>
+                <span class="settings-overview__cta" aria-hidden="true">Tweak</span>
+              </a>
             </article>
-            <article class="settings-overview__card">
-              <span class="settings-overview__label">Commute</span>
-              <p id="settingsCommuteSummary" class="settings-overview__value">Commute reminders are off.</p>
+            <article class="settings-overview__card settings-overview__card--places">
+              <a class="settings-overview__link" href="#accountSectionTitle">
+                <span class="settings-overview__icon" aria-hidden="true">📍</span>
+                <div class="settings-overview__content">
+                  <span class="settings-overview__label">Saved places</span>
+                  <p id="settingsPlacesSummary" class="settings-overview__value">Keep entrances synced across devices.</p>
+                </div>
+                <span class="settings-overview__cta" aria-hidden="true">Manage</span>
+              </a>
             </article>
-            <article class="settings-overview__card">
-              <span class="settings-overview__label">Saved places</span>
-              <p id="settingsPlacesSummary" class="settings-overview__value">Keep entrances synced across devices.</p>
+            <article class="settings-overview__card settings-overview__card--commute">
+              <a class="settings-overview__link" href="#commuteSectionTitle">
+                <span class="settings-overview__icon" aria-hidden="true">⏰</span>
+                <div class="settings-overview__content">
+                  <span class="settings-overview__label">Commute</span>
+                  <p id="settingsCommuteSummary" class="settings-overview__value">Commute reminders are off.</p>
+                </div>
+                <span class="settings-overview__cta" aria-hidden="true">Schedule</span>
+              </a>
             </article>
           </section>
 

@@ -41,6 +41,8 @@ const state = {
   suggestions: [],
   activeSuggestion: -1,
   pendingSuggest: null,
+  suggestionTarget: null,
+  suggestionContext: null,
   lastResult: null,
   installPromptEvent: null,
   hasShownInstallBanner: false,
@@ -314,13 +316,16 @@ function showInstallBanner() {
   if (!dom.installBanner) return;
   dom.installBanner.hidden = false;
   dom.installBanner.setAttribute('aria-hidden', 'false');
+  dom.installBanner.classList.remove('install-banner--sheet-covered');
   state.hasShownInstallBanner = true;
+  evaluateSheetOverlap();
 }
 
 function hideInstallBanner({ persistDismiss = false } = {}) {
   if (!dom.installBanner) return;
   dom.installBanner.hidden = true;
   dom.installBanner.setAttribute('aria-hidden', 'true');
+  dom.installBanner.classList.remove('install-banner--sheet-covered');
   if (persistDismiss) {
     rememberInstallBannerDismissed();
   }
@@ -1139,10 +1144,10 @@ function renderAccountSavedPlaces(savedPlaces) {
   list.innerHTML = '';
   const items = [];
   if (savedPlaces.home) {
-    items.push({ type: 'home', icon: '🏠', title: 'Home', place: savedPlaces.home });
+    items.push({ type: 'home', icon: savedPlaces.home.icon || '🏠', title: 'Home', place: savedPlaces.home });
   }
   if (savedPlaces.work) {
-    items.push({ type: 'work', icon: '🏢', title: 'Work', place: savedPlaces.work });
+    items.push({ type: 'work', icon: savedPlaces.work.icon || '🏢', title: 'Work', place: savedPlaces.work });
   }
   if (Array.isArray(savedPlaces.favorites)) {
     savedPlaces.favorites.slice(0, 6).forEach((fav) => {
@@ -1253,8 +1258,8 @@ function renderPersonalization(user) {
   const quickLinks = [];
   const commuteLinks = computeCommuteSuggestions(user);
   quickLinks.push(...commuteLinks);
-  if (saved.home) quickLinks.push({ type: 'home', label: 'Home', icon: '🏠', place: saved.home });
-  if (saved.work) quickLinks.push({ type: 'work', label: 'Work', icon: '🏢', place: saved.work });
+  if (saved.home) quickLinks.push({ type: 'home', label: 'Home', icon: saved.home.icon || '🏠', place: saved.home });
+  if (saved.work) quickLinks.push({ type: 'work', label: 'Work', icon: saved.work.icon || '🏢', place: saved.work });
   if (Array.isArray(saved.favorites)) {
     saved.favorites.slice(0, 6).forEach((fav) => {
       quickLinks.push({ type: 'favorite', label: fav.label || 'Favorite', icon: fav.icon || '⭐', place: fav });
@@ -2023,6 +2028,7 @@ function applySheetSnap(index, { animate = true } = {}) {
   if (dom.sheetContent) {
     scheduleSheetCornerUpdate(dom.sheetContent.scrollTop || 0, 0);
   }
+  evaluateSheetOverlap();
 }
 
 function refreshSheetSnap({ animate = false } = {}) {
@@ -2103,6 +2109,7 @@ function handleSheetDragMove(evt) {
   const next = clampSheetTranslate(drag.startTranslate + delta);
   state.sheet.translate = next;
   dom.infoSheet?.style.setProperty('--sheet-translate', `${next}px`);
+  evaluateSheetOverlap();
 }
 
 function finishSheetDrag(evt) {
@@ -2145,11 +2152,115 @@ function finishSheetDrag(evt) {
   applySheetSnap(bestIndex);
 }
 
+function ensureSheetRadiusState() {
+  if (!dom.infoSheet) return null;
+  try {
+    const computed = window.getComputedStyle(dom.infoSheet);
+    const baseRadiusValue = computed.borderTopLeftRadius || computed.getPropertyValue('--sheet-radius-dynamic');
+    const base = Number.parseFloat(baseRadiusValue) || 28;
+    const max = base + Math.max(12, base * 0.45);
+    const threshold = Math.max(96, base * 3.2);
+    const radiusState = {
+      base,
+      max,
+      current: max,
+      threshold,
+      touchStartY: null,
+      touchStartScroll: 0,
+      raf: null,
+      pendingScrollTop: 0,
+      pendingOvershoot: 0,
+    };
+    dom.infoSheet.style.setProperty('--sheet-radius-dynamic', `${max}px`);
+    state.sheet.radius = radiusState;
+    return radiusState;
+  } catch (error) {
+    state.sheet.radius = null;
+    return null;
+  }
+}
+
+function scheduleSheetCornerUpdate(scrollTop = 0, overshoot = 0) {
+  const radiusState = state.sheet.radius;
+  if (!radiusState) return;
+  radiusState.pendingScrollTop = scrollTop;
+  radiusState.pendingOvershoot = overshoot;
+  if (radiusState.raf) return;
+  radiusState.raf = window.requestAnimationFrame(() => {
+    radiusState.raf = null;
+    updateSheetCornerRadius(radiusState.pendingScrollTop, radiusState.pendingOvershoot);
+  });
+}
+
+function updateSheetCornerRadius(scrollTop = 0, overshoot = 0) {
+  const radiusState = state.sheet.radius;
+  if (!radiusState || !dom.infoSheet) return;
+  const threshold = radiusState.threshold;
+  const limitedScroll = Math.min(Math.max(scrollTop, 0), threshold);
+  const progress = 1 - limitedScroll / threshold;
+  const overshootBoost = overshoot > 0 ? Math.min(overshoot, 120) / 120 : 0;
+  const dynamicMax = radiusState.max + overshootBoost * Math.max(10, radiusState.base * 0.35);
+  const target = radiusState.base + (dynamicMax - radiusState.base) * Math.max(0, Math.min(1, progress));
+  const final = Math.max(radiusState.base, Math.min(dynamicMax, target));
+  if (Number.isFinite(final) && Math.abs(final - radiusState.current) > 0.5) {
+    radiusState.current = final;
+    dom.infoSheet.style.setProperty('--sheet-radius-dynamic', `${final.toFixed(2)}px`);
+  }
+  const shouldElevate = scrollTop > 2 || overshoot > 1;
+  dom.infoSheet.classList.toggle('sheet--scrolled', shouldElevate);
+}
+
+function handleSheetScroll() {
+  if (!dom.sheetContent) return;
+  scheduleSheetCornerUpdate(dom.sheetContent.scrollTop || 0, 0);
+}
+
+function handleSheetTouchStart(event) {
+  if (!state.sheet.radius || !dom.sheetContent) return;
+  if (!event.touches || event.touches.length !== 1) return;
+  const radiusState = state.sheet.radius;
+  radiusState.touchStartY = event.touches[0].clientY;
+  radiusState.touchStartScroll = dom.sheetContent.scrollTop;
+}
+
+function handleSheetTouchMove(event) {
+  if (!state.sheet.radius || state.sheet.radius.touchStartY == null || !dom.sheetContent) return;
+  if (!event.touches || event.touches.length !== 1) return;
+  const radiusState = state.sheet.radius;
+  const delta = event.touches[0].clientY - radiusState.touchStartY;
+  if (radiusState.touchStartScroll <= 0 && delta > 0) {
+    const overshoot = Math.min(140, delta * 0.65);
+    scheduleSheetCornerUpdate(0, overshoot);
+  } else {
+    scheduleSheetCornerUpdate(dom.sheetContent.scrollTop || 0, 0);
+  }
+}
+
+function handleSheetTouchEnd() {
+  if (!state.sheet.radius || !dom.sheetContent) return;
+  state.sheet.radius.touchStartY = null;
+  scheduleSheetCornerUpdate(dom.sheetContent.scrollTop || 0, 0);
+}
+
+function initSheetCornerRounding() {
+  if (!dom.infoSheet || !dom.sheetContent) return;
+  const radiusState = ensureSheetRadiusState();
+  if (!radiusState) return;
+  const initialScroll = dom.sheetContent.scrollTop || 0;
+  scheduleSheetCornerUpdate(initialScroll, 0);
+  dom.sheetContent.addEventListener('scroll', handleSheetScroll, { passive: true });
+  dom.sheetContent.addEventListener('touchstart', handleSheetTouchStart, { passive: true });
+  dom.sheetContent.addEventListener('touchmove', handleSheetTouchMove, { passive: true });
+  dom.sheetContent.addEventListener('touchend', handleSheetTouchEnd, { passive: true });
+  dom.sheetContent.addEventListener('touchcancel', handleSheetTouchEnd, { passive: true });
+}
+
 function initSheetInteractions() {
   if (!dom.infoSheet) return;
   syncSheetSnapPoints();
   state.sheet.baseline = computeSheetBaselineVisible();
   refreshSheetSnap({ animate: false });
+  evaluateSheetOverlap();
   const scheduleSheetRefresh = () => {
     if (state.sheet.resizeRaf) {
       window.cancelAnimationFrame(state.sheet.resizeRaf);
@@ -2157,6 +2268,7 @@ function initSheetInteractions() {
     state.sheet.resizeRaf = window.requestAnimationFrame(() => {
       state.sheet.resizeRaf = null;
       refreshSheetSnap({ animate: false });
+      evaluateSheetOverlap();
     });
   };
   if (dom.sheetHandle) {
@@ -2183,6 +2295,7 @@ function initSheetInteractions() {
       }
     }, { once: true });
   }
+  initSheetCornerRounding();
 }
 
 function createRouteStop(role, value = '', meta = '') {
@@ -2999,6 +3112,90 @@ function formatSuggestionQuery(item) {
   return primary || context;
 }
 
+function ensureSuggestionAttributes(target) {
+  if (!target) return;
+  target.setAttribute('aria-controls', 'suggestions');
+  target.setAttribute('aria-autocomplete', 'list');
+  if (!target.hasAttribute('autocomplete')) {
+    target.setAttribute('autocomplete', 'off');
+  }
+}
+
+function getSuggestionAnchor(target, context) {
+  if (!target || !target.isConnected) return dom.searchForm;
+  if (context?.type === 'route') {
+    return target.closest('.route-stop__body') || target.closest('.route-stop') || dom.searchForm;
+  }
+  return dom.searchForm;
+}
+
+function updateSuggestionContainerParent() {
+  if (!dom.suggestions) return;
+  const target = state.suggestionTarget;
+  const context = state.suggestionContext;
+  const anchor = getSuggestionAnchor(target, context) || dom.searchForm;
+  if (anchor && dom.suggestions.parentElement !== anchor) {
+    anchor.appendChild(dom.suggestions);
+  }
+}
+
+function setSuggestionTarget(target, context = null, { preserveList = false } = {}) {
+  if (target && !target.isConnected) {
+    target = null;
+  }
+  state.suggestionTarget = target || null;
+  state.suggestionContext = target ? context : null;
+  if (target) {
+    ensureSuggestionAttributes(target);
+    updateSuggestionContainerParent();
+    if (state.suggestions.length && !preserveList) {
+      // Ensure the current suggestion list reflects the active input.
+      renderSuggestions(state.suggestions);
+      return;
+    }
+    target.setAttribute('aria-expanded', state.suggestions.length ? 'true' : 'false');
+  } else if (!preserveList) {
+    renderSuggestions([]);
+  }
+}
+
+function clearSuggestionTarget(target = null) {
+  if (target && target !== state.suggestionTarget) return;
+  if (state.suggestionTarget?.isConnected) {
+    state.suggestionTarget.setAttribute('aria-expanded', 'false');
+  }
+  state.suggestionTarget = null;
+  state.suggestionContext = null;
+}
+
+function handleSuggestionKeydown(evt) {
+  if (evt.target !== state.suggestionTarget || !state.suggestions.length) return;
+  if (evt.key === 'ArrowDown') {
+    evt.preventDefault();
+    const next = (state.activeSuggestion + 1) % state.suggestions.length;
+    highlightSuggestion(next);
+  } else if (evt.key === 'ArrowUp') {
+    evt.preventDefault();
+    const prev = (state.activeSuggestion - 1 + state.suggestions.length) % state.suggestions.length;
+    highlightSuggestion(prev);
+  } else if (evt.key === 'Enter' && state.activeSuggestion >= 0) {
+    evt.preventDefault();
+    applySuggestion(state.activeSuggestion);
+  } else if (evt.key === 'Escape') {
+    renderSuggestions([]);
+  }
+}
+
+function handleSuggestionBlur(evt) {
+  if (evt.target !== state.suggestionTarget) return;
+  window.setTimeout(() => {
+    if (state.suggestionTarget === evt.target) {
+      renderSuggestions([]);
+      clearSuggestionTarget(evt.target);
+    }
+  }, 150);
+}
+
 function buildSuggestionNode(item, index) {
   const node = document.createElement('div');
   node.className = 'suggestion';
@@ -3031,17 +3228,25 @@ function renderSuggestions(items) {
   state.suggestions = items || [];
   state.activeSuggestion = -1;
   if (!dom.suggestions) return;
+  const target = state.suggestionTarget && state.suggestionTarget.isConnected
+    ? state.suggestionTarget
+    : null;
   dom.suggestions.innerHTML = '';
-  if (!items || !items.length) {
+  if (!items || !items.length || !target) {
     dom.suggestions.hidden = true;
-    dom.searchInput?.setAttribute('aria-expanded', 'false');
+    if (target) {
+      target.setAttribute('aria-expanded', 'false');
+    } else if (dom.searchInput) {
+      dom.searchInput.setAttribute('aria-expanded', 'false');
+    }
     return;
   }
+  updateSuggestionContainerParent();
   items.forEach((item, index) => {
     dom.suggestions.appendChild(buildSuggestionNode(item, index));
   });
   dom.suggestions.hidden = false;
-  dom.searchInput?.setAttribute('aria-expanded', 'true');
+  target.setAttribute('aria-expanded', 'true');
 }
 
 function highlightSuggestion(index) {
@@ -3059,15 +3264,48 @@ function highlightSuggestion(index) {
 
 function applySuggestion(index) {
   const item = state.suggestions[index];
-  if (!item || !dom.searchInput) return;
+  const target = state.suggestionTarget;
+  const context = state.suggestionContext;
+  if (!item || !target || !context) return;
   const query = formatSuggestionQuery(item);
-  dom.searchInput.value = query;
-  dom.searchInput.focus();
-  renderSuggestions([]);
-  dom.clearSearch.hidden = !query;
-  updateNavigationLinks();
-  if (query.trim()) {
-    performSearch(query.trim());
+  target.value = query;
+  if (context.type === 'route') {
+    renderSuggestions([]);
+    clearSuggestionTarget();
+    const stop = state.routeStops.find((candidate) => candidate.id === context.stopId);
+    if (!stop) return;
+    const existingMeta = stop.meta;
+    stop.value = query;
+    if (stop.role === 'origin' && query === 'My Location') {
+      stop.meta = existingMeta;
+    } else {
+      stop.meta = item.context || '';
+    }
+    renderRouteStops({ preserveFocus: false });
+    updateRouteResetState();
+    updateRouteSummary();
+    updateRouteOverview();
+    window.requestAnimationFrame(() => {
+      const newInput = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
+      if (newInput) {
+        newInput.focus({ preventScroll: true });
+        const cursor = newInput.value.length;
+        if (typeof newInput.setSelectionRange === 'function') {
+          newInput.setSelectionRange(cursor, cursor);
+        }
+      }
+    });
+  } else {
+    target.focus();
+    renderSuggestions([]);
+    if (dom.clearSearch) {
+      dom.clearSearch.hidden = !query;
+    }
+    updateNavigationLinks();
+    const trimmed = query.trim();
+    if (trimmed) {
+      performSearch(trimmed);
+    }
   }
 }
 

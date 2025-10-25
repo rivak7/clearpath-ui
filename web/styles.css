@@ -461,6 +461,13 @@ body {
   gap: clamp(10px, 3vw, 16px);
   z-index: 4;
   grid-auto-rows: min-content;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.top-shell.top-shell--sheet-covered {
+  opacity: 0;
+  transform: translate3d(-50%, -18px, 0) scale(0.96);
+  pointer-events: none;
 }
 
 .install-banner {
@@ -481,6 +488,13 @@ body {
   box-shadow: var(--shadow-soft);
   color: var(--text-strong);
   z-index: 100;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.install-banner.install-banner--sheet-covered {
+  opacity: 0;
+  transform: translate3d(-50%, -12px, 0) scale(0.96);
+  pointer-events: none;
 }
 
 .install-banner[hidden] {
@@ -1198,6 +1212,14 @@ body {
 
 .sheet--dragging {
   transition: none;
+}
+
+.sheet--scrolled {
+  box-shadow: 0 -24px 46px rgba(16, 42, 82, 0.26);
+}
+
+[data-theme='dark'] .sheet--scrolled {
+  box-shadow: 0 -28px 54px rgba(0, 0, 0, 0.52);
 }
 
 .sheet__handle {
@@ -2720,51 +2742,119 @@ body {
 
 .settings-overview__card {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px 20px;
-  border-radius: 20px;
-  background: var(--card);
-  border: 1px solid var(--theme-border);
-  box-shadow: 0 16px 34px rgba(14, 42, 80, 0.16);
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
+  background: color-mix(in srgb, var(--sheet-bg) 92%, transparent);
+  box-shadow: 0 22px 42px rgba(6, 24, 42, 0.24);
   overflow: hidden;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  --overview-accent: rgba(61, 214, 193, 0.9);
+  --overview-glow: rgba(61, 214, 193, 0.22);
 }
 
 .settings-overview__card::before {
   content: '';
   position: absolute;
-  inset: -40% 30% auto -28%;
-  height: clamp(160px, 32vw, 220px);
-  background: radial-gradient(ellipse at center, rgba(61, 214, 193, 0.16), transparent 62%);
+  inset: -40% 20% auto 45%;
+  height: clamp(160px, 30vw, 220px);
+  background: radial-gradient(ellipse at center, var(--overview-glow), transparent 65%);
   pointer-events: none;
-}
-
-.settings-overview__card::after {
-  content: '';
-  position: absolute;
-  inset: auto -34% -46% 36%;
-  height: clamp(140px, 28vw, 200px);
-  background: radial-gradient(ellipse at center, rgba(49, 133, 242, 0.14), transparent 64%);
-  pointer-events: none;
+  opacity: 0.75;
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
 
 .settings-overview__label {
-  position: relative;
-  z-index: 1;
   font-size: 0.75rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--accent-dark);
+  color: rgba(240, 245, 255, 0.76);
 }
 
 .settings-overview__value {
-  position: relative;
-  z-index: 1;
   margin: 0;
   font-size: var(--type-base);
   font-weight: 600;
-  color: var(--sheet-text);
+  color: #f8fbff;
+}
+
+.settings-overview__link {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: clamp(14px, 3vw, 18px);
+  padding: clamp(18px, 4vw, 22px);
+  text-decoration: none;
+  color: inherit;
+}
+
+.settings-overview__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--overview-accent) 26%, transparent);
+  color: #f8fbff;
+  font-size: 1.35rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.settings-overview__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-overview__cta {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(240, 245, 255, 0.75);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-overview__cta::after {
+  content: '›';
+  font-size: 0.9rem;
+  transform: translateY(-0.5px);
+}
+
+.settings-overview__card:hover,
+.settings-overview__card:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--overview-accent) 48%, var(--theme-border));
+  box-shadow: 0 28px 56px rgba(6, 24, 42, 0.28);
+}
+
+.settings-overview__card:hover::before,
+.settings-overview__card:focus-within::before {
+  opacity: 1;
+  transform: translate3d(-6%, -6%, 0);
+}
+
+.settings-overview__card--theme {
+  --overview-accent: #3dd6c1;
+  --overview-glow: rgba(61, 214, 193, 0.26);
+}
+
+.settings-overview__card--accessibility {
+  --overview-accent: #c084fc;
+  --overview-glow: rgba(192, 132, 252, 0.22);
+}
+
+.settings-overview__card--places {
+  --overview-accent: #f97316;
+  --overview-glow: rgba(249, 115, 22, 0.26);
+}
+
+.settings-overview__card--commute {
+  --overview-accent: #60a5fa;
+  --overview-glow: rgba(96, 165, 250, 0.24);
 }
 
 .settings-preview {
