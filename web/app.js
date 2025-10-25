@@ -653,6 +653,10 @@ function clearDestinationView() {
   state.communitySummary = null;
   if (state.overlays) state.overlays.clearLayers();
   clearRoutePlanner();
+  state.entranceOptions = [];
+  if (dom.routeStops) {
+    dom.routeStops.classList.remove('route-stops--dragging', 'route-stops--drop-end');
+  }
   if (dom.insights) {
     dom.insights.innerHTML = '';
     dom.insights.hidden = true;
@@ -961,7 +965,7 @@ function updateRouteSummary() {
   if (!dom.routeSummary) return;
   dom.routeSummary.innerHTML = '';
   const result = state.lastResult;
-  if (!result) {
+  if (!result || !state.routeStops.length) {
     dom.routeSummary.hidden = true;
     return;
   }

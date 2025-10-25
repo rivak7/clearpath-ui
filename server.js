@@ -50,6 +50,7 @@ const SUPPORTED_TRAVEL_MODES = new Set(['drive', 'walk', 'transit', 'bike']);
 const SUPPORTED_MAP_STYLES = new Set(['auto', 'light', 'dark', 'satellite', 'terrain']);
 const WALKING_PACES = new Set(['slow', 'normal', 'brisk']);
 const WEEKDAY_CODES = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 function createDefaultPreferences() {
   return {
@@ -89,6 +90,14 @@ function createInitialSavedPlaces() {
 }
 
 const sessions = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of sessions.entries()) {
+    if (session && typeof session.expiresAt === 'number' && session.expiresAt <= now) {
+      sessions.delete(token);
+    }
+  }
+}, SESSION_CLEANUP_INTERVAL_MS).unref?.();
 
 try { fs.mkdirSync(COMMUNITY_DATA_DIR, { recursive: true }); } catch {}
 ensureCommunityStore();
