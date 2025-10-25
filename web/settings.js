@@ -9,6 +9,7 @@ import {
 } from './theme.js';
 import {
   ACCESSIBILITY_FEATURES,
+  AccessibilityFeature,
   getAccessibilityState,
   initAccessibility,
   onAccessibilityChange,
@@ -178,6 +179,7 @@ function syncAccessibilitySelection(state) {
   accessibilityControls.forEach((control, featureId) => {
     control.checked = active.has(featureId);
   });
+  applyThemeAccessibilityLocks(active);
 }
 
 function updateAccessibilityStatus(state) {
@@ -206,6 +208,28 @@ function onAccessibilityToggle(event) {
   const state = setFeatureState(target.value, target.checked);
   syncAccessibilitySelection(state);
   updateAccessibilityStatus(state);
+}
+
+function applyThemeAccessibilityLocks(activeSetOrState) {
+  if (!themeForm) return;
+  const active =
+    activeSetOrState instanceof Set ? activeSetOrState : new Set(activeSetOrState?.features || []);
+  const lowVisionActive = active.has(AccessibilityFeature.LOW_VISION);
+  const lightControl = themeForm.querySelector('input[name="theme-mode"][value="light"]');
+  if (!lightControl) return;
+  const lightOption = lightControl.closest('.theme-option');
+  lightControl.disabled = lowVisionActive;
+  if (lightOption) {
+    lightOption.classList.toggle('theme-option--disabled', lowVisionActive);
+    if (lowVisionActive) {
+      lightOption.setAttribute('aria-disabled', 'true');
+    } else {
+      lightOption.removeAttribute('aria-disabled');
+    }
+  }
+  if (lowVisionActive && lightControl.checked) {
+    setThemeMode(ThemeMode.DARK);
+  }
 }
 
 const initialTheme = getThemeState();
