@@ -220,19 +220,19 @@
             <div id="routeSummary" class="route-summary" hidden></div>
             <section id="entranceOptions" class="entrance-options" hidden>
               <div class="entrance-options__head">
-                <div id="entranceConfirm" class="entrance-confirm entrance-confirm--inline">
+                <div id="entranceConfirm" class="entrance-confirm entrance-confirm--inline" hidden>
                   <h2 class="entrance-confirm__title">Entrance check</h2>
                   <p id="entranceConfirmMessage" class="entrance-confirm__message">Help confirm the highlighted entrance so others know where to go.</p>
                   <p id="entranceAssurance" class="entrance-confirm__assurance">Confirmations and suggestions are saved so the next driver sees the best door.</p>
                 </div>
                 <div class="entrance-options__metaWrap">
                   <span id="entranceOptionsMeta" class="entrance-options__meta"></span>
-                  <button id="entranceConfirmNo" class="entrance-confirm__button entrance-confirm__button--ghost" type="button">Not now</button>
+                  <button id="entranceConfirmNo" class="entrance-confirm__button entrance-confirm__button--ghost" type="button" hidden>Not now</button>
                 </div>
               </div>
               <div id="entranceOptionList" class="entrance-options__list" role="list"></div>
               <div class="entrance-options__actions">
-                <button id="entranceConfirmYes" class="entrance-options__action entrance-options__action--primary" type="button">Looks good</button>
+                <button id="entranceConfirmYes" class="entrance-options__action entrance-options__action--primary" type="button" hidden>Looks good</button>
                 <button id="startEntranceVote" class="entrance-options__action entrance-options__action--ghost" type="button">Suggest another entrance</button>
               </div>
               <p id="entranceVoteHint" class="entrance-options__hint" hidden>Tap on the map to place the entrance and confirm to share it.</p>

@@ -181,6 +181,8 @@ if (dom.entranceOptions) {
   dom.entranceOptions.setAttribute('aria-hidden', dom.entranceOptions.hidden ? 'true' : 'false');
 }
 
+hideEntranceConfirmation();
+
 if (dom.installBanner) {
   dom.installBanner.setAttribute('aria-hidden', dom.installBanner.hidden ? 'true' : 'false');
 }
@@ -3004,12 +3006,16 @@ function renderEntranceOptions(result) {
     dom.entranceOptions.hidden = true;
     dom.entranceOptions.setAttribute('aria-hidden', 'true');
     if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
+    if (dom.entranceAssurance) {
+      dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
+    }
     if (dom.startEntranceVote) {
       dom.startEntranceVote.hidden = true;
       dom.startEntranceVote.disabled = false;
     }
     if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
     dom.entranceOptions.classList.remove('entrance-options--voting');
+    hideEntranceConfirmation({ mark: false });
     return;
   }
 
@@ -3018,12 +3024,16 @@ function renderEntranceOptions(result) {
     dom.entranceOptions.hidden = true;
     dom.entranceOptions.setAttribute('aria-hidden', 'true');
     if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
+    if (dom.entranceAssurance) {
+      dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
+    }
     if (dom.startEntranceVote) {
       dom.startEntranceVote.hidden = true;
       dom.startEntranceVote.disabled = false;
     }
     if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
     dom.entranceOptions.classList.remove('entrance-options--voting');
+    hideEntranceConfirmation({ mark: false });
     return;
   }
 
@@ -3092,6 +3102,14 @@ function renderEntranceOptions(result) {
   if (dom.entranceOptionsMeta) {
     const totalVotes = state.communitySummary?.totalVotes || 0;
     dom.entranceOptionsMeta.textContent = totalVotes ? `${totalVotes} community vote${totalVotes === 1 ? '' : 's'}` : '';
+  }
+  if (dom.entranceAssurance) {
+    const votes = state.communitySummary?.totalVotes
+      || result?.communityEntrances?.totalVotes
+      || 0;
+    dom.entranceAssurance.textContent = votes
+      ? `Already confirmed by ${votes} neighbor${votes === 1 ? '' : 's'}. Your feedback updates the saved entrance for this address.`
+      : 'Confirming or suggesting saves this entrance for the next driver.';
   }
   if (dom.startEntranceVote) {
     dom.startEntranceVote.hidden = false;
