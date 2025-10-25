@@ -882,6 +882,9 @@ function wireAccountSettings() {
   if (commuteForm) {
     commuteForm.addEventListener('change', handleCommuteChange);
   }
+  if (placesOverview) {
+    setSummary(placesOverview, SAVED_PLACES_DEFAULT_SUMMARY);
+  }
   onAccountChange((snapshot) => {
     renderAccountSettings(snapshot);
   });
