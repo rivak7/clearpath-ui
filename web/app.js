@@ -737,6 +737,7 @@ function initRoutePlanner() {
       btn.addEventListener('click', () => setRouteMode(btn.dataset.mode || 'drive'));
     });
   }
+  updateRouteSummary();
 }
 
 function formatDistance(meters) {
@@ -1709,36 +1710,47 @@ function updateDirections() {
   const steps = [];
   if (roadPoint) {
     const dropDistance = user ? haversine(user, roadPoint) : null;
-    let description = 'Navigate to the highlighted drop-off point shown on the map.';
+    const card = {
+      title: 'Glide to drop-off',
+      description: 'Follow the map highlight to the best curbside handoff.',
+      meta: [],
+      icon: '🚗',
+    };
     if (user && Number.isFinite(dropDistance)) {
-      description = `Drive to the drop-off at ${formatCoord(roadPoint.lat)}, ${formatCoord(roadPoint.lon)} (${formatDistance(dropDistance)} from you).`;
+      card.meta.push(`Drive ${formatDistance(dropDistance)}`);
     }
-    steps.push({
-      title: 'Vehicle drop-off',
-      description,
-      className: user && dropDistance <= 30 ? 'direction-step--primary' : '',
-    });
+    card.meta.push(`Pin ${formatCoord(roadPoint.lat)}, ${formatCoord(roadPoint.lon)}`);
+    if (user && dropDistance !== null && dropDistance <= 30) {
+      card.className = 'direction-step--primary';
+    }
+    steps.push(card);
   }
   if (entrance) {
     const walkDistance = roadPoint ? haversine(roadPoint, entrance) : null;
     const directDistance = user ? haversine(user, entrance) : null;
     const origin = roadPoint || user;
-    let directionText = 'Follow on-premise signage to the entrance.';
+    const card = {
+      title: 'Final approach',
+      description: 'Leave the vehicle and follow on-premise cues to the entrance.',
+      meta: [],
+      icon: '🚶',
+      className: 'direction-step--primary',
+    };
     if (origin) {
       const bearing = computeBearing(origin.lat, origin.lon, entrance.lat, entrance.lon);
-      const fromText = roadPoint ? 'from drop-off' : 'from your position';
-      directionText = `From ${fromText}, ${bearingToText(bearing)} for ${formatDistance(walkDistance || directDistance)}.`;
+      if (walkDistance || directDistance) {
+        card.meta.push(`Walk ${formatDistance(walkDistance || directDistance)}`);
+      }
+      card.meta.push(bearingToText(bearing));
     }
-    steps.push({
-      title: 'Final approach',
-      description: directionText,
-      className: 'direction-step--primary',
-    });
+    steps.push(card);
   }
   if (user && !isInsideBBox(user, result.bbox)) {
     steps.unshift({
-      title: 'You are outside the site',
-      description: 'Follow the map to reach the recommended drop-off zone before heading to the entrance.',
+      title: 'Outside the site',
+      description: 'Make your way toward the campus boundary to pick up the guided arrival.',
+      meta: ['Zoom to the highlighted area'],
+      icon: '⚠️',
     });
   }
   if (!steps.length) {
@@ -1749,15 +1761,35 @@ function updateDirections() {
     const node = document.createElement('div');
     node.className = 'direction-step';
     if (step.className) node.classList.add(step.className);
+    const headingRow = document.createElement('div');
+    headingRow.className = 'direction-step__heading';
+    if (step.icon) {
+      const icon = document.createElement('span');
+      icon.className = 'direction-step__icon';
+      icon.textContent = step.icon;
+      headingRow.appendChild(icon);
+    }
     const heading = document.createElement('strong');
     heading.textContent = step.title;
-    node.appendChild(heading);
+    headingRow.appendChild(heading);
+    node.appendChild(headingRow);
     const body = document.createElement('div');
     body.textContent = step.description;
     node.appendChild(body);
+    if (Array.isArray(step.meta) && step.meta.length) {
+      const meta = document.createElement('div');
+      meta.className = 'direction-step__meta';
+      step.meta.forEach((value) => {
+        const chip = document.createElement('span');
+        chip.textContent = value;
+        meta.appendChild(chip);
+      });
+      node.appendChild(meta);
+    }
     dom.directions.appendChild(node);
   });
   dom.directions.hidden = false;
+  refreshSheetSnap({ animate: false });
 }
 
 function updateNavigationLinks() {
@@ -1943,5 +1975,9 @@ window.addEventListener('pagehide', () => {
   if (state.geolocationWatchId !== null && navigator.geolocation) {
     navigator.geolocation.clearWatch(state.geolocationWatchId);
     state.geolocationWatchId = null;
+  }
+  if (state.sheet?.observer) {
+    state.sheet.observer.disconnect();
+    state.sheet.observer = null;
   }
 });

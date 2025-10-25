@@ -45,7 +45,24 @@
   <body>
     <noscript>ClearPath requires JavaScript to locate entrances and provide navigation.</noscript>
     <div id="app" class="app-shell">
-      <div id="splash" class="splash">Loading ClearPath...</div>
+      <div id="splash" class="splash" role="status" aria-live="polite">
+        <div class="splash__backdrop"></div>
+        <div class="splash__glow" aria-hidden="true"></div>
+        <div class="splash__content">
+          <div class="splash__brand">
+            <img class="splash__logo" src="/icons/logo-192.png" alt="ClearPath logo" width="80" height="80" />
+            <div class="splash__brandCopy">
+              <span class="splash__title">ClearPath</span>
+              <span class="splash__tagline">Smarter building arrivals</span>
+            </div>
+          </div>
+          <p id="splashMessage" class="splash__message">Preparing your experience...</p>
+          <div class="splash__progress" role="presentation" aria-hidden="true">
+            <div id="splashProgress" class="splash__progressFill"></div>
+          </div>
+          <p class="splash__hint">We are loading imagery and entrance intelligence.</p>
+        </div>
+      </div>
       <div class="map-stage" aria-live="polite">
         <div id="map" class="map"></div>
         <button id="locateMe" class="fab fab--locate" type="button" aria-label="Center on my location">
