@@ -102,6 +102,123 @@
         <span id="accessibilityStatusChip" class="theme-status__chip">Pick the boosts you need—mix and match freely.</span>
         <p class="theme-status__meta">Profiles sync across signed-in devices.</p>
       </section>
+
+      <section id="accountSection" class="settings-section" aria-labelledby="accountSectionTitle">
+        <div class="settings-section__header">
+          <h2 id="accountSectionTitle">Account &amp; sync</h2>
+          <p class="settings-section__lead">Sign in to carry your entrances and commute plans everywhere.</p>
+        </div>
+        <div class="settings-account" role="group" aria-describedby="accountStatusDetail">
+          <div class="settings-account__summary">
+            <span id="accountStatusChip" class="settings-account__chip">Signed out</span>
+            <p id="accountStatusDetail" class="settings-account__detail">Personalization is paused. Sign in to unlock saved places and preferences.</p>
+          </div>
+          <div class="settings-account__actions">
+            <button id="accountPrimaryAction" class="settings-account__primary" type="button">Sign in</button>
+            <button id="accountAltAction" class="settings-account__secondary" type="button">Create account</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="savedPlacesSection" class="settings-section" aria-labelledby="savedPlacesTitle">
+        <div class="settings-section__header">
+          <h2 id="savedPlacesTitle">Saved places</h2>
+          <p class="settings-section__lead">Update home, work, and quick favorites for instant routing.</p>
+        </div>
+        <form id="savedPlacesForm" class="settings-form" autocomplete="off">
+          <fieldset class="settings-fieldset">
+            <legend class="settings-fieldset__legend">Home &amp; work</legend>
+            <div class="settings-field">
+              <label class="settings-field__label" for="homeAddress">Home</label>
+              <div class="settings-field__controls">
+                <input id="homeAddress" name="homeAddress" type="text" placeholder="Add home address" />
+                <button class="settings-field__button" type="button" data-action="save-home">Save</button>
+                <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-home">Clear</button>
+              </div>
+            </div>
+            <div class="settings-field">
+              <label class="settings-field__label" for="workAddress">Work</label>
+              <div class="settings-field__controls">
+                <input id="workAddress" name="workAddress" type="text" placeholder="Add work address" />
+                <button class="settings-field__button" type="button" data-action="save-work">Save</button>
+                <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-work">Clear</button>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="settings-fieldset">
+            <legend class="settings-fieldset__legend">Favorites</legend>
+            <div class="settings-field settings-field--stacked">
+              <label class="settings-field__label" for="favoriteName">Add favorite</label>
+              <div class="settings-favorite__inputs">
+                <input id="favoriteName" name="favoriteName" type="text" placeholder="Label (e.g., Gym)" />
+                <input id="favoriteAddress" name="favoriteAddress" type="text" placeholder="Address or place" />
+                <button id="addFavoriteButton" class="settings-field__button" type="button">Add</button>
+              </div>
+            </div>
+            <ul id="favoriteList" class="settings-favoriteList" aria-live="polite"></ul>
+          </fieldset>
+        </form>
+        <p id="savedPlacesStatus" class="settings-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="travelPreferencesSection" class="settings-section" aria-labelledby="travelPreferencesTitle">
+        <div class="settings-section__header">
+          <h2 id="travelPreferencesTitle">Travel preferences</h2>
+          <p class="settings-section__lead">Tune how ClearPath plans your approach and alerts you.</p>
+        </div>
+        <form id="preferencesForm" class="settings-form" autocomplete="off">
+          <div class="settings-field">
+            <label class="settings-field__label" for="defaultTravelMode">Default travel mode</label>
+            <select id="defaultTravelMode" name="defaultTravelMode">
+              <option value="drive">Drive</option>
+              <option value="walk">Walk</option>
+              <option value="transit">Transit</option>
+              <option value="bike">Bike</option>
+            </select>
+          </div>
+          <div class="settings-field">
+            <label class="settings-field__label" for="mapStylePreference">Map appearance</label>
+            <select id="mapStylePreference" name="mapStylePreference">
+              <option value="auto">Auto (day/night)</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="satellite">Satellite</option>
+              <option value="terrain">Terrain</option>
+            </select>
+          </div>
+          <fieldset class="settings-fieldset settings-fieldset--inline">
+            <legend class="settings-fieldset__legend">Routing options</legend>
+            <label class="settings-toggle">
+              <input id="avoidTolls" name="avoidTolls" type="checkbox" />
+              <span>Avoid toll roads</span>
+            </label>
+            <label class="settings-toggle">
+              <input id="avoidHighways" name="avoidHighways" type="checkbox" />
+              <span>Avoid highways</span>
+            </label>
+            <label class="settings-toggle">
+              <input id="avoidFerries" name="avoidFerries" type="checkbox" />
+              <span>Avoid ferries</span>
+            </label>
+          </fieldset>
+          <fieldset class="settings-fieldset settings-fieldset--inline">
+            <legend class="settings-fieldset__legend">Notifications</legend>
+            <label class="settings-toggle">
+              <input id="arrivalReminders" name="arrivalReminders" type="checkbox" />
+              <span>Arrival reminders</span>
+            </label>
+            <label class="settings-toggle">
+              <input id="commuteInsights" name="commuteInsights" type="checkbox" />
+              <span>Commute insights</span>
+            </label>
+            <label class="settings-toggle">
+              <input id="savedPlaceUpdates" name="savedPlaceUpdates" type="checkbox" />
+              <span>Saved place updates</span>
+            </label>
+          </fieldset>
+        </form>
+        <p id="preferencesStatus" class="settings-status" role="status" aria-live="polite"></p>
+      </section>
     </main>
     <script type="module" src="/settings.js"></script>
   </body>
