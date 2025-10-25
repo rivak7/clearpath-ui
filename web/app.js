@@ -124,6 +124,13 @@ function shouldReduceMotion() {
 
 function refreshDesignTokens({ preserveView = true } = {}) {
   state.designTokens = collectDesignTokens();
+  if (state.voteMarker) {
+    const tokens = state.designTokens;
+    state.voteMarker.setStyle({
+      color: tokens.markerSelectedBorder,
+      fillColor: tokens.markerSelectedFill,
+    });
+  }
   if (state.userLocation) {
     const { lat, lon, accuracy } = state.userLocation;
     updateUserMarker(lat, lon, accuracy);
@@ -713,6 +720,23 @@ function updateRouteSummary() {
 
   dom.routeSummary.appendChild(card);
   dom.routeSummary.hidden = false;
+  refreshSheetSnap({ animate: false });
+}
+
+function initRoutePlanner() {
+  ensureRouteStops();
+  updateRouteModeButtons();
+  if (dom.addRouteStop) {
+    dom.addRouteStop.addEventListener('click', addRouteStop);
+  }
+  if (dom.sheetReset) {
+    dom.sheetReset.addEventListener('click', resetRoutePlanner);
+  }
+  if (Array.isArray(dom.routeModes)) {
+    dom.routeModes.forEach((btn) => {
+      btn.addEventListener('click', () => setRouteMode(btn.dataset.mode || 'drive'));
+    });
+  }
 }
 
 function formatDistance(meters) {
@@ -819,6 +843,7 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
     timestamp: position.timestamp,
   };
   updateUserMarker(latitude, longitude, accuracy);
+  updateOriginStopFromLocation();
   const shouldCenter = centerOnUser || !state.hasCenteredOnUser;
   if (state.map && shouldCenter) {
     const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
@@ -834,6 +859,7 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
     state.hasCenteredOnUser = true;
   }
   updateDirections();
+  updateRouteSummary();
 }
 
 function onGeolocationError(error, { userInitiated = false } = {}) {
@@ -1230,6 +1256,8 @@ function renderResult(data, options = {}) {
   updateNavigationLinks();
   updateSheetHeadings(data);
   renderEntranceOptions(data);
+  updateDestinationStopFromResult(data);
+  updateRouteSummary();
 }
 
 function buildEntranceOptions(result) {
@@ -1825,13 +1853,6 @@ function wireLocateButton() {
   });
 }
 
-function wireSheetToggle() {
-  if (!dom.sheetToggle) return;
-  dom.sheetToggle.addEventListener('click', () => {
-    setSheetCollapsed(!state.isSheetCollapsed);
-  });
-}
-
 function wireCommunityEntranceControls() {
   if (!dom.startEntranceVote) return;
   dom.startEntranceVote.addEventListener('click', () => {
@@ -1906,8 +1927,9 @@ function init() {
   initMap();
   wireSearch();
   wireLocateButton();
-  wireSheetToggle();
   wireCommunityEntranceControls();
+  initSheetInteractions();
+  initRoutePlanner();
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();
