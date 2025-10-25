@@ -57,7 +57,15 @@
             </div>
           </div>
           <p id="splashMessage" class="splash__message">Preparing your experience...</p>
-          <div class="splash__progress" role="presentation" aria-hidden="true">
+          <div
+            id="splashProgressBar"
+            class="splash__progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+            aria-label="Loading ClearPath"
+          >
             <div id="splashProgress" class="splash__progressFill"></div>
           </div>
           <p class="splash__hint">We are loading imagery and entrance intelligence.</p>
@@ -65,11 +73,6 @@
       </div>
       <div class="map-stage" aria-live="polite">
         <div id="map" class="map"></div>
-        <button id="locateMe" class="fab fab--locate" type="button" aria-label="Center on my location">
-          <span class="fab__icon" aria-hidden="true">◎</span>
-        </button>
-        <button id="openInstall" class="fab fab--install" type="button" hidden>Install</button>
-
         <header class="top-shell" role="search">
           <div class="brand">
             <div class="brand__identity">
@@ -82,10 +85,13 @@
                 <span class="brand__title">ClearPath</span>
               </div>
             </div>
-            <a class="brand__settings" href="/settings.html" aria-label="Open settings">
-              <span class="brand__settingsIcon" aria-hidden="true">&#9881;</span>
-              <span class="brand__settingsText">Settings</span>
-            </a>
+            <div class="brand__actions">
+              <button id="openInstall" class="brand__install" type="button" hidden>Install app</button>
+              <a class="brand__settings" href="/settings.html" aria-label="Open settings">
+                <span class="brand__settingsIcon" aria-hidden="true">&#9881;</span>
+                <span class="brand__settingsText">Settings</span>
+              </a>
+            </div>
           </div>
           <form id="searchForm" class="search" autocomplete="off">
             <label class="search__label" for="searchInput">Destination</label>
@@ -103,8 +109,9 @@
             class="sheet__handle"
             role="button"
             tabindex="0"
-            aria-label="Drag up for more arrival details"
+            aria-label="Show arrival details"
             aria-controls="sheetContent"
+            aria-expanded="false"
           >
             <span class="sheet__handleGrip" aria-hidden="true"></span>
           </div>

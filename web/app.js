@@ -35,9 +35,10 @@ const state = {
   voteInFlight: false,
   confirmationPrompt: null,
   sheet: {
-    snapPoints: [0.28, 0.58, 0.92],
-    index: 1,
+    snapPoints: [0.12, 0.58, 0.92],
+    index: 0,
     translate: 0,
+    minVisible: null,
     observer: null,
     isAnimating: false,
   },
@@ -48,16 +49,23 @@ const state = {
   searchInFlight: false,
   pendingSearch: null,
   splashHideTimer: null,
+  splashProgress: 0,
+  splashResetTimer: null,
+  searchCount: 0,
+  lastConfirmationPromptAt: 0,
 };
 
 state.accessibility = new Set();
 state.designTokens = null;
 state.confirmationHistory = new Set();
+state.splashTimeouts = new Set();
+state.splashFrames = new Set();
 
 const dom = {
   splash: document.getElementById('splash'),
   splashMessage: document.getElementById('splashMessage'),
   splashProgress: document.getElementById('splashProgress'),
+  splashProgressBar: document.getElementById('splashProgressBar'),
   map: document.getElementById('map'),
   searchForm: document.getElementById('searchForm'),
   searchInput: document.getElementById('searchInput'),
@@ -72,7 +80,7 @@ const dom = {
   sheetSubtitle: document.getElementById('sheetSubtitle'),
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
-  sheetToggle: document.getElementById('sheetToggle'),
+  sheetHandle: document.getElementById('sheetHandle'),
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
   routePlanner: document.getElementById('routePlanner'),
@@ -91,8 +99,6 @@ const dom = {
   entranceConfirmNo: document.getElementById('entranceConfirmNo'),
   entranceConfirmSuggest: document.getElementById('entranceConfirmSuggest'),
 };
-
-dom.sheetHandle = dom.sheetToggle;
 
 if (dom.splash) {
   dom.splash.setAttribute('aria-hidden', 'false');
@@ -182,9 +188,11 @@ const GEOLOCATION_OPTIONS = {
 };
 
 const MIN_LOCATE_ZOOM = 17;
+const MAX_SATELLITE_ZOOM = 18;
 
 const DEFAULT_VIEW = { lat: 47.6036, lon: -122.3294, zoom: 13 }; // Seattle downtown default
-const SHEET_MIN_VISIBLE = 192;
+const SHEET_MIN_VISIBLE = 208;
+const SHEET_PEEK_MIN_VISIBLE = 72;
 
 function initMap() {
   if (!dom.map) return;
@@ -192,11 +200,12 @@ function initMap() {
     zoomControl: true,
     attributionControl: true,
     zoomSnap: 0.5,
-    maxZoom: 21,
+    maxZoom: MAX_SATELLITE_ZOOM,
   });
 
   state.satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 21,
+    maxZoom: MAX_SATELLITE_ZOOM,
+    maxNativeZoom: MAX_SATELLITE_ZOOM,
     attribution: 'Esri, Maxar, Earthstar Geographics, GIS User Community',
   });
   state.satelliteLayer.addTo(state.map);
@@ -205,23 +214,109 @@ function initMap() {
   state.userLayer = L.layerGroup().addTo(state.map);
 
   state.map.setView([DEFAULT_VIEW.lat, DEFAULT_VIEW.lon], DEFAULT_VIEW.zoom);
+  attachLocateControl();
 }
 
-function resetSplashAnimation() {
-  if (!dom.splashProgress) return;
-  dom.splashProgress.style.animation = 'none';
-  // Force reflow so the CSS animation restarts when we show it again.
-  void dom.splashProgress.offsetWidth;
-  dom.splashProgress.style.animation = '';
+function attachLocateControl() {
+  if (!state.map) return;
+  const zoomControl = state.map.zoomControl;
+  const container = typeof zoomControl?.getContainer === 'function'
+    ? zoomControl.getContainer()
+    : zoomControl?._container;
+  if (!container) return;
+
+  let button = container.querySelector('#locateMe');
+  if (!button) {
+    button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'locateMe';
+    button.className = 'map-locate';
+    button.setAttribute('aria-label', 'Center on my location');
+    button.setAttribute('title', 'Center on my location');
+    button.innerHTML = '<span class="map-locate__icon" aria-hidden="true">◎</span>';
+    container.appendChild(button);
+  }
+
+  dom.locateButton = button;
+
+  if (typeof L !== 'undefined' && L?.DomEvent) {
+    L.DomEvent.disableClickPropagation(button);
+    L.DomEvent.disableScrollPropagation(button);
+  }
 }
 
-function showSplash({ mode = 'bootstrap', message } = {}) {
+function clearPendingSplashProgress() {
+  if (state.splashTimeouts) {
+    state.splashTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    state.splashTimeouts.clear();
+  }
+  if (state.splashFrames) {
+    state.splashFrames.forEach((frameId) => window.cancelAnimationFrame(frameId));
+    state.splashFrames.clear();
+  }
+}
+
+function resetSplashProgress() {
+  state.splashProgress = 0;
+  if (dom.splashProgress) {
+    dom.splashProgress.style.setProperty('--progress', '0%');
+    dom.splashProgress.style.width = '0%';
+    dom.splashProgress.style.opacity = '0';
+    dom.splashProgress.classList.remove('splash__progressFill--complete');
+  }
+  if (dom.splashProgressBar) {
+    dom.splashProgressBar.setAttribute('aria-valuenow', '0');
+    dom.splashProgressBar.classList.remove('splash__progress--complete');
+  }
+}
+
+function setSplashProgress(value) {
+  const clamped = Math.max(0, Math.min(1, value));
+  state.splashProgress = clamped;
+  const widthPercent = clamped <= 0 ? 0 : Math.max(clamped * 100, 4);
+  const width = `${widthPercent.toFixed(1)}%`;
+  if (dom.splashProgress) {
+    dom.splashProgress.style.setProperty('--progress', width);
+    dom.splashProgress.style.width = width;
+    dom.splashProgress.style.opacity = clamped <= 0 ? '0' : '1';
+    dom.splashProgress.classList.toggle('splash__progressFill--complete', clamped >= 0.999);
+  }
+  if (dom.splashProgressBar) {
+    dom.splashProgressBar.setAttribute('aria-valuenow', Math.round(clamped * 100).toString());
+    dom.splashProgressBar.classList.toggle('splash__progress--complete', clamped >= 0.999);
+    dom.splashProgressBar.setAttribute('aria-busy', clamped >= 1 ? 'false' : 'true');
+  }
+}
+
+function advanceSplashProgress(value, delay = 0) {
+  const clamped = Math.max(0, Math.min(1, value));
+  if (delay > 0) {
+    const timeoutId = window.setTimeout(() => {
+      setSplashProgress(clamped);
+      state.splashTimeouts?.delete(timeoutId);
+    }, delay);
+    state.splashTimeouts?.add(timeoutId);
+  } else {
+    const frameId = window.requestAnimationFrame(() => {
+      setSplashProgress(clamped);
+      state.splashFrames?.delete(frameId);
+    });
+    state.splashFrames?.add(frameId);
+  }
+}
+
+function showSplash({ mode = 'bootstrap', message, progress } = {}) {
   if (!dom.splash) return;
   if (state.splashHideTimer) {
     clearTimeout(state.splashHideTimer);
     state.splashHideTimer = null;
   }
-  resetSplashAnimation();
+  if (state.splashResetTimer) {
+    clearTimeout(state.splashResetTimer);
+    state.splashResetTimer = null;
+  }
+  clearPendingSplashProgress();
+  resetSplashProgress();
   dom.splash.classList.remove('splash--hidden');
   dom.splash.setAttribute('aria-hidden', 'false');
   dom.splash.classList.toggle('splash--search', mode === 'search');
@@ -229,20 +324,44 @@ function showSplash({ mode = 'bootstrap', message } = {}) {
   if (dom.splashMessage) {
     dom.splashMessage.textContent = resolvedMessage;
   }
+  if (dom.splashProgressBar) {
+    dom.splashProgressBar.setAttribute('aria-valuetext', resolvedMessage);
+    dom.splashProgressBar.setAttribute('aria-busy', 'true');
+  }
+  const baseProgress = typeof progress === 'number'
+    ? Math.max(0, Math.min(1, progress))
+    : mode === 'bootstrap'
+      ? 0.18
+      : 0.26;
+  advanceSplashProgress(baseProgress);
 }
 
 function updateSplashMessage(message) {
-  if (!message || !dom.splashMessage) return;
-  dom.splashMessage.textContent = message;
+  if (!message) return;
+  if (dom.splashMessage) {
+    dom.splashMessage.textContent = message;
+  }
+  if (dom.splashProgressBar) {
+    dom.splashProgressBar.setAttribute('aria-valuetext', message);
+  }
 }
 
 function hideSplash({ delay = 0 } = {}) {
   if (!dom.splash) return;
   const apply = () => {
+    clearPendingSplashProgress();
+    setSplashProgress(1);
     dom.splash.classList.add('splash--hidden');
     dom.splash.setAttribute('aria-hidden', 'true');
     dom.splash.classList.remove('splash--search');
+    if (dom.splashProgressBar) {
+      dom.splashProgressBar.setAttribute('aria-valuetext', 'Experience ready');
+    }
     state.splashHideTimer = null;
+    state.splashResetTimer = window.setTimeout(() => {
+      resetSplashProgress();
+      state.splashResetTimer = null;
+    }, 420);
   };
   if (delay > 0) {
     state.splashHideTimer = window.setTimeout(apply, delay);
@@ -259,19 +378,35 @@ function setStatus(message, type = 'info') {
   if (type === 'success') dom.statusMessage.classList.add('status--success');
 }
 
-function computeSheetTranslateForFraction(fraction) {
-  if (!dom.infoSheet) return 0;
+function computeSheetPosition(fraction, { minVisible = SHEET_MIN_VISIBLE } = {}) {
+  if (!dom.infoSheet) {
+    return { translate: 0, visible: minVisible };
+  }
   const sheet = dom.infoSheet;
   const sheetHeight = sheet.scrollHeight;
   const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || sheetHeight;
-  const visible = Math.min(sheetHeight, Math.max(SHEET_MIN_VISIBLE, viewportHeight * fraction));
-  return Math.max(0, sheetHeight - visible);
+  const clampedVisible = Math.min(sheetHeight, Math.max(minVisible, Math.round(viewportHeight * fraction)));
+  const translate = Math.max(0, sheetHeight - clampedVisible);
+  return { translate, visible: clampedVisible };
+}
+
+function getSheetPeekVisibleHeight() {
+  const handle = dom.sheetHandle;
+  if (!handle) return SHEET_PEEK_MIN_VISIBLE;
+  const rect = handle.getBoundingClientRect();
+  if (!rect || !Number.isFinite(rect.height) || rect.height <= 0) {
+    return SHEET_PEEK_MIN_VISIBLE;
+  }
+  return Math.max(SHEET_PEEK_MIN_VISIBLE, Math.round(rect.height + 24));
 }
 
 function clampSheetTranslate(value) {
   if (!dom.infoSheet) return 0;
   const sheetHeight = dom.infoSheet.scrollHeight;
-  const maxTranslate = Math.max(0, sheetHeight - SHEET_MIN_VISIBLE);
+  const peekVisible = Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE);
+  const baseline = state.sheet?.minVisible || SHEET_MIN_VISIBLE;
+  const minVisible = Math.min(baseline, peekVisible);
+  const maxTranslate = Math.max(0, sheetHeight - minVisible);
   if (!Number.isFinite(value)) return 0;
   return Math.min(Math.max(0, value), maxTranslate);
 }
@@ -287,9 +422,14 @@ function applySheetSnap(index, { animate = true } = {}) {
   if (!dom.infoSheet) return;
   const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
   const resolvedIndex = Math.max(0, Math.min(index, snapPoints.length - 1));
-  const translate = computeSheetTranslateForFraction(snapPoints[resolvedIndex]);
+  const isPeek = resolvedIndex === 0;
+  const peekVisible = Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE);
+  const minVisible = isPeek ? peekVisible : SHEET_MIN_VISIBLE;
+  const { translate, visible } = computeSheetPosition(snapPoints[resolvedIndex], { minVisible });
   state.sheet.index = resolvedIndex;
   state.sheet.translate = translate;
+  state.sheet.visible = visible;
+  state.sheet.minVisible = minVisible;
   if (!animate) {
     dom.infoSheet.classList.add('sheet--dragging');
   } else {
@@ -298,7 +438,10 @@ function applySheetSnap(index, { animate = true } = {}) {
   dom.infoSheet.style.setProperty('--sheet-translate', `${translate}px`);
   updateSheetVisualState(resolvedIndex);
   if (dom.sheetHandle) {
-    dom.sheetHandle.setAttribute('aria-expanded', String(resolvedIndex === snapPoints.length - 1));
+    const expanded = resolvedIndex !== 0;
+    dom.sheetHandle.setAttribute('aria-expanded', String(expanded));
+    const label = expanded ? 'Collapse arrival details' : 'Expand arrival details';
+    dom.sheetHandle.setAttribute('aria-label', label);
   }
   if (!animate) {
     window.setTimeout(() => dom.infoSheet?.classList.remove('sheet--dragging'), 0);
@@ -306,7 +449,7 @@ function applySheetSnap(index, { animate = true } = {}) {
 }
 
 function refreshSheetSnap({ animate = false } = {}) {
-  applySheetSnap(state.sheet.index ?? 1, { animate });
+  applySheetSnap(state.sheet.index ?? 0, { animate });
 }
 
 function cycleSheetSnap(direction = 1) {
@@ -338,20 +481,39 @@ function startSheetDrag(evt) {
     pointerId: evt.pointerId,
     startY: evt.clientY,
     startTranslate: state.sheet.translate || 0,
+    moved: false,
   };
   drag.maxTranslate = clampSheetTranslate(Number.MAX_SAFE_INTEGER);
+  drag.moveTarget = null;
+  drag.usingPointerCapture = false;
   state.sheet.drag = drag;
   dom.infoSheet.classList.add('sheet--dragging');
-  dom.sheetHandle.setPointerCapture(evt.pointerId);
-  dom.sheetHandle.addEventListener('pointermove', handleSheetDragMove);
-  dom.sheetHandle.addEventListener('pointerup', finishSheetDrag);
-  dom.sheetHandle.addEventListener('pointercancel', finishSheetDrag);
+  const handle = dom.sheetHandle;
+  let moveTarget = handle;
+  if (handle?.setPointerCapture) {
+    try {
+      handle.setPointerCapture(evt.pointerId);
+      drag.usingPointerCapture = true;
+    } catch (error) {
+      drag.usingPointerCapture = false;
+      moveTarget = window;
+    }
+  } else {
+    moveTarget = window;
+  }
+  drag.moveTarget = moveTarget;
+  moveTarget.addEventListener('pointermove', handleSheetDragMove);
+  moveTarget.addEventListener('pointerup', finishSheetDrag);
+  moveTarget.addEventListener('pointercancel', finishSheetDrag);
 }
 
 function handleSheetDragMove(evt) {
   const drag = state.sheet.drag;
   if (!drag || evt.pointerId !== drag.pointerId) return;
   const delta = evt.clientY - drag.startY;
+  if (!drag.moved && Math.abs(delta) > 4) {
+    drag.moved = true;
+  }
   const next = clampSheetTranslate(drag.startTranslate + delta);
   state.sheet.translate = next;
   dom.infoSheet?.style.setProperty('--sheet-translate', `${next}px`);
@@ -360,20 +522,33 @@ function handleSheetDragMove(evt) {
 function finishSheetDrag(evt) {
   const drag = state.sheet.drag;
   if (!drag || evt.pointerId !== drag.pointerId) return;
-  if (dom.sheetHandle) {
-    dom.sheetHandle.releasePointerCapture(evt.pointerId);
-    dom.sheetHandle.removeEventListener('pointermove', handleSheetDragMove);
-    dom.sheetHandle.removeEventListener('pointerup', finishSheetDrag);
-    dom.sheetHandle.removeEventListener('pointercancel', finishSheetDrag);
+  const handle = dom.sheetHandle;
+  if (drag.moveTarget) {
+    drag.moveTarget.removeEventListener('pointermove', handleSheetDragMove);
+    drag.moveTarget.removeEventListener('pointerup', finishSheetDrag);
+    drag.moveTarget.removeEventListener('pointercancel', finishSheetDrag);
+  }
+  if (drag.usingPointerCapture && handle?.releasePointerCapture) {
+    try {
+      handle.releasePointerCapture(evt.pointerId);
+    } catch (error) {
+      // Ignore release failures; the pointer is already done.
+    }
   }
   state.sheet.drag = null;
   dom.infoSheet?.classList.remove('sheet--dragging');
   const targetTranslate = state.sheet.translate;
+  const wasTap = !drag.moved && Math.abs(targetTranslate - drag.startTranslate) < 6;
+  if (wasTap) {
+    cycleSheetSnap(1);
+    return;
+  }
   const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
   let bestIndex = state.sheet.index;
   let bestDistance = Number.POSITIVE_INFINITY;
   snapPoints.forEach((fraction, idx) => {
-    const candidate = computeSheetTranslateForFraction(fraction);
+    const minVisible = idx === 0 ? Math.max(getSheetPeekVisibleHeight(), SHEET_PEEK_MIN_VISIBLE) : SHEET_MIN_VISIBLE;
+    const { translate: candidate } = computeSheetPosition(fraction, { minVisible });
     const distance = Math.abs(candidate - targetTranslate);
     if (distance < bestDistance) {
       bestDistance = distance;
@@ -461,8 +636,55 @@ function updateRouteDropIndicator(clientY) {
   state.draggingStop.dropIndex = dropIndex;
 }
 
+function clearRoutePlanner() {
+  state.routeStops = [];
+  state.routeStopCounter = 0;
+  if (dom.routeStops) dom.routeStops.innerHTML = '';
+  if (dom.routePlanner) dom.routePlanner.hidden = true;
+  if (dom.routeSummary) dom.routeSummary.hidden = true;
+  if (dom.sheetReset) dom.sheetReset.hidden = true;
+}
+
+function clearDestinationView() {
+  stopEntranceVoting({ clearMarker: true });
+  hideEntranceConfirmation({ mark: false });
+  state.lastResult = null;
+  state.selectedEntranceId = null;
+  state.communitySummary = null;
+  if (state.overlays) state.overlays.clearLayers();
+  clearRoutePlanner();
+  if (dom.insights) {
+    dom.insights.innerHTML = '';
+    dom.insights.hidden = true;
+  }
+  if (dom.directions) {
+    dom.directions.innerHTML = '';
+    dom.directions.hidden = true;
+  }
+  if (dom.navLinks) {
+    dom.navLinks.innerHTML = '';
+    dom.navLinks.hidden = true;
+  }
+  if (dom.entranceOptions) {
+    dom.entranceOptions.hidden = true;
+    dom.entranceOptions.setAttribute('aria-hidden', 'true');
+  }
+  if (dom.entranceOptionList) dom.entranceOptionList.innerHTML = '';
+  if (dom.startEntranceVote) {
+    dom.startEntranceVote.hidden = true;
+    dom.startEntranceVote.disabled = false;
+  }
+  if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
+  setStatus('');
+  resetSheetHeadings();
+  if (dom.infoSheet) {
+    window.requestAnimationFrame(() => applySheetSnap(0, { animate: true }));
+  }
+}
+
 function renderRouteStops({ preserveFocus = true } = {}) {
   if (!dom.routeStops) return;
+  if (dom.routePlanner) dom.routePlanner.hidden = false;
   normalizeRouteStopRoles();
   const activeStopId = preserveFocus && document.activeElement?.dataset?.stopId;
   dom.routeStops.innerHTML = '';
@@ -561,25 +783,36 @@ function updateRouteResetState() {
   dom.sheetReset.hidden = !(hasExtraStops || hasCustomValues);
 }
 
-function resetRoutePlanner() {
+function resetRoutePlanner({ preserveFocus = false } = {}) {
+  if (!state.lastResult) return;
+  state.routeStopCounter = 0;
+  const originMeta = state.userLocation && Number.isFinite(state.userLocation.accuracy)
+    ? `Accuracy ±${formatDistance(state.userLocation.accuracy)}`
+    : '';
+  const entrance = state.lastResult.entrance;
+  const methodLabel = entrance?.methodLabel || friendlyMethodLabel(entrance?.source, entrance?.method);
+  const destinationMeta = entrance && methodLabel ? `Entrance ${methodLabel}` : '';
   state.routeStops = [
-    createRouteStop('origin', state.userLocation ? 'My Location' : ''),
-    createRouteStop('destination', state.lastResult?.query || ''),
+    createRouteStop('origin', state.userLocation ? 'My Location' : '', originMeta),
+    createRouteStop('destination', state.lastResult?.query || '', destinationMeta),
   ];
-  renderRouteStops({ preserveFocus: false });
+  renderRouteStops({ preserveFocus });
   updateRouteSummary();
 }
 
-function ensureRouteStops() {
+function ensureRouteStops({ preserveFocus = false } = {}) {
+  if (!state.lastResult) return;
   if (!state.routeStops.length) {
-    resetRoutePlanner();
+    resetRoutePlanner({ preserveFocus });
   } else {
-    renderRouteStops({ preserveFocus: false });
+    renderRouteStops({ preserveFocus });
+    updateRouteSummary();
   }
 }
 
 function addRouteStop() {
-  ensureRouteStops();
+  if (!state.lastResult) return;
+  ensureRouteStops({ preserveFocus: false });
   const insertIndex = Math.max(1, state.routeStops.length - 1);
   const stop = createRouteStop('stop', '');
   state.routeStops.splice(insertIndex, 0, stop);
@@ -696,10 +929,11 @@ function updateDestinationStopFromResult(data) {
     destination.value = query;
   }
   if (data?.entrance) {
-    const method = data.entrance.method ? data.entrance.method.toLowerCase() : 'verified';
-    destination.meta = `Entrance ${method}`;
+    const methodLabel = data.entrance.methodLabel || friendlyMethodLabel(data.entrance.source, data.entrance.method);
+    destination.meta = methodLabel ? `Entrance ${methodLabel}` : '';
   }
   renderRouteStops();
+  updateRouteSummary();
 }
 
 function focusOnRouteHighlights() {
@@ -714,10 +948,12 @@ function focusOnRouteHighlights() {
   if (!points.length) return;
   const reduceMotion = shouldReduceMotion();
   if (points.length === 1) {
-    state.map.setView(points[0], Math.max(state.map.getZoom() || 17, 18), { animate: !reduceMotion });
+    const currentZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
+    const targetZoom = Math.min(MAX_SATELLITE_ZOOM, Math.max(currentZoom, MIN_LOCATE_ZOOM + 1));
+    state.map.setView(points[0], targetZoom, { animate: !reduceMotion });
   } else {
     const bounds = L.latLngBounds(points);
-    state.map.fitBounds(bounds, { padding: [56, 56], maxZoom: 20, animate: !reduceMotion });
+    state.map.fitBounds(bounds, { padding: [56, 56], maxZoom: MAX_SATELLITE_ZOOM, animate: !reduceMotion });
   }
 }
 
@@ -785,7 +1021,7 @@ function updateRouteSummary() {
 }
 
 function initRoutePlanner() {
-  ensureRouteStops();
+  clearRoutePlanner();
   updateRouteModeButtons();
   if (dom.addRouteStop) {
     dom.addRouteStop.addEventListener('click', addRouteStop);
@@ -909,7 +1145,8 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
   const shouldCenter = centerOnUser || !state.hasCenteredOnUser;
   if (state.map && shouldCenter) {
     const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
-    const zoom = centerOnUser ? Math.max(mapZoom, MIN_LOCATE_ZOOM + 1) : Math.max(mapZoom, MIN_LOCATE_ZOOM);
+    const targetZoom = centerOnUser ? Math.max(mapZoom, MIN_LOCATE_ZOOM + 1) : Math.max(mapZoom, MIN_LOCATE_ZOOM);
+    const zoom = Math.min(MAX_SATELLITE_ZOOM, targetZoom);
     const latLng = [latitude, longitude];
     const reduceMotion = shouldReduceMotion();
     const canFly = preferFly && typeof state.map.flyTo === 'function' && !reduceMotion;
@@ -936,9 +1173,9 @@ function onGeolocationError(error, { userInitiated = false } = {}) {
   }
   setStatus(message, 'error');
   if (userInitiated && dom.locateButton) {
-    dom.locateButton.classList.add('fab--error');
+    dom.locateButton.classList.add('map-locate--error');
     window.setTimeout(() => {
-      dom.locateButton?.classList.remove('fab--error');
+      dom.locateButton?.classList.remove('map-locate--error');
     }, 1200);
   }
   if (error.code === error.PERMISSION_DENIED && state.geolocationWatchId !== null && navigator.geolocation) {
@@ -962,11 +1199,11 @@ function toggleLocateButtonBusy(isBusy) {
   if (isBusy) {
     dom.locateButton.setAttribute('aria-busy', 'true');
     dom.locateButton.disabled = true;
-    dom.locateButton.classList.add('fab--loading');
+    dom.locateButton.classList.add('map-locate--loading');
   } else {
     dom.locateButton.removeAttribute('aria-busy');
     dom.locateButton.disabled = false;
-    dom.locateButton.classList.remove('fab--loading');
+    dom.locateButton.classList.remove('map-locate--loading');
   }
 }
 
@@ -974,7 +1211,7 @@ function focusOnUserLocation({ animate = true, useFly = true, zoom = MIN_LOCATE_
   if (!state.map || !state.userLocation) return;
   const latLng = [state.userLocation.lat, state.userLocation.lon];
   const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
-  const targetZoom = Math.max(mapZoom, zoom);
+  const targetZoom = Math.min(MAX_SATELLITE_ZOOM, Math.max(mapZoom, zoom));
   const reduceMotion = shouldReduceMotion();
   const allowAnimation = animate && !reduceMotion;
   const allowFly = useFly && typeof state.map.flyTo === 'function' && !reduceMotion;
@@ -1081,11 +1318,17 @@ function highlightSuggestion(index) {
 
 function applySuggestion(index) {
   const item = state.suggestions[index];
-  if (!item) return;
-  dom.searchInput.value = item.label;
+  if (!item || !dom.searchInput) return;
+  const label = item.label || '';
+  dom.searchInput.value = label;
   dom.searchInput.focus();
   renderSuggestions([]);
-  dom.clearSearch.hidden = false;
+  dom.clearSearch.hidden = !label;
+  updateNavigationLinks();
+  const query = label.trim();
+  if (query) {
+    performSearch(query);
+  }
 }
 
 function debounce(fn, delay) {
@@ -1167,12 +1410,12 @@ function normalizePromptKey(value) {
 function updateEntranceConfirmationMessage(result) {
   if (!dom.entranceConfirmMessage) return;
   const raw = String(result?.query || '').trim();
-  const label = raw ? (raw.length > 60 ? `${raw.slice(0, 57)}...` : raw) : 'this destination';
+  const label = raw ? (raw.length > 62 ? `${raw.slice(0, 59)}…` : raw) : 'this destination';
   const votes = Number(result?.communityEntrances?.totalVotes) || 0;
   const suffix = votes
-    ? `Join ${votes} other vote${votes === 1 ? '' : 's'}.`
-    : 'Your confirmation helps future visitors.';
-  dom.entranceConfirmMessage.textContent = `Does the highlighted entrance for "${label}" look correct? ${suffix}`;
+    ? `You’d be joining ${votes} neighbor${votes === 1 ? '' : 's'} who have already confirmed.`
+    : 'A quick thumbs-up helps future riders arrive with confidence.';
+  dom.entranceConfirmMessage.textContent = `We’re double-checking the entrance for “${label}”. Does it look right? ${suffix}`;
 }
 
 function hideEntranceConfirmation({ mark = false } = {}) {
@@ -1194,22 +1437,35 @@ function showEntranceConfirmation(result) {
     query: result.query,
     entrance: { lat: entrance.lat, lon: entrance.lon },
   };
-  state.confirmationHistory.add(key);
   updateEntranceConfirmationMessage(result);
   dom.entranceConfirm.hidden = false;
   if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = false;
   if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = false;
+  state.lastConfirmationPromptAt = Date.now();
 }
 
 function maybePromptEntranceConfirmation(result, { allowRandom = false } = {}) {
   if (!dom.entranceConfirm) return;
+  if (!allowRandom) {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
   const entrance = result?.entrance;
   const query = result?.query;
   if (!entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon) || !query) {
     hideEntranceConfirmation({ mark: false });
     return;
   }
+  const methodKey = String(entrance.method || '').toLowerCase();
+  if (!methodKey || methodKey === 'center_fallback') {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
   if (state.isVoting || state.voteInFlight) {
+    hideEntranceConfirmation({ mark: false });
+    return;
+  }
+  if ((state.searchCount || 0) < 1) {
     hideEntranceConfirmation({ mark: false });
     return;
   }
@@ -1226,8 +1482,8 @@ function maybePromptEntranceConfirmation(result, { allowRandom = false } = {}) {
     hideEntranceConfirmation({ mark: true });
     return;
   }
-  if (!allowRandom) {
-    hideEntranceConfirmation({ mark: false });
+  const now = Date.now();
+  if (state.lastConfirmationPromptAt && now - state.lastConfirmationPromptAt < 45000) {
     return;
   }
   if (Math.random() >= 0.1) {
@@ -1239,6 +1495,7 @@ function maybePromptEntranceConfirmation(result, { allowRandom = false } = {}) {
 async function performSearch(query) {
   if (!query) return;
   stopEntranceVoting({ clearMarker: true });
+  hideEntranceConfirmation({ mark: false });
   state.selectedEntranceId = null;
   state.entranceOptions = [];
   renderEntranceOptions({});
@@ -1256,7 +1513,8 @@ async function performSearch(query) {
     dom.searchInput.setAttribute('aria-busy', 'true');
     dom.searchInput.disabled = true;
   }
-  showSplash({ mode: 'search', message: 'Scanning satellite imagery for entrances...' });
+  showSplash({ mode: 'search', message: 'Scanning satellite imagery for entrances...', progress: 0.14 });
+  advanceSplashProgress(0.32, 140);
 
   try {
     const resp = await fetch(`/entrance?q=${encodeURIComponent(query)}`, {
@@ -1268,19 +1526,26 @@ async function performSearch(query) {
       throw new Error(data?.error || 'search_failed');
     }
     if (state.pendingSearch !== controller) return;
+    advanceSplashProgress(0.62);
     updateSplashMessage('Aligning entrance guidance...');
     normalizeEntranceResult(data);
     if (data.entrance) {
       data.baseEntrance = { ...data.entrance };
     }
+    data.promptEligible = true;
     state.lastResult = data;
-    renderResult(data);
+    state.searchCount = (state.searchCount || 0) + 1;
+    renderResult(data, { seedRouteStops: true });
+    updateSplashMessage('Finalizing route view...');
+    advanceSplashProgress(0.9);
     setStatus('Entrance updated with current imagery.', 'success');
   } catch (error) {
     if (error?.name === 'AbortError') {
       return;
     }
     if (state.pendingSearch !== controller) return;
+    setSplashProgress(1);
+    updateSplashMessage('We hit a snag finding that entrance.');
     const message = error?.message === 'search_failed' ? 'Unable to locate that address right now.' : error?.message || 'Entrance lookup failed.';
     setStatus(message, 'error');
   } finally {
@@ -1291,6 +1556,7 @@ async function performSearch(query) {
         dom.searchInput.removeAttribute('aria-busy');
         dom.searchInput.disabled = false;
       }
+      renderEntranceOptions(state.lastResult || {});
       hideSplash({ delay: 220 });
     }
   }
@@ -1298,7 +1564,7 @@ async function performSearch(query) {
 
 function renderResult(data, options = {}) {
   if (!state.map || !state.overlays) return;
-  const { preserveView = false, skipStateUpdate = false } = options;
+  const { preserveView = false, skipStateUpdate = false, seedRouteStops = false } = options;
   if (!skipStateUpdate) {
     state.lastResult = data;
   }
@@ -1325,9 +1591,9 @@ function renderResult(data, options = {}) {
     rectangle.addTo(state.overlays);
     if (!preserveView) {
       if (!reduceMotion && typeof state.map.flyToBounds === 'function') {
-        state.map.flyToBounds(bounds, { padding: [48, 48], maxZoom: 20, duration: 0.8 });
+        state.map.flyToBounds(bounds, { padding: [48, 48], maxZoom: MAX_SATELLITE_ZOOM, duration: 0.8 });
       } else {
-        state.map.fitBounds(bounds, { padding: [48, 48], maxZoom: 20, animate: !reduceMotion });
+        state.map.fitBounds(bounds, { padding: [48, 48], maxZoom: MAX_SATELLITE_ZOOM, animate: !reduceMotion });
       }
     }
   }
@@ -1430,8 +1696,29 @@ function renderResult(data, options = {}) {
   updateNavigationLinks();
   updateSheetHeadings(data);
   renderEntranceOptions(data);
-  updateDestinationStopFromResult(data);
-  updateRouteSummary();
+  const allowPrompt = Boolean(data?.promptEligible);
+  if (data) data.promptEligible = false;
+  maybePromptEntranceConfirmation(data, { allowRandom: allowPrompt });
+
+  const shouldSeedStops = seedRouteStops || (!state.routeStops.length && Boolean(state.lastResult));
+  if (shouldSeedStops) {
+    resetRoutePlanner({ preserveFocus: false });
+  } else {
+    updateDestinationStopFromResult(data);
+  }
+
+  if (dom.infoSheet) {
+    dom.infoSheet.hidden = false;
+    dom.infoSheet.setAttribute('aria-hidden', 'false');
+    const shouldRevealSheet = shouldSeedStops || (!skipStateUpdate && state.sheet.index === 0);
+    window.requestAnimationFrame(() => {
+      if (shouldRevealSheet) {
+        applySheetSnap(1, { animate: true });
+      } else {
+        refreshSheetSnap({ animate: false });
+      }
+    });
+  }
 }
 
 function buildEntranceOptions(result) {
@@ -1518,6 +1805,20 @@ function renderEntranceOptions(result) {
   if (!dom.entranceOptions || !dom.entranceOptionList) return;
   const options = buildEntranceOptions(result);
   state.entranceOptions = options;
+
+  if (state.searchInFlight) {
+    dom.entranceOptionList.innerHTML = '';
+    dom.entranceOptions.hidden = true;
+    dom.entranceOptions.setAttribute('aria-hidden', 'true');
+    if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
+    if (dom.startEntranceVote) {
+      dom.startEntranceVote.hidden = true;
+      dom.startEntranceVote.disabled = false;
+    }
+    if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
+    dom.entranceOptions.classList.remove('entrance-options--voting');
+    return;
+  }
 
   if (!options.length) {
     dom.entranceOptionList.innerHTML = '';
@@ -1612,6 +1913,7 @@ function renderEntranceOptions(result) {
 
 function applyEntranceSelection(option, { silent = false } = {}) {
   if (!option || !state.lastResult) return;
+  hideEntranceConfirmation({ mark: true });
   const result = state.lastResult;
   const center = result.center && Number.isFinite(result.center.lat) && Number.isFinite(result.center.lon)
     ? { lat: result.center.lat, lon: result.center.lon }
@@ -1654,6 +1956,7 @@ function applyEntranceSelection(option, { silent = false } = {}) {
 
 function startEntranceVoting() {
   if (!state.map || state.isVoting) return;
+  hideEntranceConfirmation({ mark: true });
   state.isVoting = true;
   if (state.voteLayer) state.voteLayer.clearLayers();
   state.voteMarker = null;
@@ -1708,7 +2011,7 @@ function handleVoteMapClick(evt) {
   submitCommunityVote(lat, lon);
 }
 
-async function submitCommunityVote(lat, lon) {
+async function submitCommunityVote(lat, lon, options = {}) {
   if (state.voteInFlight) return;
   const query = state.lastResult?.query;
   if (!query) {
@@ -1717,12 +2020,17 @@ async function submitCommunityVote(lat, lon) {
   }
   state.voteInFlight = true;
   if (dom.startEntranceVote) dom.startEntranceVote.disabled = true;
-  setStatus('Recording your entrance...', 'info');
+  const statusMessage = typeof options.statusMessage === 'string' && options.statusMessage.trim()
+    ? options.statusMessage.trim()
+    : 'Recording your entrance...';
+  setStatus(statusMessage, 'info');
+  const labelInput = typeof options.label === 'string' ? options.label.trim() : '';
+  const label = labelInput ? labelInput.slice(0, 120) : 'Community entrance';
   try {
     const resp = await fetch('/entrance/community', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, lat, lon, label: 'Community entrance' }),
+      body: JSON.stringify({ query, lat, lon, label }),
     });
     const payload = await resp.json();
     if (!resp.ok) {
@@ -1774,7 +2082,20 @@ async function submitCommunityVote(lat, lon) {
   }
 }
 
+function resetSheetHeadings() {
+  if (dom.sheetTitle) {
+    dom.sheetTitle.textContent = 'Directions';
+  }
+  if (dom.sheetSubtitle) {
+    dom.sheetSubtitle.textContent = 'Set your origin, add stops, and glide to the verified entrance.';
+  }
+}
+
 function updateSheetHeadings(data) {
+  if (!data) {
+    resetSheetHeadings();
+    return;
+  }
   const query = data?.query || 'Plan your arrival';
   if (dom.sheetTitle) {
     dom.sheetTitle.textContent = 'Arrival details';
@@ -2040,6 +2361,7 @@ function wireSearch() {
       renderSuggestions([]);
       dom.searchInput.focus();
       updateNavigationLinks();
+      clearDestinationView();
     });
   }
   dom.searchForm.addEventListener('submit', (evt) => {
@@ -2058,6 +2380,40 @@ function wireLocateButton() {
     }
     startGeolocation({ centerOnSuccess: true, userInitiated: true });
   });
+}
+
+function wireEntranceConfirmation() {
+  if (dom.entranceConfirmYes) {
+    dom.entranceConfirmYes.addEventListener('click', () => {
+      if (state.voteInFlight) return;
+      const prompt = state.confirmationPrompt;
+      if (!prompt || !prompt.entrance) {
+        hideEntranceConfirmation({ mark: true });
+        return;
+      }
+      const { entrance } = prompt;
+      if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = true;
+      if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = true;
+      hideEntranceConfirmation({ mark: true });
+      if (Number.isFinite(entrance.lat) && Number.isFinite(entrance.lon)) {
+        submitCommunityVote(entrance.lat, entrance.lon, {
+          label: 'Entrance confirmation',
+          statusMessage: 'Thanks for confirming! Saving your check-in...',
+        });
+      }
+    });
+  }
+  if (dom.entranceConfirmNo) {
+    dom.entranceConfirmNo.addEventListener('click', () => {
+      hideEntranceConfirmation({ mark: true });
+    });
+  }
+  if (dom.entranceConfirmSuggest) {
+    dom.entranceConfirmSuggest.addEventListener('click', () => {
+      hideEntranceConfirmation({ mark: true });
+      startEntranceVoting();
+    });
+  }
 }
 
 function wireCommunityEntranceControls() {
@@ -2131,16 +2487,20 @@ function setupInstallPrompt() {
 }
 
 function init() {
-  showSplash({ mode: 'bootstrap' });
+  showSplash({ mode: 'bootstrap', progress: 0.12 });
   initMap();
+  advanceSplashProgress(0.28);
   wireSearch();
   wireLocateButton();
+  wireEntranceConfirmation();
   wireCommunityEntranceControls();
   initSheetInteractions();
   initRoutePlanner();
+  advanceSplashProgress(0.55);
   setupInstallPrompt();
   registerServiceWorker();
   primeGeolocation();
+  advanceSplashProgress(0.82, 120);
   hideSplash({ delay: 360 });
 }
 

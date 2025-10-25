@@ -1,5 +1,6 @@
 const express = require('express');
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
 const helmet = require('helmet');
@@ -40,9 +41,58 @@ const PYTHON_BIN = pickPythonBinary();
 const COMMUNITY_DATA_DIR = path.resolve(__dirname, 'data');
 const COMMUNITY_DATA_FILE = path.join(COMMUNITY_DATA_DIR, 'community-entrances.json');
 const COMMUNITY_CLUSTER_METERS = Number(process.env.COMMUNITY_CLUSTER_METERS || 12);
+const USER_DATA_FILE = path.join(COMMUNITY_DATA_DIR, 'user-profiles.json');
+const SESSION_COOKIE = 'clearpath_session';
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 24 * 30);
+const MAX_RECENTS = Number(process.env.USER_MAX_RECENTS || 40);
+const MAX_FAVORITES = Number(process.env.USER_MAX_FAVORITES || 40);
+const SUPPORTED_TRAVEL_MODES = new Set(['drive', 'walk', 'transit', 'bike']);
+const SUPPORTED_MAP_STYLES = new Set(['auto', 'light', 'dark', 'satellite', 'terrain']);
+const WALKING_PACES = new Set(['slow', 'normal', 'brisk']);
+const WEEKDAY_CODES = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+
+function createDefaultPreferences() {
+  return {
+    defaultTravelMode: 'drive',
+    mapStyle: 'auto',
+    avoids: { tolls: false, highways: false, ferries: false },
+    accessibilityProfiles: [],
+    walkingSpeed: 'normal',
+    liveTransitAlerts: true,
+    proactiveSuggestions: true,
+    notifications: {
+      arrivalReminders: true,
+      commuteInsights: false,
+      savedPlaceUpdates: true,
+    },
+    voiceGuidance: true,
+    haptics: true,
+    units: 'imperial',
+  };
+}
+
+function createDefaultCommutePlan() {
+  return {
+    morning: { time: '08:30', destinationLabel: 'Work', travelMode: 'drive' },
+    evening: { time: '17:30', destinationLabel: 'Home', travelMode: 'drive' },
+    days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+  };
+}
+
+function createInitialSavedPlaces() {
+  return {
+    home: null,
+    work: null,
+    favorites: [],
+    pinned: [],
+  };
+}
+
+const sessions = new Map();
 
 try { fs.mkdirSync(COMMUNITY_DATA_DIR, { recursive: true }); } catch {}
 ensureCommunityStore();
+ensureUserStore();
 
 
 // Security middlewares
@@ -1093,4 +1143,3 @@ async function geocodeAddress(query) {
 
   return null;
 }
-

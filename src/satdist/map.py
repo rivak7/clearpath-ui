@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import folium
 from folium.plugins import MeasureControl
-from typing import Tuple
+
+
+# The Esri World Imagery tiles return "Map data not available" beyond this zoom.
+MAX_SATELLITE_ZOOM = 18
 
 
 def create_map_with_bbox(
@@ -15,7 +18,8 @@ def create_map_with_bbox(
     zoom_start: int = 19,
     show_bbox: bool = True,
 ) -> folium.Map:
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_start, tiles=None)
+    zoom = min(zoom_start, MAX_SATELLITE_ZOOM)
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=zoom, tiles=None, max_zoom=MAX_SATELLITE_ZOOM)
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri, Maxar, Earthstar Geographics, and the GIS User Community",
@@ -23,6 +27,7 @@ def create_map_with_bbox(
         control=False,
         overlay=False,
         show=True,
+        max_zoom=MAX_SATELLITE_ZOOM,
     ).add_to(m)
 
     folium.Marker([center_lat, center_lon], popup="Center", icon=folium.Icon(color="red")).add_to(m)
@@ -44,9 +49,8 @@ def save_map_html(
     north: float,
     east: float,
     out_html: str = "building_bbox.html",
-    zoom_start: int = 19,
+    zoom_start: int = MAX_SATELLITE_ZOOM,
 ) -> str:
     m = create_map_with_bbox(center_lat, center_lon, south, west, north, east, zoom_start=zoom_start, show_bbox=True)
     m.save(out_html)
     return out_html
-

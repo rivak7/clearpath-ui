@@ -5,7 +5,7 @@ import sys
 
 from .distance import distance_between_image_pixels_m, distance_between_latlon_m
 from .fetch import save_satellite_bbox
-from .map import save_map_html
+from .map import MAX_SATELLITE_ZOOM, save_map_html
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -95,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--east", type=float, required=True)
     pm.add_argument("--center-lat", dest="center_lat", type=float)
     pm.add_argument("--center-lon", dest="center_lon", type=float)
-    pm.add_argument("--zoom", type=int, default=19)
+    pm.add_argument("--zoom", type=int, default=MAX_SATELLITE_ZOOM)
     pm.add_argument("--out-html", dest="out_html", type=str, default="building_bbox.html")
     pm.set_defaults(func=cmd_map)
 
@@ -110,4 +110,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

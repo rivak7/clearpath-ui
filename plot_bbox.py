@@ -1,4 +1,4 @@
-from satdist.map import save_map_html
+from satdist.map import MAX_SATELLITE_ZOOM, save_map_html
 from satdist.fetch import save_satellite_bbox
 
 # Example center and bbox
@@ -9,7 +9,16 @@ west = -122.139536
 north = 47.6008162
 east = -122.1392861
 
-html_path = save_map_html(center_lat, center_lon, south, west, north, east, out_html="building_bbox.html", zoom_start=20)
+html_path = save_map_html(
+    center_lat,
+    center_lon,
+    south,
+    west,
+    north,
+    east,
+    out_html="building_bbox.html",
+    zoom_start=MAX_SATELLITE_ZOOM,
+)
 print(f"Map saved to {html_path}")
 
 try:
