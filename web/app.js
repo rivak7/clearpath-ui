@@ -5,9 +5,31 @@ import {
   initAccessibility,
   onAccessibilityChange,
 } from './accessibility.js';
+import {
+  initAccount,
+  onAccountChange,
+  login,
+  logout,
+  signup,
+  isAuthenticated,
+  getCurrentUser,
+  saveFavorite,
+  removeFavorite,
+  recordRecent,
+  setHome,
+  setWork,
+  clearHome,
+  clearWork,
+  updateProfile,
+  touchPreference,
+  getSavedPlaces,
+  getRecents,
+  getPreferences,
+} from './account.js';
 
 initTheme();
 initAccessibility();
+initAccount();
 
 const state = {
   map: null,
@@ -56,6 +78,20 @@ const state = {
   splashResetTimer: null,
   searchCount: 0,
   lastConfirmationPromptAt: 0,
+  account: {
+    user: null,
+    token: null,
+    ready: false,
+  },
+  accountMenuOpen: false,
+  authMode: 'login',
+  authBusy: false,
+  personalization: {
+    quickLinks: [],
+    recents: [],
+  },
+  lastRecordedResultKey: null,
+  pendingPlaceTarget: null,
 };
 
 state.accessibility = new Set();
@@ -86,6 +122,7 @@ const dom = {
   installBanner: document.getElementById('installBanner'),
   installBannerConfirm: document.getElementById('installBannerConfirm'),
   installBannerDismiss: document.getElementById('installBannerDismiss'),
+  sheetLauncher: document.getElementById('openSheet'),
   sheetHandle: document.getElementById('sheetHandle'),
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
@@ -104,6 +141,36 @@ const dom = {
   entranceConfirmYes: document.getElementById('entranceConfirmYes'),
   entranceConfirmNo: document.getElementById('entranceConfirmNo'),
   entranceConfirmSuggest: document.getElementById('entranceConfirmSuggest'),
+  accountButton: document.getElementById('accountButton'),
+  accountAvatar: document.getElementById('accountAvatar'),
+  accountLabel: document.getElementById('accountLabel'),
+  accountCard: document.getElementById('accountCard'),
+  accountClose: document.getElementById('accountClose'),
+  accountOpenSettings: document.getElementById('accountOpenSettings'),
+  accountSignOut: document.getElementById('accountSignOut'),
+  accountSavedPlaces: document.getElementById('accountSavedPlaces'),
+  accountPreferenceSummary: document.getElementById('accountPreferenceSummary'),
+  accountName: document.getElementById('accountName'),
+  accountEmail: document.getElementById('accountEmail'),
+  accountCardAvatar: document.getElementById('accountCardAvatar'),
+  personalizationRail: document.getElementById('personalizationRail'),
+  personalizationQuickLinks: document.getElementById('personalizationQuickLinks'),
+  personalizationRecents: document.getElementById('personalizationRecents'),
+  personalizationRecentsList: document.getElementById('personalizationRecentsList'),
+  managePersonalization: document.getElementById('managePersonalization'),
+  authDialog: document.getElementById('authDialog'),
+  authClose: document.getElementById('authClose'),
+  authSwitcher: document.getElementById('authSwitcher'),
+  authHint: document.getElementById('authHint'),
+  loginForm: document.getElementById('loginForm'),
+  signupForm: document.getElementById('signupForm'),
+  authStatus: document.getElementById('authStatus'),
+  authTitle: document.getElementById('authTitle'),
+  authSubtitle: document.getElementById('authSubtitle'),
+  placeActions: document.getElementById('placeActions'),
+  saveAsHome: document.getElementById('saveAsHome'),
+  saveAsWork: document.getElementById('saveAsWork'),
+  saveAsFavorite: document.getElementById('saveAsFavorite'),
 };
 
 if (dom.splash) {
@@ -116,6 +183,22 @@ if (dom.entranceOptions) {
 
 if (dom.installBanner) {
   dom.installBanner.setAttribute('aria-hidden', dom.installBanner.hidden ? 'true' : 'false');
+}
+
+if (dom.personalizationRail) {
+  dom.personalizationRail.setAttribute('aria-hidden', dom.personalizationRail.hidden ? 'true' : 'false');
+}
+
+if (dom.accountCard) {
+  dom.accountCard.setAttribute('aria-hidden', dom.accountCard.hidden ? 'true' : 'false');
+}
+
+if (dom.authDialog) {
+  dom.authDialog.setAttribute('aria-hidden', dom.authDialog.hidden ? 'true' : 'false');
+}
+
+if (dom.placeActions) {
+  dom.placeActions.setAttribute('aria-hidden', dom.placeActions.hidden ? 'true' : 'false');
 }
 
 const SPLASH_MESSAGES = {
@@ -545,6 +628,9 @@ function updateSheetVisualState(index) {
   const snapPoints = state.sheet?.snapPoints || [];
   dom.infoSheet.classList.toggle('sheet--peek', index === 0);
   dom.infoSheet.classList.toggle('sheet--expanded', index === snapPoints.length - 1);
+  if (dom.sheetLauncher) {
+    dom.sheetLauncher.hidden = index !== 0;
+  }
 }
 
 function applySheetSnap(index, { animate = true } = {}) {
@@ -2549,6 +2635,17 @@ function wireLocateButton() {
       focusOnUserLocation({ animate: true, useFly: true });
     }
     startGeolocation({ centerOnSuccess: true, userInitiated: true });
+  });
+}
+
+function wireSheetLauncher() {
+  if (!dom.sheetLauncher) return;
+  dom.sheetLauncher.addEventListener('click', () => {
+    if (!dom.infoSheet) return;
+    dom.infoSheet.hidden = false;
+    dom.infoSheet.setAttribute('aria-hidden', 'false');
+    const targetIndex = state.sheet.index > 0 ? state.sheet.index : Math.min(1, (state.sheet?.snapPoints?.length || 2) - 1);
+    applySheetSnap(targetIndex || 1, { animate: true });
   });
 }
 
