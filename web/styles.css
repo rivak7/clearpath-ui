@@ -397,6 +397,9 @@ body {
   cursor: grab;
   touch-action: none;
   user-select: none;
+  background: transparent;
+  border: 0;
+  appearance: none;
 }
 
 .sheet__handle:focus-visible {
