@@ -1457,32 +1457,6 @@ body {
   color: var(--danger);
 }
 
-.route-planner__add {
-  align-self: flex-start;
-  border: none;
-  border-radius: var(--radius-lg);
-  background: transparent;
-  color: var(--accent-dark);
-  font-weight: 600;
-  font-size: var(--type-sm);
-  padding: clamp(10px, 3vw, 14px) clamp(16px, 5vw, 22px);
-  display: inline-flex;
-  align-items: center;
-  gap: clamp(6px, 2vw, 10px);
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.route-planner__add:hover {
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-}
-
-.route-planner__addIcon {
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
 .route-summary {
   display: grid;
   gap: 16px;

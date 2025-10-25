@@ -111,6 +111,12 @@
             <button id="clearSearch" class="search__clear" type="button" aria-label="Clear search" hidden>×</button>
             <div id="suggestions" class="suggestions" role="listbox" aria-label="Address suggestions" hidden></div>
           </div>
+          <div id="searchFocusActions" class="search__focusActions" hidden>
+            <button id="addRouteStop" class="search__addStop" type="button">
+              <span class="search__addStopIcon" aria-hidden="true">＋</span>
+              Add stop
+            </button>
+          </div>
         </form>
         <section id="personalizationRail" class="personalization" hidden aria-live="polite">
           <header class="personalization__header">
@@ -218,10 +224,6 @@
                 </button>
               </div>
               <div id="routeStops" class="route-stops" role="list" aria-label="Route stops"></div>
-              <button id="addRouteStop" class="route-planner__add" type="button">
-                <span class="route-planner__addIcon" aria-hidden="true">＋</span>
-                Add stop
-              </button>
             </div>
             <div id="routeSummary" class="route-summary" hidden></div>
             <section id="entranceOptions" class="entrance-options" hidden>

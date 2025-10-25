@@ -37,6 +37,7 @@ const state = {
   geolocationWatchId: null,
   hasCenteredOnUser: false,
   locateInFlight: null,
+  locateFeedbackTimer: null,
   suggestions: [],
   activeSuggestion: -1,
   pendingSuggest: null,
@@ -1210,7 +1211,8 @@ function renderPersonalizationRecents(recents) {
 function updatePersonalizationVisibility() {
   if (!dom.personalizationRail) return;
   const engaged = state.searchInputFocused || state.personalizationRailFocused || state.personalizationRailHovered;
-  const shouldShow = state.personalization.hasContent && engaged;
+  const allowEmpty = dom.personalizationRail.dataset.allowEmpty !== 'false';
+  const shouldShow = engaged && (state.personalization.hasContent || allowEmpty);
   dom.personalizationRail.hidden = !shouldShow;
   dom.personalizationRail.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
 }
@@ -2551,7 +2553,7 @@ function updateUserMarker(lat, lon, accuracy) {
   }
 }
 
-function onGeolocation(position, { centerOnUser = false, preferFly = false } = {}) {
+function onGeolocation(position, { centerOnUser = false, preferFly = false, initiatedByUser = false } = {}) {
   const { latitude, longitude, accuracy } = position.coords;
   state.userLocation = {
     lat: latitude,
@@ -2564,17 +2566,23 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
   const shouldCenter = centerOnUser || !state.hasCenteredOnUser;
   if (state.map && shouldCenter) {
     const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
-    const targetZoom = centerOnUser ? Math.max(mapZoom, MIN_LOCATE_ZOOM + 1) : Math.max(mapZoom, MIN_LOCATE_ZOOM);
-    const zoom = Math.min(MAX_SATELLITE_ZOOM, targetZoom);
+    const desiredZoom = centerOnUser
+      ? Math.max(mapZoom + 1, MIN_LOCATE_ZOOM + 1.5)
+      : Math.max(mapZoom, MIN_LOCATE_ZOOM);
+    const zoom = Math.min(MAX_SATELLITE_ZOOM, desiredZoom);
     const latLng = [latitude, longitude];
     const reduceMotion = shouldReduceMotion();
-    const canFly = preferFly && typeof state.map.flyTo === 'function' && !reduceMotion;
+    const canFly = (preferFly || centerOnUser) && typeof state.map.flyTo === 'function' && !reduceMotion;
     if (canFly) {
-      state.map.flyTo(latLng, zoom, { duration: reduceMotion ? 0 : 0.6 });
+      state.map.flyTo(latLng, zoom, { duration: reduceMotion ? 0 : 0.75, easeLinearity: 0.15 });
     } else {
       state.map.setView(latLng, zoom, { animate: !reduceMotion });
     }
     state.hasCenteredOnUser = true;
+  }
+  if (initiatedByUser) {
+    flashLocateButtonState('success');
+    setStatus('Centered on your location. Zoom in to explore nearby entrances.', 'success');
   }
   updateDirections();
   updateRouteSummary();
@@ -2592,6 +2600,7 @@ function onGeolocationError(error, { userInitiated = false } = {}) {
   }
   setStatus(message, 'error');
   if (userInitiated && dom.locateButton) {
+    flashLocateButtonState();
     dom.locateButton.classList.add('map-locate--error');
     window.setTimeout(() => {
       dom.locateButton?.classList.remove('map-locate--error');
@@ -2613,9 +2622,33 @@ function ensureGeolocationWatch() {
   );
 }
 
+function clearLocateFeedback() {
+  if (state.locateFeedbackTimer !== null) {
+    window.clearTimeout(state.locateFeedbackTimer);
+    state.locateFeedbackTimer = null;
+  }
+  if (dom.locateButton) {
+    dom.locateButton.classList.remove('map-locate--active');
+  }
+}
+
+function flashLocateButtonState(mode = 'idle') {
+  if (!dom.locateButton) return;
+  clearLocateFeedback();
+  if (mode === 'success') {
+    dom.locateButton.classList.remove('map-locate--error');
+    dom.locateButton.classList.add('map-locate--active');
+    state.locateFeedbackTimer = window.setTimeout(() => {
+      dom.locateButton?.classList.remove('map-locate--active');
+      state.locateFeedbackTimer = null;
+    }, 1600);
+  }
+}
+
 function toggleLocateButtonBusy(isBusy) {
   if (!dom.locateButton) return;
   if (isBusy) {
+    flashLocateButtonState();
     dom.locateButton.setAttribute('aria-busy', 'true');
     dom.locateButton.disabled = true;
     dom.locateButton.classList.add('map-locate--loading');
@@ -2656,11 +2689,12 @@ function startGeolocation({ centerOnSuccess = false, userInitiated = false } = {
   state.locateInFlight = new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        onGeolocation(position, { centerOnUser: centerOnSuccess, preferFly: userInitiated });
+        onGeolocation(position, {
+          centerOnUser: centerOnSuccess,
+          preferFly: userInitiated,
+          initiatedByUser: userInitiated,
+        });
         ensureGeolocationWatch();
-        if (userInitiated) {
-          setStatus('Centered on your position.', 'success');
-        }
         resolve(true);
       },
       (error) => {
