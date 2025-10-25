@@ -3166,12 +3166,10 @@ function setSuggestionTarget(target, context = null, { preserveList = false } = 
   if (target) {
     ensureSuggestionAttributes(target);
     updateSuggestionContainerParent();
-    if (state.suggestions.length && !preserveList) {
-      // Ensure the current suggestion list reflects the active input.
-      renderSuggestions(state.suggestions);
-      return;
-    }
     target.setAttribute('aria-expanded', state.suggestions.length ? 'true' : 'false');
+    if (!preserveList && !state.suggestions.length) {
+      renderSuggestions([]);
+    }
   } else if (!preserveList) {
     renderSuggestions([]);
   }

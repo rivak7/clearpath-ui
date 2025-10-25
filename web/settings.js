@@ -998,4 +998,5 @@ onAccessibilityChange((state) => {
   updateAccessibilityStatus(state);
 });
 
+wireNavigation();
 wireAccountSettings();

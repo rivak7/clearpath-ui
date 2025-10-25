@@ -2067,14 +2067,14 @@ body {
   justify-content: center;
   width: 100%;
   min-width: 32px;
-  height: 36px;
+  height: 32px;
   margin: 0;
   padding: 0;
   border: none;
   border-top: 1px solid rgba(248, 251, 255, 0.16);
   background: var(--fab-bg);
   color: var(--fab-color);
-  font-size: 1.15rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, transform 0.18s ease;
 }
@@ -2095,7 +2095,12 @@ body {
 }
 
 .map-locate__icon {
+  width: 18px;
+  height: 18px;
   pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: opacity 0.2s ease;
 }
 
@@ -2636,12 +2641,21 @@ body {
 }
 
 .settings-anchorNav__item:hover,
-.settings-anchorNav__item:focus-visible {
+.settings-anchorNav__item:focus-visible,
+.settings-anchorNav__item--active {
   border-color: rgba(61, 214, 193, 0.55);
   background: linear-gradient(120deg, rgba(61, 214, 193, 0.16), rgba(49, 133, 242, 0.16));
   box-shadow: 0 16px 32px rgba(6, 24, 42, 0.28);
   transform: translateY(-1px);
   outline: none;
+}
+
+.settings-anchorNav__item--active {
+  transform: none;
+}
+
+.settings-anchorNav__item--active .settings-anchorNav__icon {
+  background: rgba(61, 214, 193, 0.24);
 }
 
 .settings-anchorNav__icon {
