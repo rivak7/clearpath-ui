@@ -1586,6 +1586,17 @@ body {
     width: 94vw;
     padding: 10px 14px;
   }
+  .install-banner {
+    top: calc(var(--safe-area-top) + clamp(78px, 18vh, 142px));
+    width: 94vw;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .install-banner__actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 10px;
+  }
   .brand__logo {
     width: 40px;
     height: 40px;

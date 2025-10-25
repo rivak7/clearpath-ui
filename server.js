@@ -584,6 +584,464 @@ function footprintToPolylines(geojson) {
   return out;
 }
 
+function ensureUserStore() {
+  try {
+    if (!fs.existsSync(USER_DATA_FILE)) {
+      const seed = { version: 1, updatedAt: new Date().toISOString(), users: [] };
+      fs.writeFileSync(USER_DATA_FILE, JSON.stringify(seed, null, 2));
+      return;
+    }
+    const raw = fs.readFileSync(USER_DATA_FILE, 'utf8');
+    if (!raw) {
+      const seed = { version: 1, updatedAt: new Date().toISOString(), users: [] };
+      fs.writeFileSync(USER_DATA_FILE, JSON.stringify(seed, null, 2));
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.users)) {
+      const seed = { version: 1, updatedAt: new Date().toISOString(), users: [] };
+      fs.writeFileSync(USER_DATA_FILE, JSON.stringify(seed, null, 2));
+    }
+  } catch (error) {
+    console.warn('Unable to initialize user store, resetting to blank store.', error?.message || error);
+    try {
+      const seed = { version: 1, updatedAt: new Date().toISOString(), users: [] };
+      fs.writeFileSync(USER_DATA_FILE, JSON.stringify(seed, null, 2));
+    } catch (writeError) {
+      console.error('Failed to reset user store', writeError);
+    }
+  }
+}
+
+async function readUserStore() {
+  try {
+    const raw = await fsp.readFile(USER_DATA_FILE, 'utf8');
+    if (!raw) {
+      return { version: 1, updatedAt: null, users: [] };
+    }
+    const parsed = JSON.parse(raw);
+    const users = Array.isArray(parsed.users) ? parsed.users.map(normalizeUserRecord).filter(Boolean) : [];
+    return { version: parsed.version || 1, updatedAt: parsed.updatedAt || null, users };
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      await writeUserStore({ version: 1, users: [] });
+      return { version: 1, updatedAt: null, users: [] };
+    }
+    console.warn('Unable to read user store, returning empty store.', error?.message || error);
+    return { version: 1, updatedAt: null, users: [] };
+  }
+}
+
+async function writeUserStore(store) {
+  const payload = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    users: Array.isArray(store?.users) ? store.users.map(normalizeUserRecord).filter(Boolean) : [],
+  };
+  await fsp.writeFile(USER_DATA_FILE, JSON.stringify(payload, null, 2));
+}
+
+function normalizeUserRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  const nowIso = new Date().toISOString();
+  const id = record.id || (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : crypto.randomBytes(8).toString('hex'));
+  const email = String(record.email || '').trim().toLowerCase();
+  if (!email) return null;
+  const name = record.name && typeof record.name === 'string' ? record.name.trim().slice(0, 80) : 'Explorer';
+  const passwordHash = typeof record.passwordHash === 'string' ? record.passwordHash : '';
+  const salt = typeof record.salt === 'string' ? record.salt : '';
+  const createdAt = record.createdAt && typeof record.createdAt === 'string' ? record.createdAt : nowIso;
+  const updatedAt = record.updatedAt && typeof record.updatedAt === 'string' ? record.updatedAt : createdAt;
+  const metrics = mergeMetrics(record.metrics);
+
+  return {
+    id,
+    email,
+    name,
+    passwordHash,
+    salt,
+    createdAt,
+    updatedAt,
+    preferences: mergePreferences(record.preferences),
+    savedPlaces: mergeSavedPlaces(record.savedPlaces),
+    commutePlan: mergeCommutePlan(record.commutePlan),
+    recents: mergeRecents(record.recents),
+    metrics,
+  };
+}
+
+function sanitizeUser(user) {
+  if (!user || typeof user !== 'object') return null;
+  const { passwordHash, salt, ...rest } = user;
+  try {
+    return JSON.parse(JSON.stringify(rest));
+  } catch {
+    return { ...rest };
+  }
+}
+
+function mergeMetrics(metrics = {}) {
+  const searches = Number.isFinite(metrics.searches) ? Number(metrics.searches) : 0;
+  const lastLoginAt = metrics.lastLoginAt && typeof metrics.lastLoginAt === 'string' ? metrics.lastLoginAt : null;
+  const lastActiveAt = metrics.lastActiveAt && typeof metrics.lastActiveAt === 'string' ? metrics.lastActiveAt : null;
+  return { searches, lastLoginAt, lastActiveAt };
+}
+
+function mergePreferences(current = {}, updates = {}) {
+  const base = createDefaultPreferences();
+  const seed = { ...base, ...current };
+  const result = { ...seed };
+
+  if (updates.defaultTravelMode !== undefined) {
+    if (isValidTravelMode(updates.defaultTravelMode)) {
+      result.defaultTravelMode = updates.defaultTravelMode;
+    }
+  }
+  if (updates.mapStyle !== undefined) {
+    if (isValidMapStyle(updates.mapStyle)) {
+      result.mapStyle = updates.mapStyle;
+    }
+  }
+  if (updates.walkingSpeed !== undefined) {
+    if (WALKING_PACES.has(updates.walkingSpeed)) {
+      result.walkingSpeed = updates.walkingSpeed;
+    }
+  }
+  if (updates.liveTransitAlerts !== undefined) {
+    result.liveTransitAlerts = Boolean(updates.liveTransitAlerts);
+  }
+  if (updates.proactiveSuggestions !== undefined) {
+    result.proactiveSuggestions = Boolean(updates.proactiveSuggestions);
+  }
+  if (updates.voiceGuidance !== undefined) {
+    result.voiceGuidance = Boolean(updates.voiceGuidance);
+  }
+  if (updates.haptics !== undefined) {
+    result.haptics = Boolean(updates.haptics);
+  }
+  if (updates.units !== undefined && ['imperial', 'metric'].includes(updates.units)) {
+    result.units = updates.units;
+  }
+  if (updates.accessibilityProfiles !== undefined) {
+    if (Array.isArray(updates.accessibilityProfiles)) {
+      const normalized = Array.from(new Set(updates.accessibilityProfiles.map((id) => String(id).trim()).filter(Boolean)));
+      result.accessibilityProfiles = normalized;
+    }
+  }
+  if (updates.avoids !== undefined) {
+    result.avoids = {
+      tolls: Boolean(updates.avoids?.tolls ?? seed.avoids.tolls),
+      highways: Boolean(updates.avoids?.highways ?? seed.avoids.highways),
+      ferries: Boolean(updates.avoids?.ferries ?? seed.avoids.ferries),
+    };
+  }
+  if (updates.notifications !== undefined) {
+    const incoming = updates.notifications || {};
+    result.notifications = {
+      arrivalReminders: Boolean(incoming.arrivalReminders ?? seed.notifications.arrivalReminders),
+      commuteInsights: Boolean(incoming.commuteInsights ?? seed.notifications.commuteInsights),
+      savedPlaceUpdates: Boolean(incoming.savedPlaceUpdates ?? seed.notifications.savedPlaceUpdates),
+    };
+  }
+
+  return result;
+}
+
+function mergeSavedPlaces(raw = {}) {
+  const result = createInitialSavedPlaces();
+  if (raw.home) result.home = normalizePlace(raw.home, 'home');
+  if (raw.work) result.work = normalizePlace(raw.work, 'work');
+  if (Array.isArray(raw.favorites)) {
+    result.favorites = raw.favorites
+      .map((place) => normalizePlace(place, place?.category || 'favorite'))
+      .filter(Boolean)
+      .slice(0, MAX_FAVORITES);
+  }
+  if (Array.isArray(raw.pinned)) {
+    result.pinned = raw.pinned
+      .map((place) => normalizePlace(place, place?.category || 'pinned'))
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+  return result;
+}
+
+function mergeRecents(raw = []) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const entry of raw) {
+    const normalized = normalizeRecent(entry);
+    if (!normalized) continue;
+    if (seen.has(normalized.id)) continue;
+    seen.add(normalized.id);
+    out.push(normalized);
+    if (out.length >= MAX_RECENTS) break;
+  }
+  return out;
+}
+
+function mergeCommutePlan(raw = {}) {
+  const base = createDefaultCommutePlan();
+  const days = Array.isArray(raw.days)
+    ? raw.days.map((day) => String(day).trim().toLowerCase()).filter((day) => WEEKDAY_CODES.has(day))
+    : base.days;
+  const morning = normalizeCommuteLeg(raw.morning, base.morning);
+  const evening = normalizeCommuteLeg(raw.evening, base.evening);
+  return { days: days.length ? days : base.days, morning, evening };
+}
+
+function normalizeCommuteLeg(leg, fallback) {
+  const defaults = fallback || { time: '08:30', destinationLabel: 'Work', travelMode: 'drive', placeId: null };
+  if (!leg || typeof leg !== 'object') return { ...defaults };
+  const time = typeof leg.time === 'string' && /^\d{2}:\d{2}$/.test(leg.time) ? leg.time : defaults.time;
+  const destinationLabel = leg.destinationLabel && typeof leg.destinationLabel === 'string'
+    ? leg.destinationLabel.trim().slice(0, 80)
+    : defaults.destinationLabel;
+  const travelMode = isValidTravelMode(leg.travelMode) ? leg.travelMode : defaults.travelMode;
+  const placeId = leg.placeId && typeof leg.placeId === 'string' ? leg.placeId : null;
+  return { time, destinationLabel, travelMode, placeId };
+}
+
+function normalizePlace(place, category = 'favorite') {
+  if (!place || typeof place !== 'object') return null;
+  const id = place.id && typeof place.id === 'string'
+    ? place.id
+    : (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : crypto.randomBytes(8).toString('hex'));
+  const label = place.label && typeof place.label === 'string' ? place.label.trim().slice(0, 120) : 'Saved place';
+  const address = place.address && typeof place.address === 'string' ? place.address.trim().slice(0, 200) : '';
+  const lat = Number.isFinite(place.lat) ? Number(place.lat) : null;
+  const lon = Number.isFinite(place.lon) ? Number(place.lon) : null;
+  const note = place.note && typeof place.note === 'string' ? place.note.trim().slice(0, 160) : null;
+  const color = place.color && typeof place.color === 'string' ? place.color.trim().slice(0, 24) : null;
+  const icon = place.icon && typeof place.icon === 'string' ? place.icon.trim().slice(0, 24) : null;
+  const tags = Array.isArray(place.tags)
+    ? Array.from(new Set(place.tags.map((tag) => String(tag).trim().slice(0, 32)).filter(Boolean)))
+    : [];
+  const nowIso = new Date().toISOString();
+  const createdAt = place.createdAt && typeof place.createdAt === 'string' ? place.createdAt : nowIso;
+  const updatedAt = place.updatedAt && typeof place.updatedAt === 'string' ? place.updatedAt : nowIso;
+  const metadata = place.metadata && typeof place.metadata === 'object' ? place.metadata : {};
+  const source = place.source && typeof place.source === 'string' ? place.source.trim().slice(0, 40) : 'user';
+  return { id, label, address, lat, lon, note, category, color, icon, tags, createdAt, updatedAt, metadata, source };
+}
+
+function normalizeRecent(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const id = entry.id && typeof entry.id === 'string'
+    ? entry.id
+    : (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : crypto.randomBytes(6).toString('hex'));
+  const label = entry.label && typeof entry.label === 'string' ? entry.label.trim().slice(0, 120) : 'Recent search';
+  const address = entry.address && typeof entry.address === 'string' ? entry.address.trim().slice(0, 200) : '';
+  const query = entry.query && typeof entry.query === 'string' ? entry.query.trim().slice(0, 256) : null;
+  const lat = Number.isFinite(entry.lat) ? Number(entry.lat) : null;
+  const lon = Number.isFinite(entry.lon) ? Number(entry.lon) : null;
+  const type = entry.type && typeof entry.type === 'string' ? entry.type.trim().slice(0, 40) : 'search';
+  const savedAt = entry.savedAt && typeof entry.savedAt === 'string' ? entry.savedAt : new Date().toISOString();
+  const metadata = entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};
+  return { id, label, address, query, lat, lon, type, savedAt, metadata };
+}
+
+function addRecentToUser(user, payload) {
+  if (!user) return null;
+  const entry = normalizeRecent(payload);
+  if (!entry) return null;
+  if (!Array.isArray(user.recents)) user.recents = [];
+  user.recents = user.recents.filter((item) => item.id !== entry.id && item.query !== entry.query);
+  user.recents.unshift(entry);
+  user.recents = user.recents.slice(0, MAX_RECENTS);
+  return entry;
+}
+
+function addFavoriteToUser(user, place) {
+  if (!user) return null;
+  if (!user.savedPlaces) user.savedPlaces = createInitialSavedPlaces();
+  const normalized = normalizePlace(place, place?.category || 'favorite');
+  if (!normalized) return null;
+  const favorites = Array.isArray(user.savedPlaces.favorites) ? user.savedPlaces.favorites : [];
+  const withoutExisting = favorites.filter((fav) => fav.id !== normalized.id);
+  withoutExisting.unshift(normalized);
+  user.savedPlaces.favorites = withoutExisting.slice(0, MAX_FAVORITES);
+  return normalized;
+}
+
+function removeFavoriteFromUser(user, placeId) {
+  if (!user || !user.savedPlaces || !Array.isArray(user.savedPlaces.favorites)) return false;
+  const before = user.savedPlaces.favorites.length;
+  user.savedPlaces.favorites = user.savedPlaces.favorites.filter((fav) => fav.id !== placeId);
+  return user.savedPlaces.favorites.length !== before;
+}
+
+function isValidTravelMode(mode) {
+  return typeof mode === 'string' && SUPPORTED_TRAVEL_MODES.has(mode);
+}
+
+function isValidMapStyle(style) {
+  return typeof style === 'string' && SUPPORTED_MAP_STYLES.has(style);
+}
+
+function isValidEmail(email) {
+  return typeof email === 'string' && /[^\s@]+@[^\s@]+\.[^\s@]+/.test(email);
+}
+
+function hashPassword(password, salt) {
+  if (typeof password !== 'string' || password.length === 0) {
+    throw new Error('invalid_password');
+  }
+  const resolvedSalt = salt || crypto.randomBytes(16).toString('hex');
+  const buffer = crypto.scryptSync(password, resolvedSalt, 64);
+  return { salt: resolvedSalt, hash: buffer.toString('hex') };
+}
+
+function verifyPassword(password, user) {
+  if (!user || typeof password !== 'string' || !user.passwordHash || !user.salt) return false;
+  try {
+    const derived = crypto.scryptSync(password, user.salt, 64);
+    const stored = Buffer.from(user.passwordHash, 'hex');
+    if (derived.length !== stored.length) return false;
+    return crypto.timingSafeEqual(derived, stored);
+  } catch {
+    return false;
+  }
+}
+
+async function loadUserByEmail(email) {
+  if (!isValidEmail(email)) return null;
+  const normalized = email.trim().toLowerCase();
+  const store = await readUserStore();
+  return store.users.find((user) => user.email === normalized) || null;
+}
+
+async function loadUserById(userId) {
+  if (!userId) return null;
+  const store = await readUserStore();
+  return store.users.find((user) => user.id === userId) || null;
+}
+
+async function updateUserRecord(userId, mutator) {
+  if (!userId) return null;
+  const store = await readUserStore();
+  const index = store.users.findIndex((user) => user.id === userId);
+  if (index === -1) return null;
+  const record = store.users[index];
+  await mutator(record, store);
+  record.updatedAt = new Date().toISOString();
+  store.users[index] = normalizeUserRecord(record);
+  await writeUserStore(store);
+  return sanitizeUser(store.users[index]);
+}
+
+function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  sessions.set(token, { userId, createdAt: now, lastSeenAt: now, expiresAt: now + SESSION_TTL_MS });
+  return token;
+}
+
+function destroySession(token) {
+  if (!token) return;
+  sessions.delete(token);
+}
+
+function getSession(token) {
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session) return null;
+  if (session.expiresAt && session.expiresAt <= Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+  return session;
+}
+
+function parseCookies(header) {
+  if (!header || typeof header !== 'string') return {};
+  return header.split(';').map((chunk) => chunk.trim()).filter(Boolean).reduce((acc, chunk) => {
+    const eqIndex = chunk.indexOf('=');
+    if (eqIndex === -1) return acc;
+    const key = chunk.slice(0, eqIndex).trim();
+    const value = chunk.slice(eqIndex + 1);
+    if (!key) return acc;
+    try {
+      acc[key] = decodeURIComponent(value);
+    } catch {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+function extractToken(req) {
+  const header = req.get('authorization') || '';
+  if (header.startsWith('Bearer ')) {
+    return header.slice('Bearer '.length).trim();
+  }
+  const cookies = parseCookies(req.get('cookie'));
+  if (cookies[SESSION_COOKIE]) {
+    return cookies[SESSION_COOKIE];
+  }
+  return null;
+}
+
+function setSessionCookie(res, token, req) {
+  if (!token) return;
+  const secure = Boolean(req.secure || (req.get('x-forwarded-proto') || '').toLowerCase().startsWith('https'));
+  if (typeof res.cookie === 'function') {
+    res.cookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure,
+      maxAge: SESSION_TTL_MS,
+      path: '/',
+    });
+  } else {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`);
+  }
+}
+
+function clearSessionCookie(res) {
+  if (typeof res.clearCookie === 'function') {
+    res.clearCookie(SESSION_COOKIE, { path: '/' });
+  } else {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax`);
+  }
+}
+
+async function authenticate(req, res, next) {
+  try {
+    const token = extractToken(req);
+    if (!token) {
+      return res.status(401).json({ error: 'auth_required' });
+    }
+    const session = getSession(token);
+    if (!session) {
+      return res.status(401).json({ error: 'invalid_session' });
+    }
+    const user = await loadUserById(session.userId);
+    if (!user) {
+      destroySession(token);
+      return res.status(401).json({ error: 'invalid_session' });
+    }
+    req.authToken = token;
+    req.user = sanitizeUser(user);
+    session.lastSeenAt = Date.now();
+    session.expiresAt = session.lastSeenAt + SESSION_TTL_MS;
+    return next();
+  } catch (error) {
+    console.error('Authentication failed', error);
+    return res.status(500).json({ error: 'internal_error' });
+  }
+}
+
+function incrementUserSearches(userId) {
+  return updateUserRecord(userId, (record) => {
+    if (!record.metrics) record.metrics = {};
+    record.metrics.searches = Number.isFinite(record.metrics.searches) ? Number(record.metrics.searches) + 1 : 1;
+    record.metrics.lastActiveAt = new Date().toISOString();
+  });
+}
+
+
 function ensureCommunityStore() {
   if (!fs.existsSync(COMMUNITY_DATA_FILE)) {
     const seed = { version: 1, updatedAt: new Date().toISOString(), entries: {} };

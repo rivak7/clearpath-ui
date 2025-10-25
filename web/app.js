@@ -25,6 +25,7 @@ const state = {
   pendingSuggest: null,
   lastResult: null,
   installPromptEvent: null,
+  hasShownInstallBanner: false,
   voteLayer: null,
   entranceOptions: [],
   selectedEntranceId: null,
@@ -80,6 +81,9 @@ const dom = {
   sheetSubtitle: document.getElementById('sheetSubtitle'),
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
+  installBanner: document.getElementById('installBanner'),
+  installBannerConfirm: document.getElementById('installBannerConfirm'),
+  installBannerDismiss: document.getElementById('installBannerDismiss'),
   sheetHandle: document.getElementById('sheetHandle'),
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
@@ -108,9 +112,17 @@ if (dom.entranceOptions) {
   dom.entranceOptions.setAttribute('aria-hidden', dom.entranceOptions.hidden ? 'true' : 'false');
 }
 
+if (dom.installBanner) {
+  dom.installBanner.setAttribute('aria-hidden', dom.installBanner.hidden ? 'true' : 'false');
+}
+
 const SPLASH_MESSAGES = {
   bootstrap: 'Preparing your experience...',
   search: 'Finding the best entrance...',
+};
+
+const STORAGE_KEYS = {
+  installBannerDismissed: 'clearpath-ui:install-banner-dismissed',
 };
 
 function collectDesignTokens() {
@@ -147,6 +159,54 @@ function getDesignTokens() {
     state.designTokens = collectDesignTokens();
   }
   return state.designTokens;
+}
+
+function isStandaloneDisplayMode() {
+  try {
+    const matchMedia = window.matchMedia?.('(display-mode: standalone)');
+    return Boolean(matchMedia?.matches || window.navigator?.standalone);
+  } catch (error) {
+    return false;
+  }
+}
+
+function readInstallBannerDismissed() {
+  try {
+    return window.localStorage?.getItem(STORAGE_KEYS.installBannerDismissed) === '1';
+  } catch (error) {
+    return false;
+  }
+}
+
+function rememberInstallBannerDismissed() {
+  try {
+    window.localStorage?.setItem(STORAGE_KEYS.installBannerDismissed, '1');
+  } catch (error) {
+    // noop
+  }
+}
+
+function shouldShowInstallBanner() {
+  if (!dom.installBanner) return false;
+  if (state.hasShownInstallBanner) return false;
+  if (isStandaloneDisplayMode()) return false;
+  return !readInstallBannerDismissed();
+}
+
+function showInstallBanner() {
+  if (!dom.installBanner) return;
+  dom.installBanner.hidden = false;
+  dom.installBanner.setAttribute('aria-hidden', 'false');
+  state.hasShownInstallBanner = true;
+}
+
+function hideInstallBanner({ persistDismiss = false } = {}) {
+  if (!dom.installBanner) return;
+  dom.installBanner.hidden = true;
+  dom.installBanner.setAttribute('aria-hidden', 'true');
+  if (persistDismiss) {
+    rememberInstallBannerDismissed();
+  }
 }
 
 function shouldReduceMotion() {
@@ -2469,25 +2529,71 @@ function registerServiceWorker() {
   });
 }
 
+async function requestAppInstall(cta) {
+  if (!state.installPromptEvent) return;
+  if (cta) {
+    cta.disabled = true;
+    cta.setAttribute('aria-busy', 'true');
+  }
+  try {
+    await state.installPromptEvent.prompt();
+    const choice = await state.installPromptEvent.userChoice;
+    if (choice?.outcome === 'accepted') {
+      setStatus('ClearPath added to your device.', 'success');
+      hideInstallBanner({ persistDismiss: true });
+      rememberInstallBannerDismissed();
+    } else if (choice?.outcome === 'dismissed' && cta === dom.installBannerConfirm) {
+      hideInstallBanner({ persistDismiss: true });
+    }
+  } catch (error) {
+    console.warn('Install prompt failed', error);
+  } finally {
+    if (cta) {
+      cta.removeAttribute('aria-busy');
+      cta.disabled = false;
+    }
+    dom.installButton.hidden = true;
+    state.installPromptEvent = null;
+  }
+}
+
 function setupInstallPrompt() {
   if (!dom.installButton) return;
+
+  if (isStandaloneDisplayMode()) {
+    rememberInstallBannerDismissed();
+  }
+
   window.addEventListener('beforeinstallprompt', (evt) => {
     evt.preventDefault();
     state.installPromptEvent = evt;
     dom.installButton.hidden = false;
-  });
-  dom.installButton.addEventListener('click', async () => {
-    if (!state.installPromptEvent) return;
-    dom.installButton.disabled = true;
-    await state.installPromptEvent.prompt();
-    const choice = await state.installPromptEvent.userChoice;
-    if (choice.outcome === 'accepted') {
-      setStatus('ClearPath added to your device.', 'success');
-    }
-    dom.installButton.hidden = true;
     dom.installButton.disabled = false;
-    state.installPromptEvent = null;
+    if (shouldShowInstallBanner()) {
+      showInstallBanner();
+    }
   });
+
+  dom.installButton.addEventListener('click', () => {
+    if (!state.installPromptEvent) return;
+    requestAppInstall(dom.installButton);
+  });
+
+  if (dom.installBannerConfirm) {
+    dom.installBannerConfirm.addEventListener('click', () => {
+      if (!state.installPromptEvent) {
+        hideInstallBanner({ persistDismiss: true });
+        return;
+      }
+      requestAppInstall(dom.installBannerConfirm);
+    });
+  }
+
+  if (dom.installBannerDismiss) {
+    dom.installBannerDismiss.addEventListener('click', () => {
+      hideInstallBanner({ persistDismiss: true });
+    });
+  }
 }
 
 function init() {
