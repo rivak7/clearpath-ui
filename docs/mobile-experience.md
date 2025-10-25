@@ -18,6 +18,12 @@ This app already ships with an opinionated, mobile‑first layout system. Use th
 4. **Hook into accessibility profiles** – Many selectors are namespaced (e.g., `:root.accessibility-calm`). When styling new components, add overrides inside those sections if motion, contrast, or focus states need tuning.
 5. **Leverage shared utilities** – Use helper classes such as `.nav-linkButton`, `.route-planner__add`, and `.fab` to keep affordances consistent. If a new pattern repeats, add a utility class in CSS and document it here.
 
+### Floating navigation trays
+
+- The bottom navigation tray (`.nav-links`) becomes a fixed, thumb-reachable surface on narrow screens. When you add another quick action, place it inside that container so the breakpoint logic continues to work.
+- Keep the tray light—two primary links fit comfortably on small devices. If you need more, promote them into the sheet or convert them into a launcher that opens a dedicated card.
+- Test with and without safe-area insets; padding is computed from `--safe-area-bottom`, so inflating the tray with absolute positioning elsewhere can cause overlaps.
+
 ## Updating the route planner
 
 - Collapse/expand logic is centralized in `setRoutePlannerExpanded()` (in `web/app.js`). Call it if a feature changes planner visibility, instead of toggling DOM classes manually.

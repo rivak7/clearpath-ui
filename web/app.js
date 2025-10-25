@@ -72,6 +72,7 @@ const state = {
   splashHideTimer: null,
   splashProgress: 0,
   splashResetTimer: null,
+  bootstrapFailed: false,
   searchCount: 0,
   lastConfirmationPromptAt: 0,
   account: {
@@ -92,6 +93,9 @@ const state = {
   searchInputFocused: false,
   personalizationRailHovered: false,
   personalizationRailFocused: false,
+  personalizationInteractionsWired: false,
+  pendingAuthMode: null,
+  pendingAccountOpen: false,
 };
 
 state.accessibility = new Set();
@@ -99,6 +103,25 @@ state.designTokens = null;
 state.confirmationHistory = new Set();
 state.splashTimeouts = new Set();
 state.splashFrames = new Set();
+
+const PENDING_AUTH_KEY = 'clearpath-ui:pending-auth-mode';
+const PENDING_ACCOUNT_KEY = 'clearpath-ui:pending-account-open';
+
+try {
+  const pendingMode = window.localStorage.getItem(PENDING_AUTH_KEY);
+  if (pendingMode) {
+    state.pendingAuthMode = pendingMode;
+    window.localStorage.removeItem(PENDING_AUTH_KEY);
+  }
+} catch {}
+
+try {
+  const pendingAccount = window.localStorage.getItem(PENDING_ACCOUNT_KEY);
+  if (pendingAccount) {
+    state.pendingAccountOpen = true;
+    window.localStorage.removeItem(PENDING_ACCOUNT_KEY);
+  }
+} catch {}
 
 const dom = {
   splash: document.getElementById('splash'),
@@ -191,6 +214,7 @@ if (dom.installBanner) {
 
 if (dom.personalizationRail) {
   dom.personalizationRail.setAttribute('aria-hidden', dom.personalizationRail.hidden ? 'true' : 'false');
+  wirePersonalizationRailInteractions();
 }
 
 if (dom.accountCard) {
@@ -408,6 +432,11 @@ function syncSheetSnapPoints() {
 }
 
 function initMap() {
+  if (typeof L === 'undefined' || typeof L.map !== 'function') {
+    const error = new Error('Leaflet library failed to load');
+    error.code = 'leaflet_unavailable';
+    throw error;
+  }
   if (!dom.map) return;
   state.map = L.map(dom.map, {
     zoomControl: true,
@@ -1126,6 +1155,34 @@ function updatePersonalizationVisibility() {
   dom.personalizationRail.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
 }
 
+function wirePersonalizationRailInteractions() {
+  if (!dom.personalizationRail) return;
+  if (state.personalizationInteractionsWired) {
+    updatePersonalizationVisibility();
+    return;
+  }
+  state.personalizationInteractionsWired = true;
+  dom.personalizationRail.addEventListener('focusin', () => {
+    state.personalizationRailFocused = true;
+    updatePersonalizationVisibility();
+  });
+  dom.personalizationRail.addEventListener('focusout', (event) => {
+    if (!dom.personalizationRail.contains(event.relatedTarget)) {
+      state.personalizationRailFocused = false;
+      updatePersonalizationVisibility();
+    }
+  });
+  dom.personalizationRail.addEventListener('pointerenter', () => {
+    state.personalizationRailHovered = true;
+    updatePersonalizationVisibility();
+  });
+  dom.personalizationRail.addEventListener('pointerleave', () => {
+    state.personalizationRailHovered = false;
+    updatePersonalizationVisibility();
+  });
+  updatePersonalizationVisibility();
+}
+
 function handlePersonalizationChipClick(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
@@ -1539,27 +1596,7 @@ function wireAccountExperience() {
   if (dom.personalizationRecentsList) {
     dom.personalizationRecentsList.addEventListener('click', handleRecentClick);
   }
-  if (dom.personalizationRail) {
-    dom.personalizationRail.addEventListener('focusin', () => {
-      state.personalizationRailFocused = true;
-      updatePersonalizationVisibility();
-    });
-    dom.personalizationRail.addEventListener('focusout', (event) => {
-      if (!dom.personalizationRail.contains(event.relatedTarget)) {
-        state.personalizationRailFocused = false;
-        updatePersonalizationVisibility();
-      }
-    });
-    dom.personalizationRail.addEventListener('pointerenter', () => {
-      state.personalizationRailHovered = true;
-      updatePersonalizationVisibility();
-    });
-    dom.personalizationRail.addEventListener('pointerleave', () => {
-      state.personalizationRailHovered = false;
-      updatePersonalizationVisibility();
-    });
-    updatePersonalizationVisibility();
-  }
+  wirePersonalizationRailInteractions();
   if (dom.authSwitcher) {
     dom.authSwitcher.addEventListener('click', handleAuthSwitch);
   }
@@ -2066,6 +2103,8 @@ function renderRouteStops({ preserveFocus = true } = {}) {
   clearRouteDropIndicators();
   updateRouteResetState();
   refreshSheetSnap({ animate: false });
+  updateRouteOverview();
+  updateRoutePlannerVisibility();
 }
 
 function onRouteStopInput(id, value) {
@@ -2077,6 +2116,7 @@ function onRouteStopInput(id, value) {
   }
   updateRouteResetState();
   updateRouteSummary();
+  updateRouteOverview();
 }
 
 function updateRouteResetState() {
