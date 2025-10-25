@@ -1,0 +1,4 @@
+state: writing
+input: [shards/shard-03.db@0000000000000000, shards/shard-03.db@0000000000004000]
+output: shards/shard-03.db.tmp
+progress: 41%

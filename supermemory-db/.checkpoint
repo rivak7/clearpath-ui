@@ -1,4 +1,4 @@
 # synthetic checkpoint pointer for supermemory
-wal_cursor: 0000000000000016
-snapshot: snapshots/2024-11-27T170812.snapshot
-consistency_token: 0x5f7a3d12
+wal_cursor: 000000000000001b
+snapshot: snapshots/2024-11-27T171455.snapshot
+consistency_token: 0x8e2b4c61

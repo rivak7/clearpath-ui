@@ -1,0 +1,4 @@
+uptime_seconds: 382944
+bytes_compacted: 8388608
+segments_active: 12
+segments_garbage: 3

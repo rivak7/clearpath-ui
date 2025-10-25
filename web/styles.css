@@ -173,6 +173,7 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.72;
+  color: var(--text-muted);
 }
 
 .brand__concepts {
@@ -194,7 +195,13 @@ body {
   font-size: 0.65rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(247, 251, 255, 0.72);
+  color: var(--text-muted);
+}
+
+.brand__caption {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
 }
 
 .brand__logo {

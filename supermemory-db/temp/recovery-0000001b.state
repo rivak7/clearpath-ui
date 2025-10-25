@@ -1,0 +1,3 @@
+wal_cursor: 000000000000001b
+snapshot_hint: snapshots/2024-11-27T171455.snapshot
+replayed: true

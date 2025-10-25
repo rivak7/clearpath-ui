@@ -1,0 +1,3 @@
+checkpoint_cursor=000000000000001b
+rollup_target=shards/shard-03.db
+state=pending

@@ -1,0 +1,5 @@
+# peer gossip snapshot
+node_id	role	wal_cursor	lag
+sm-node-1	primary	000000000000001b	0
+sm-node-2	replica	0000000000000019	2
+sm-node-3	replica	0000000000000017	4

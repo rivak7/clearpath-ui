@@ -1,6 +1,15 @@
-﻿import { initTheme } from './theme.js';
+﻿import { initTheme, onThemeChange } from './theme.js';
+import {
+  ACCESSIBILITY_FEATURES,
+  AccessibilityFeature,
+  getAccessibilityState,
+  initAccessibility,
+  isFeatureEnabled,
+  onAccessibilityChange,
+} from './accessibility.js';
 
 initTheme();
+initAccessibility();
 
 const state = {
   map: null,
@@ -20,6 +29,9 @@ const state = {
   installPromptEvent: null,
 };
 
+state.accessibility = new Set();
+state.designTokens = null;
+
 const dom = {
   splash: document.getElementById('splash'),
   map: document.getElementById('map'),
@@ -36,6 +48,63 @@ const dom = {
   locateButton: document.getElementById('locateMe'),
   installButton: document.getElementById('openInstall'),
 };
+
+function collectDesignTokens() {
+  const styles = getComputedStyle(document.documentElement);
+  const read = (name, fallback) => {
+    const value = styles.getPropertyValue(name);
+    return value ? value.trim() || fallback : fallback;
+  };
+  return {
+    accent: read('--accent', '#3dd6c1'),
+    accentDark: read('--accent-dark', '#0b6f6b'),
+    accentSoft: read('--accent-soft', 'rgba(61, 214, 193, 0.32)'),
+    satOutline: read('--sat-outline', '#ffffff'),
+    satFootprint: read('--sat-footprint', '#3dd6c1'),
+    satFootprintFill: read('--sat-footprint-fill', 'rgba(61, 214, 193, 0.15)'),
+    markerCentroidBorder: read('--marker-centroid-border', '#ffffff'),
+    markerCentroidFill: read('--marker-centroid-fill', '#ffffff'),
+    markerEntranceBorder: read('--marker-entrance-border', '#0b6f6b'),
+    markerEntranceFill: read('--marker-entrance-fill', '#3dd6c1'),
+    markerCnnBorder: read('--marker-cnn-border', '#0f3fd0'),
+    markerCnnFill: read('--marker-cnn-fill', '#1c64f2'),
+    markerDropoffBorder: read('--marker-dropoff-border', '#f9b234'),
+    markerDropoffFill: read('--marker-dropoff-fill', '#faca61'),
+    pathConnector: read('--path-connector', '#3dd6c1'),
+  };
+}
+
+function getDesignTokens() {
+  if (!state.designTokens) {
+    state.designTokens = collectDesignTokens();
+  }
+  return state.designTokens;
+}
+
+function shouldReduceMotion() {
+  return state.accessibility.has(AccessibilityFeature.CALM);
+}
+
+function refreshDesignTokens({ preserveView = true } = {}) {
+  state.designTokens = collectDesignTokens();
+  if (state.userLocation) {
+    const { lat, lon, accuracy } = state.userLocation;
+    updateUserMarker(lat, lon, accuracy);
+  }
+  if (state.lastResult) {
+    renderResult(state.lastResult, { preserveView, skipStateUpdate: true });
+  }
+}
+
+function updateAccessibilitySnapshot(payload) {
+  const features = Array.isArray(payload?.features) ? payload.features : [];
+  state.accessibility = new Set(features);
+  refreshDesignTokens();
+}
+
+updateAccessibilitySnapshot(getAccessibilityState());
+onAccessibilityChange(updateAccessibilitySnapshot);
+onThemeChange(() => refreshDesignTokens());
 
 const GEOLOCATION_OPTIONS = {
   enableHighAccuracy: true,
@@ -134,31 +203,48 @@ function haversine(a, b) {
 
 function updateUserMarker(lat, lon, accuracy) {
   if (!state.map || !state.userLayer) return;
+  const tokens = getDesignTokens();
+  const hasSeniorComfort = state.accessibility.has(AccessibilityFeature.SENIOR);
+  const markerRadius = hasSeniorComfort ? 9 : 7;
+  const accuracyOpacity = hasSeniorComfort ? 0.18 : 0.12;
+  const minAccuracyRadius = hasSeniorComfort ? 20 : 12;
   const latLng = [lat, lon];
   if (!state.userMarker) {
     state.userMarker = L.circleMarker(latLng, {
-      radius: 7,
+      radius: markerRadius,
       weight: 2,
-      color: '#3dd6c1',
-      fillColor: '#3dd6c1',
-      fillOpacity: 0.8,
+      color: tokens.accentDark,
+      fillColor: tokens.accent,
+      fillOpacity: 0.85,
     }).addTo(state.userLayer);
   } else {
     state.userMarker.setLatLng(latLng);
+    state.userMarker.setStyle({
+      radius: markerRadius,
+      color: tokens.accentDark,
+      fillColor: tokens.accent,
+      fillOpacity: 0.85,
+    });
   }
   if (Number.isFinite(accuracy)) {
     if (!state.userAccuracyCircle) {
       state.userAccuracyCircle = L.circle(latLng, {
-        radius: Math.max(accuracy, 12),
-        color: '#3dd6c1',
-        fillColor: '#3dd6c1',
-        fillOpacity: 0.1,
+        radius: Math.max(accuracy, minAccuracyRadius),
+        color: tokens.accentDark,
+        fillColor: tokens.accentSoft,
+        fillOpacity: accuracyOpacity,
         weight: 1,
-        opacity: 0.35,
+        opacity: 0.4,
       }).addTo(state.userLayer);
     } else {
       state.userAccuracyCircle.setLatLng(latLng);
-      state.userAccuracyCircle.setRadius(Math.max(accuracy, 12));
+      state.userAccuracyCircle.setRadius(Math.max(accuracy, minAccuracyRadius));
+      state.userAccuracyCircle.setStyle({
+        color: tokens.accentDark,
+        fillColor: tokens.accentSoft,
+        fillOpacity: accuracyOpacity,
+        opacity: 0.4,
+      });
     }
   }
 }
@@ -177,10 +263,12 @@ function onGeolocation(position, { centerOnUser = false, preferFly = false } = {
     const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
     const zoom = centerOnUser ? Math.max(mapZoom, MIN_LOCATE_ZOOM + 1) : Math.max(mapZoom, MIN_LOCATE_ZOOM);
     const latLng = [latitude, longitude];
-    if (preferFly && typeof state.map.flyTo === 'function') {
-      state.map.flyTo(latLng, zoom, { duration: 0.6 });
+    const reduceMotion = shouldReduceMotion();
+    const canFly = preferFly && typeof state.map.flyTo === 'function' && !reduceMotion;
+    if (canFly) {
+      state.map.flyTo(latLng, zoom, { duration: reduceMotion ? 0 : 0.6 });
     } else {
-      state.map.setView(latLng, zoom, { animate: true });
+      state.map.setView(latLng, zoom, { animate: !reduceMotion });
     }
     state.hasCenteredOnUser = true;
   }
@@ -238,10 +326,13 @@ function focusOnUserLocation({ animate = true, useFly = true, zoom = MIN_LOCATE_
   const latLng = [state.userLocation.lat, state.userLocation.lon];
   const mapZoom = typeof state.map.getZoom === 'function' ? state.map.getZoom() : MIN_LOCATE_ZOOM;
   const targetZoom = Math.max(mapZoom, zoom);
-  if (useFly && typeof state.map.flyTo === 'function') {
-    state.map.flyTo(latLng, targetZoom, { duration: animate ? 0.6 : 0 });
+  const reduceMotion = shouldReduceMotion();
+  const allowAnimation = animate && !reduceMotion;
+  const allowFly = useFly && typeof state.map.flyTo === 'function' && !reduceMotion;
+  if (allowFly) {
+    state.map.flyTo(latLng, targetZoom, { duration: allowAnimation ? 0.6 : 0 });
   } else {
-    state.map.setView(latLng, targetZoom, { animate });
+    state.map.setView(latLng, targetZoom, { animate: allowAnimation });
   }
 }
 

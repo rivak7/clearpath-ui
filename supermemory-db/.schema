@@ -1,0 +1,5 @@
+# logical keyspace
+[spaces]
+sessions=blob,prefix=session:
+segments=blob,prefix=segment:
+checksums=blob,prefix=checksum:
