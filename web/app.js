@@ -1,10 +1,8 @@
 ﻿import { initTheme, onThemeChange } from './theme.js';
 import {
-  ACCESSIBILITY_FEATURES,
   AccessibilityFeature,
   getAccessibilityState,
   initAccessibility,
-  isFeatureEnabled,
   onAccessibilityChange,
 } from './accessibility.js';
 
@@ -509,9 +507,15 @@ async function performSearch(query) {
   }
 }
 
-function renderResult(data) {
+function renderResult(data, options = {}) {
   if (!state.map || !state.overlays) return;
+  const { preserveView = false, skipStateUpdate = false } = options;
+  if (!skipStateUpdate) {
+    state.lastResult = data;
+  }
   state.overlays.clearLayers();
+  const tokens = getDesignTokens();
+  const reduceMotion = shouldReduceMotion();
   const { bbox, center, entrance, cnnEntrance, roadPoint, footprint } = data;
   if (bbox) {
     const bounds = L.latLngBounds([
@@ -519,33 +523,40 @@ function renderResult(data) {
       [bbox.north, bbox.east],
     ]);
     const rectangle = L.rectangle(bounds, {
-      color: '#ffffff',
+      color: tokens.satOutline,
       weight: 1.5,
       opacity: 0.7,
       fillOpacity: 0,
       dashArray: '6 4',
     });
     rectangle.addTo(state.overlays);
-    state.map.flyToBounds(bounds, { padding: [48, 48], maxZoom: 20, duration: 0.8 });
+    if (!preserveView) {
+      if (!reduceMotion && typeof state.map.flyToBounds === 'function') {
+        state.map.flyToBounds(bounds, { padding: [48, 48], maxZoom: 20, duration: 0.8 });
+      } else {
+        state.map.fitBounds(bounds, { padding: [48, 48], maxZoom: 20, animate: !reduceMotion });
+      }
+    }
   }
   if (footprint) {
     try {
       L.geoJSON(footprint, {
         style: {
-          color: '#3dd6c1',
+          color: tokens.satFootprint,
           weight: 2,
-          fillOpacity: 0.15,
+          fillColor: tokens.satFootprintFill,
+          fillOpacity: 0.25,
         },
       }).addTo(state.overlays);
-    } catch (e) {
-      // Ignore malformed footprint
+    } catch (error) {
+      // ignore malformed geometry
     }
   }
   if (center) {
     L.circleMarker([center.lat, center.lon], {
       radius: 5,
-      color: '#ffffff',
-      fillColor: '#ffffff',
+      color: tokens.markerCentroidBorder,
+      fillColor: tokens.markerCentroidFill,
       fillOpacity: 0.9,
       weight: 1,
     }).addTo(state.overlays).bindTooltip('Building centroid');
@@ -553,8 +564,8 @@ function renderResult(data) {
   if (entrance) {
     L.circleMarker([entrance.lat, entrance.lon], {
       radius: 8,
-      color: '#0b6f6b',
-      fillColor: '#3dd6c1',
+      color: tokens.markerEntranceBorder,
+      fillColor: tokens.markerEntranceFill,
       fillOpacity: 0.85,
       weight: 3,
     }).addTo(state.overlays).bindTooltip('Heuristic entrance');
@@ -562,8 +573,8 @@ function renderResult(data) {
   if (cnnEntrance) {
     L.circleMarker([cnnEntrance.lat, cnnEntrance.lon], {
       radius: 8,
-      color: '#0f3fd0',
-      fillColor: '#1c64f2',
+      color: tokens.markerCnnBorder,
+      fillColor: tokens.markerCnnFill,
       fillOpacity: 0.85,
       weight: 3,
     }).addTo(state.overlays).bindTooltip('CNN entrance');
@@ -571,8 +582,8 @@ function renderResult(data) {
   if (roadPoint) {
     L.circleMarker([roadPoint.lat, roadPoint.lon], {
       radius: 6,
-      color: '#f9b234',
-      fillColor: '#faca61',
+      color: tokens.markerDropoffBorder,
+      fillColor: tokens.markerDropoffFill,
       fillOpacity: 0.9,
       weight: 2,
     }).addTo(state.overlays).bindTooltip('Recommended drop-off');
@@ -584,7 +595,7 @@ function renderResult(data) {
         [entrance.lat, entrance.lon],
       ],
       {
-        color: '#3dd6c1',
+        color: tokens.pathConnector,
         weight: 2,
         dashArray: '8 6',
       }
