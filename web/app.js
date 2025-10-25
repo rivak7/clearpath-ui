@@ -330,6 +330,391 @@ function initSheetInteractions() {
   window.addEventListener('resize', () => refreshSheetSnap({ animate: false }));
 }
 
+function createRouteStop(role, value = '', meta = '') {
+  state.routeStopCounter += 1;
+  return {
+    id: `route-stop-${state.routeStopCounter}`,
+    role,
+    value,
+    meta,
+  };
+}
+
+function normalizeRouteStopRoles() {
+  if (!state.routeStops.length) return;
+  state.routeStops.forEach((stop, index) => {
+    if (index === 0) {
+      stop.role = 'origin';
+    } else if (index === state.routeStops.length - 1) {
+      stop.role = 'destination';
+    } else {
+      stop.role = 'stop';
+    }
+  });
+}
+
+function getRouteStopLabel(index, role) {
+  if (role === 'origin') return 'From';
+  if (role === 'destination') return 'To';
+  return `Stop ${index}`;
+}
+
+function getRouteStopPlaceholder(role) {
+  if (role === 'origin') return 'Choose a starting point';
+  if (role === 'destination') return 'Add a destination';
+  return 'Add a stop';
+}
+
+function clearRouteDropIndicators() {
+  if (!dom.routeStops) return;
+  dom.routeStops.classList.remove('route-stops--drop-end');
+  dom.routeStops.querySelectorAll('.route-stop--drop-before').forEach((node) => {
+    node.classList.remove('route-stop--drop-before');
+  });
+}
+
+function updateRouteDropIndicator(clientY) {
+  if (!dom.routeStops || !state.draggingStop) return;
+  clearRouteDropIndicators();
+  const children = Array.from(dom.routeStops.children);
+  let dropIndex = state.routeStops.length;
+  for (let idx = 0; idx < children.length; idx += 1) {
+    const child = children[idx];
+    if (!child || child.dataset.id === state.draggingStop.id) continue;
+    const rect = child.getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) {
+      dropIndex = idx;
+      child.classList.add('route-stop--drop-before');
+      break;
+    }
+  }
+  if (dropIndex === children.length) {
+    dom.routeStops.classList.add('route-stops--drop-end');
+  }
+  state.draggingStop.dropIndex = dropIndex;
+}
+
+function renderRouteStops({ preserveFocus = true } = {}) {
+  if (!dom.routeStops) return;
+  normalizeRouteStopRoles();
+  const activeStopId = preserveFocus && document.activeElement?.dataset?.stopId;
+  dom.routeStops.innerHTML = '';
+  state.routeStops.forEach((stop, index) => {
+    const item = document.createElement('div');
+    item.className = 'route-stop';
+    item.dataset.id = stop.id;
+
+    const dragButton = document.createElement('button');
+    dragButton.type = 'button';
+    dragButton.className = 'route-stop__drag';
+    dragButton.innerHTML = '&#9776;';
+    dragButton.setAttribute('aria-label', 'Reorder stop');
+    dragButton.addEventListener('pointerdown', (evt) => startStopDrag(evt, stop.id, item));
+    item.appendChild(dragButton);
+
+    const marker = document.createElement('span');
+    marker.className = `route-stop__marker route-stop__marker--${stop.role}`;
+    marker.textContent = stop.role === 'origin' ? '●' : stop.role === 'destination' ? '◎' : '◆';
+    item.appendChild(marker);
+
+    const body = document.createElement('div');
+    body.className = 'route-stop__body';
+
+    const label = document.createElement('span');
+    label.className = 'route-stop__label';
+    label.textContent = getRouteStopLabel(index, stop.role);
+    body.appendChild(label);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'route-stop__input';
+    input.value = stop.value || '';
+    input.placeholder = getRouteStopPlaceholder(stop.role);
+    input.dataset.stopId = stop.id;
+    input.addEventListener('input', (evt) => onRouteStopInput(stop.id, evt.target.value));
+    body.appendChild(input);
+
+    if (stop.meta) {
+      const meta = document.createElement('span');
+      meta.className = 'route-stop__meta';
+      meta.textContent = stop.meta;
+      body.appendChild(meta);
+    }
+
+    item.appendChild(body);
+
+    const canRemove = state.routeStops.length > 2 && stop.role === 'stop';
+    if (canRemove) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'route-stop__remove';
+      remove.setAttribute('aria-label', `Remove ${label.textContent?.toLowerCase() || 'stop'}`);
+      remove.innerHTML = '&times;';
+      remove.addEventListener('click', () => removeRouteStop(stop.id));
+      item.appendChild(remove);
+    }
+
+    dom.routeStops.appendChild(item);
+
+    if (activeStopId && activeStopId === stop.id) {
+      window.requestAnimationFrame(() => {
+        const target = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
+        if (target) {
+          target.focus({ preventScroll: true });
+          const len = target.value.length;
+          target.setSelectionRange(len, len);
+        }
+      });
+    }
+  });
+  dom.routeStops.classList.remove('route-stops--dragging', 'route-stops--drop-end');
+  clearRouteDropIndicators();
+  updateRouteResetState();
+  refreshSheetSnap({ animate: false });
+}
+
+function onRouteStopInput(id, value) {
+  const stop = state.routeStops.find((candidate) => candidate.id === id);
+  if (!stop) return;
+  stop.value = value;
+  if (stop.role === 'origin' && value && value !== 'My Location') {
+    stop.meta = '';
+  }
+  updateRouteResetState();
+}
+
+function updateRouteResetState() {
+  if (!dom.sheetReset) return;
+  const hasExtraStops = state.routeStops.length > 2;
+  const hasCustomValues = state.routeStops.some((stop, index) => {
+    if (index === 0) return stop.value && stop.value !== 'My Location';
+    return Boolean(stop.value);
+  });
+  dom.sheetReset.hidden = !(hasExtraStops || hasCustomValues);
+}
+
+function resetRoutePlanner() {
+  state.routeStops = [
+    createRouteStop('origin', state.userLocation ? 'My Location' : ''),
+    createRouteStop('destination', state.lastResult?.query || ''),
+  ];
+  renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
+}
+
+function ensureRouteStops() {
+  if (!state.routeStops.length) {
+    resetRoutePlanner();
+  } else {
+    renderRouteStops({ preserveFocus: false });
+  }
+}
+
+function addRouteStop() {
+  ensureRouteStops();
+  const insertIndex = Math.max(1, state.routeStops.length - 1);
+  const stop = createRouteStop('stop', '');
+  state.routeStops.splice(insertIndex, 0, stop);
+  renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
+  window.requestAnimationFrame(() => {
+    const target = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
+    target?.focus({ preventScroll: true });
+  });
+}
+
+function removeRouteStop(id) {
+  if (state.routeStops.length <= 2) return;
+  const index = state.routeStops.findIndex((stop) => stop.id === id);
+  if (index <= 0 || index === state.routeStops.length - 1) return;
+  state.routeStops.splice(index, 1);
+  renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
+}
+
+function setRouteMode(mode) {
+  if (!mode || mode === state.routeMode) {
+    updateRouteModeButtons();
+    return;
+  }
+  state.routeMode = mode;
+  updateRouteModeButtons();
+  updateRouteSummary();
+}
+
+function updateRouteModeButtons() {
+  if (!Array.isArray(dom.routeModes)) return;
+  dom.routeModes.forEach((btn) => {
+    const mode = btn?.dataset?.mode || 'drive';
+    const isActive = mode === state.routeMode;
+    btn.classList.toggle('route-mode--active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  });
+}
+
+function startStopDrag(evt, stopId, element) {
+  if (!dom.routeStops || (evt.pointerType === 'mouse' && evt.button !== 0)) return;
+  evt.preventDefault();
+  const startIndex = state.routeStops.findIndex((stop) => stop.id === stopId);
+  if (startIndex < 0) return;
+  state.draggingStop = {
+    id: stopId,
+    pointerId: evt.pointerId,
+    startY: evt.clientY,
+    startIndex,
+    dropIndex: startIndex,
+    element,
+  };
+  element.classList.add('route-stop--dragging');
+  element.style.transition = 'none';
+  dom.routeStops.classList.add('route-stops--dragging');
+  element.setPointerCapture(evt.pointerId);
+  element.addEventListener('pointermove', handleStopDragMove);
+  element.addEventListener('pointerup', finishStopDrag);
+  element.addEventListener('pointercancel', finishStopDrag);
+}
+
+function handleStopDragMove(evt) {
+  const drag = state.draggingStop;
+  if (!drag || evt.pointerId !== drag.pointerId) return;
+  const delta = evt.clientY - drag.startY;
+  drag.element.style.transform = `translateY(${delta}px)`;
+  updateRouteDropIndicator(evt.clientY);
+}
+
+function finishStopDrag(evt) {
+  const drag = state.draggingStop;
+  if (!drag || evt.pointerId !== drag.pointerId) return;
+  drag.element.releasePointerCapture(evt.pointerId);
+  drag.element.removeEventListener('pointermove', handleStopDragMove);
+  drag.element.removeEventListener('pointerup', finishStopDrag);
+  drag.element.removeEventListener('pointercancel', finishStopDrag);
+  drag.element.classList.remove('route-stop--dragging');
+  drag.element.style.transition = '';
+  drag.element.style.transform = '';
+  dom.routeStops?.classList.remove('route-stops--dragging', 'route-stops--drop-end');
+  clearRouteDropIndicators();
+
+  const fromIndex = drag.startIndex;
+  let toIndex = drag.dropIndex ?? fromIndex;
+  if (toIndex > fromIndex) toIndex -= 1;
+  toIndex = Math.max(0, Math.min(toIndex, state.routeStops.length - 1));
+  state.draggingStop = null;
+  if (toIndex !== fromIndex) {
+    const [moved] = state.routeStops.splice(fromIndex, 1);
+    state.routeStops.splice(toIndex, 0, moved);
+    renderRouteStops({ preserveFocus: false });
+    updateRouteSummary();
+  }
+}
+
+function updateOriginStopFromLocation() {
+  if (!state.routeStops.length || !state.userLocation) return;
+  const origin = state.routeStops[0];
+  if (!origin.value || origin.value === 'My Location') {
+    origin.value = 'My Location';
+  }
+  if (Number.isFinite(state.userLocation.accuracy)) {
+    origin.meta = `Accuracy ±${formatDistance(state.userLocation.accuracy)}`;
+  }
+  renderRouteStops();
+}
+
+function updateDestinationStopFromResult(data) {
+  if (!state.routeStops.length) return;
+  const destination = state.routeStops[state.routeStops.length - 1];
+  const query = data?.query;
+  if (query) {
+    destination.value = query;
+  }
+  if (data?.entrance) {
+    const method = data.entrance.method ? data.entrance.method.toLowerCase() : 'verified';
+    destination.meta = `Entrance ${method}`;
+  }
+  renderRouteStops();
+}
+
+function focusOnRouteHighlights() {
+  if (!state.map || !state.lastResult) return;
+  const points = [];
+  if (state.lastResult.roadPoint) {
+    points.push([state.lastResult.roadPoint.lat, state.lastResult.roadPoint.lon]);
+  }
+  if (state.lastResult.entrance) {
+    points.push([state.lastResult.entrance.lat, state.lastResult.entrance.lon]);
+  }
+  if (!points.length) return;
+  const reduceMotion = shouldReduceMotion();
+  if (points.length === 1) {
+    state.map.setView(points[0], Math.max(state.map.getZoom() || 17, 18), { animate: !reduceMotion });
+  } else {
+    const bounds = L.latLngBounds(points);
+    state.map.fitBounds(bounds, { padding: [56, 56], maxZoom: 20, animate: !reduceMotion });
+  }
+}
+
+function updateRouteSummary() {
+  if (!dom.routeSummary) return;
+  dom.routeSummary.innerHTML = '';
+  const result = state.lastResult;
+  if (!result) {
+    dom.routeSummary.hidden = true;
+    return;
+  }
+  const card = document.createElement('div');
+  card.className = 'route-summary__card';
+
+  const meta = document.createElement('div');
+  meta.className = 'route-summary__meta';
+  const title = document.createElement('div');
+  title.className = 'route-summary__title';
+  if (state.routeMode === 'walk') {
+    title.textContent = 'Seamless walk';
+  } else if (state.routeMode === 'bike') {
+    title.textContent = 'Bike-friendly route';
+  } else if (state.routeMode === 'transit') {
+    title.textContent = 'Transit handoff';
+  } else {
+    title.textContent = 'Smart arrival';
+  }
+
+  const detail = document.createElement('div');
+  detail.className = 'route-summary__detail';
+  const detailParts = [];
+  if (result.roadPoint && state.userLocation) {
+    const driveDistance = haversine(state.userLocation, result.roadPoint);
+    if (driveDistance) detailParts.push(`Drive ${formatDistance(driveDistance)}`);
+  }
+  if (result.roadPoint && result.entrance) {
+    const walkDistance = haversine(result.roadPoint, result.entrance);
+    if (walkDistance) detailParts.push(`Walk ${formatDistance(walkDistance)}`);
+  } else if (result.entrance && state.userLocation) {
+    const approachDistance = haversine(state.userLocation, result.entrance);
+    if (approachDistance) detailParts.push(`Approach ${formatDistance(approachDistance)}`);
+  }
+  if (!detailParts.length) {
+    detailParts.push('Optimized for the verified entrance');
+  }
+  detail.textContent = detailParts.join(' • ');
+
+  meta.appendChild(title);
+  meta.appendChild(detail);
+  card.appendChild(meta);
+
+  const cta = document.createElement('button');
+  cta.type = 'button';
+  cta.className = 'route-summary__cta';
+  cta.textContent = 'Go';
+  cta.addEventListener('click', () => {
+    focusOnRouteHighlights();
+    cycleSheetSnap(-1);
+  });
+  card.appendChild(cta);
+
+  dom.routeSummary.appendChild(card);
+  dom.routeSummary.hidden = false;
+}
+
 function formatDistance(meters) {
   if (!Number.isFinite(meters)) return 'n/a';
   if (meters < 1) return `${(meters * 100).toFixed(0)} cm`;
