@@ -7,14 +7,28 @@ import {
   onThemeChange,
   setThemeMode,
 } from './theme.js';
+import {
+  ACCESSIBILITY_FEATURES,
+  getAccessibilityState,
+  initAccessibility,
+  onAccessibilityChange,
+  setFeatureState,
+} from './accessibility.js';
 
 initTheme();
+initAccessibility();
 
-const form = document.getElementById('themeForm');
-const statusChip = document.getElementById('themeStatusChip');
+const themeForm = document.getElementById('themeForm');
+const themeStatusChip = document.getElementById('themeStatusChip');
+const accessibilityContainer = document.getElementById('accessibilityOptions');
+const accessibilityStatusChip = document.getElementById('accessibilityStatusChip');
+
+const accessibilityControls = new Map();
+const featureMeta = new Map(ACCESSIBILITY_FEATURES.map((feature) => [feature.id, feature]));
 let autoHeartbeat = null;
 
 function titleCase(value) {
+  if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
@@ -42,28 +56,28 @@ function getNextAutoBoundary(reference = new Date()) {
   return { next, upcomingTheme };
 }
 
-function updateStatus({ mode, theme }) {
-  if (!statusChip) return;
+function updateThemeStatus({ mode, theme }) {
+  if (!themeStatusChip) return;
   const readableTheme = titleCase(theme);
   if (mode === ThemeMode.AUTO) {
     const { next, upcomingTheme } = getNextAutoBoundary();
     const formattedTime = formatTime(next);
     const readableUpcoming = titleCase(upcomingTheme);
-    statusChip.textContent = `Auto is using the ${readableTheme} theme right now. It will switch to ${readableUpcoming} around ${formattedTime}.`;
+    themeStatusChip.textContent = `Auto is using the ${readableTheme} theme right now. It will switch to ${readableUpcoming} around ${formattedTime}.`;
   } else {
-    statusChip.textContent = `You locked ClearPath to the ${readableTheme} theme.`;
+    themeStatusChip.textContent = `You locked ClearPath to the ${readableTheme} theme.`;
   }
 }
 
-function syncSelection(mode) {
-  if (!form) return;
-  const controls = form.querySelectorAll('.theme-option__control');
+function syncThemeSelection(mode) {
+  if (!themeForm) return;
+  const controls = themeForm.querySelectorAll('.theme-option__control');
   controls.forEach((control) => {
     control.checked = control.value === mode;
   });
 }
 
-function handleChange(event) {
+function handleThemeChange(event) {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
   if (target.name !== 'theme-mode') return;
@@ -75,8 +89,8 @@ function startAutoHeartbeat() {
   autoHeartbeat = window.setInterval(() => {
     if (computeAutoTheme() !== getThemeState().theme) {
       const state = setThemeMode(ThemeMode.AUTO, { persist: false });
-      syncSelection(state.mode);
-      updateStatus(state);
+      syncThemeSelection(state.mode);
+      updateThemeStatus(state);
     }
   }, 15 * 60 * 1000);
 }
@@ -87,17 +101,124 @@ function stopAutoHeartbeat() {
   autoHeartbeat = null;
 }
 
-const initialState = getThemeState();
-syncSelection(initialState.mode);
-updateStatus(initialState);
+function createAccessibilityCard(feature) {
+  const label = document.createElement('label');
+  label.className = 'accessibility-card';
+  label.dataset.featureId = feature.id;
 
-if (form) {
-  form.addEventListener('change', handleChange);
+  const control = document.createElement('input');
+  control.type = 'checkbox';
+  control.name = 'accessibility-profile';
+  control.value = feature.id;
+  control.className = 'accessibility-card__control';
+  label.appendChild(control);
+
+  const body = document.createElement('div');
+  body.className = 'accessibility-card__body';
+  label.appendChild(body);
+
+  const header = document.createElement('div');
+  header.className = 'accessibility-card__header';
+  body.appendChild(header);
+
+  const icon = document.createElement('span');
+  icon.className = 'accessibility-card__icon';
+  icon.textContent = feature.icon;
+  header.appendChild(icon);
+
+  const titles = document.createElement('div');
+  titles.className = 'accessibility-card__titles';
+  header.appendChild(titles);
+
+  const title = document.createElement('span');
+  title.className = 'accessibility-card__title';
+  title.textContent = feature.label;
+  titles.appendChild(title);
+
+  const subtitle = document.createElement('span');
+  subtitle.className = 'accessibility-card__subtitle';
+  subtitle.textContent = feature.summary;
+  titles.appendChild(subtitle);
+
+  const stateBadge = document.createElement('span');
+  stateBadge.className = 'accessibility-card__state';
+  stateBadge.textContent = 'Active';
+  header.appendChild(stateBadge);
+
+  const details = document.createElement('ul');
+  details.className = 'accessibility-card__details';
+  feature.bullets.forEach((text) => {
+    const item = document.createElement('li');
+    item.textContent = text;
+    details.appendChild(item);
+  });
+  body.appendChild(details);
+
+  accessibilityControls.set(feature.id, control);
+  return label;
+}
+
+function renderAccessibilityOptions(state) {
+  if (!accessibilityContainer) return;
+  accessibilityContainer.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  ACCESSIBILITY_FEATURES.forEach((feature) => {
+    fragment.appendChild(createAccessibilityCard(feature));
+  });
+  accessibilityContainer.appendChild(fragment);
+  if (!accessibilityContainer.dataset.bound) {
+    accessibilityContainer.addEventListener('change', onAccessibilityToggle);
+    accessibilityContainer.dataset.bound = 'true';
+  }
+  syncAccessibilitySelection(state);
+}
+
+function syncAccessibilitySelection(state) {
+  const active = new Set(state?.features || []);
+  accessibilityControls.forEach((control, featureId) => {
+    control.checked = active.has(featureId);
+  });
+}
+
+function updateAccessibilityStatus(state) {
+  if (!accessibilityStatusChip) return;
+  const active = state?.features || [];
+  if (!active.length) {
+    accessibilityStatusChip.textContent = 'Select one or more profiles to tailor navigation, vision, and motion.';
+    return;
+  }
+  const labels = active
+    .map((id) => featureMeta.get(id))
+    .filter(Boolean)
+    .map((feature) => feature.shortLabel || feature.label);
+  if (active.length === ACCESSIBILITY_FEATURES.length) {
+    accessibilityStatusChip.textContent = `All assistive profiles are active: ${labels.join(', ')}. ClearPath now runs in full ADA showcase mode.`;
+    return;
+  }
+  const readableList = labels.join(', ');
+  accessibilityStatusChip.textContent = `${readableList} ${active.length === 1 ? 'profile is' : 'profiles are'} active. Every screen honors these adaptations.`;
+}
+
+function onAccessibilityToggle(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (target.name !== 'accessibility-profile') return;
+  const state = setFeatureState(target.value, target.checked);
+  syncAccessibilitySelection(state);
+  updateAccessibilityStatus(state);
+}
+
+const initialTheme = getThemeState();
+syncThemeSelection(initialTheme.mode);
+updateThemeStatus(initialTheme);
+
+if (themeForm) {
+  themeForm.addEventListener('change', handleThemeChange);
 }
 
 onThemeChange((state) => {
-  syncSelection(state.mode);
-  updateStatus(state);
+  syncThemeSelection(state.mode);
+  updateThemeStatus(state);
   if (state.mode === ThemeMode.AUTO) {
     startAutoHeartbeat();
   } else {
@@ -105,6 +226,15 @@ onThemeChange((state) => {
   }
 });
 
-if (initialState.mode === ThemeMode.AUTO) {
+if (initialTheme.mode === ThemeMode.AUTO) {
   startAutoHeartbeat();
 }
+
+const initialAccessibility = getAccessibilityState();
+renderAccessibilityOptions(initialAccessibility);
+updateAccessibilityStatus(initialAccessibility);
+
+onAccessibilityChange((state) => {
+  syncAccessibilitySelection(state);
+  updateAccessibilityStatus(state);
+});
