@@ -197,6 +197,12 @@
               </div>
             </div>
             <div id="routePlanner" class="route-planner" aria-live="polite">
+              <div class="route-planner__headerBar">
+                <span id="routeOverview" class="route-planner__overview">Search to plan your route</span>
+                <button id="routeEditorToggle" class="route-planner__toggle" type="button" aria-expanded="false" hidden>
+                  Edit route
+                </button>
+              </div>
               <div class="route-planner__modes" role="tablist" aria-label="Travel mode">
                 <button class="route-mode route-mode--active" type="button" role="tab" aria-selected="true" data-mode="drive" aria-label="Driving">
                   <span aria-hidden="true">🚗</span>
