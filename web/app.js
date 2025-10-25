@@ -134,6 +134,7 @@ const dom = {
   searchInput: document.getElementById('searchInput'),
   clearSearch: document.getElementById('clearSearch'),
   suggestions: document.getElementById('suggestions'),
+  searchFocusActions: document.getElementById('searchFocusActions'),
   infoSheet: document.getElementById('infoSheet'),
   insights: document.getElementById('insights'),
   directions: document.getElementById('directions'),
@@ -2069,7 +2070,6 @@ function updateRoutePlannerVisibility() {
     dom.routePlanner.classList.toggle('route-planner--expanded', expanded);
   }
   if (dom.routeStops) dom.routeStops.hidden = !expanded;
-  if (dom.addRouteStop) dom.addRouteStop.hidden = !expanded;
   if (dom.routeEditorToggle) {
     dom.routeEditorToggle.hidden = !state.lastResult;
     dom.routeEditorToggle.textContent = expanded ? 'Done' : 'Edit route';
@@ -2213,24 +2213,30 @@ function resetRoutePlanner({ preserveFocus = false } = {}) {
 }
 
 function ensureRouteStops({ preserveFocus = false } = {}) {
-  if (!state.lastResult) return;
   if (!state.routeStops.length) {
-    resetRoutePlanner({ preserveFocus });
-  } else {
-    renderRouteStops({ preserveFocus });
-    updateRouteSummary();
+    state.routeStopCounter = 0;
+    const originMeta = state.userLocation && Number.isFinite(state.userLocation.accuracy)
+      ? `Accuracy ±${formatDistance(state.userLocation.accuracy)}`
+      : '';
+    const entrance = state.lastResult?.entrance;
+    const methodLabel = entrance?.methodLabel || friendlyMethodLabel(entrance?.source, entrance?.method);
+    const destinationMeta = entrance && methodLabel ? `Entrance ${methodLabel}` : '';
+    const destinationLabel = state.lastResult?.query || '';
+    state.routeStops = [
+      createRouteStop('origin', state.userLocation ? 'My Location' : '', originMeta),
+      createRouteStop('destination', destinationLabel, destinationMeta),
+    ];
   }
+  renderRouteStops({ preserveFocus });
 }
 
 function addRouteStop() {
-  if (!state.lastResult) return;
   ensureRouteStops({ preserveFocus: false });
   setRoutePlannerExpanded(true);
   const insertIndex = Math.max(1, state.routeStops.length - 1);
   const stop = createRouteStop('stop', '');
   state.routeStops.splice(insertIndex, 0, stop);
   renderRouteStops({ preserveFocus: false });
-  updateRouteSummary();
   window.requestAnimationFrame(() => {
     const target = dom.routeStops?.querySelector(`.route-stop__input[data-stop-id="${stop.id}"]`);
     target?.focus({ preventScroll: true });
