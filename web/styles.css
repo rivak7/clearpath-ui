@@ -467,7 +467,6 @@ body {
 .top-shell.top-shell--sheet-covered {
   opacity: 0;
   transform: translate3d(-50%, -18px, 0) scale(0.96);
-  pointer-events: none;
 }
 
 .install-banner {
@@ -494,7 +493,6 @@ body {
 .install-banner.install-banner--sheet-covered {
   opacity: 0;
   transform: translate3d(-50%, -12px, 0) scale(0.96);
-  pointer-events: none;
 }
 
 .install-banner[hidden] {

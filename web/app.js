@@ -1980,21 +1980,11 @@ function updateSheetVisualState(index) {
   const snapPoints = state.sheet?.snapPoints || [];
   dom.infoSheet.classList.toggle('sheet--peek', index === 0);
   dom.infoSheet.classList.toggle('sheet--expanded', index === snapPoints.length - 1);
-}
-
-function evaluateSheetOverlap() {
-  if (!dom.infoSheet) return;
-  const sheetRect = dom.infoSheet.getBoundingClientRect();
-  const margin = 12;
   if (dom.topShell) {
-    const shellRect = dom.topShell.getBoundingClientRect();
-    const overlapsShell = sheetRect.top <= shellRect.bottom - margin;
-    dom.topShell.classList.toggle('top-shell--sheet-covered', overlapsShell);
+    dom.topShell.classList.toggle('top-shell--sheet-covered', index !== 0);
   }
   if (dom.installBanner && !dom.installBanner.hidden) {
-    const bannerRect = dom.installBanner.getBoundingClientRect();
-    const overlapsBanner = sheetRect.top <= bannerRect.bottom - margin;
-    dom.installBanner.classList.toggle('install-banner--sheet-covered', overlapsBanner);
+    dom.installBanner.classList.toggle('install-banner--sheet-covered', index !== 0);
   }
 }
 
@@ -2002,15 +1992,24 @@ function evaluateSheetOverlap() {
   if (!dom.infoSheet) return;
   const sheetRect = dom.infoSheet.getBoundingClientRect();
   const margin = 12;
+  const forceCover = state.sheet?.index !== 0;
   if (dom.topShell) {
-    const shellRect = dom.topShell.getBoundingClientRect();
-    const overlapsShell = sheetRect.top <= shellRect.bottom - margin;
-    dom.topShell.classList.toggle('top-shell--sheet-covered', overlapsShell);
+    if (forceCover) {
+      dom.topShell.classList.add('top-shell--sheet-covered');
+    } else {
+      const shellRect = dom.topShell.getBoundingClientRect();
+      const overlapsShell = sheetRect.top <= shellRect.bottom - margin;
+      dom.topShell.classList.toggle('top-shell--sheet-covered', overlapsShell);
+    }
   }
   if (dom.installBanner && !dom.installBanner.hidden) {
-    const bannerRect = dom.installBanner.getBoundingClientRect();
-    const overlapsBanner = sheetRect.top <= bannerRect.bottom - margin;
-    dom.installBanner.classList.toggle('install-banner--sheet-covered', overlapsBanner);
+    if (forceCover) {
+      dom.installBanner.classList.add('install-banner--sheet-covered');
+    } else {
+      const bannerRect = dom.installBanner.getBoundingClientRect();
+      const overlapsBanner = sheetRect.top <= bannerRect.bottom - margin;
+      dom.installBanner.classList.toggle('install-banner--sheet-covered', overlapsBanner);
+    }
   }
 }
 
@@ -3172,6 +3171,9 @@ function getSuggestionAnchor(target, context) {
   if (!target || !target.isConnected) return dom.searchForm;
   if (context?.type === 'route') {
     return target.closest('.route-stop__body') || target.closest('.route-stop') || dom.searchForm;
+  }
+  if (context?.type === 'search') {
+    return target.closest('.search__inputWrap') || dom.searchForm;
   }
   return dom.searchForm;
 }
