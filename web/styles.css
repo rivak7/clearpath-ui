@@ -14,6 +14,7 @@
   --shadow-soft: 0 12px 32px rgba(20, 45, 75, 0.15);
   --sheet-bg: rgba(255, 255, 255, 0.96);
   --sheet-text: #0b1c2c;
+  --sheet-radius-dynamic: var(--radius-lg);
   --sheet-surface: linear-gradient(140deg, rgba(255, 255, 255, 0.82), rgba(233, 245, 255, 0.55));
   --sheet-surface-peek: linear-gradient(140deg, rgba(255, 255, 255, 0.68), rgba(230, 244, 255, 0.4));
   --sheet-surface-border: rgba(12, 34, 56, 0.16);
@@ -99,6 +100,7 @@
   --shadow-soft: 0 18px 46px rgba(0, 0, 0, 0.45);
   --sheet-bg: rgba(10, 17, 28, 0.94);
   --sheet-text: #f0f5ff;
+  --sheet-radius-dynamic: clamp(24px, 8vw, 42px);
   --sheet-surface: linear-gradient(140deg, rgba(4, 13, 25, 0.82), rgba(10, 26, 48, 0.72));
   --sheet-surface-peek: linear-gradient(140deg, rgba(4, 13, 25, 0.72), rgba(10, 26, 48, 0.52));
   --sheet-surface-border: rgba(240, 245, 255, 0.14);
@@ -478,7 +480,7 @@ body {
   border: 1px solid var(--theme-border);
   box-shadow: var(--shadow-soft);
   color: var(--text-strong);
-  z-index: 5;
+  z-index: 100;
 }
 
 .install-banner[hidden] {
@@ -1154,8 +1156,8 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  border-top-left-radius: var(--radius-lg);
-  border-top-right-radius: var(--radius-lg);
+  border-top-left-radius: var(--sheet-radius-dynamic, var(--radius-lg));
+  border-top-right-radius: var(--sheet-radius-dynamic, var(--radius-lg));
   backdrop-filter: blur(22px);
   box-shadow: var(--sheet-shadow);
   background: var(--sheet-surface, var(--sheet-bg));
@@ -1168,7 +1170,11 @@ body {
   z-index: 3;
   border: 1px solid var(--sheet-surface-border, var(--theme-border));
   transform: translate3d(0, var(--sheet-translate, 0px), 0);
-  transition: transform 280ms cubic-bezier(0.24, 0.82, 0.25, 1);
+  transition:
+    transform 280ms cubic-bezier(0.24, 0.82, 0.25, 1),
+    border-top-left-radius 220ms ease,
+    border-top-right-radius 220ms ease,
+    box-shadow 220ms ease;
   will-change: transform;
   overflow: hidden;
   touch-action: pan-y;
@@ -1761,8 +1767,8 @@ body {
 }
 
 .route-stop__input:focus {
-  outline: 2px solid var(--accent-outline);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--input-shadow), 0 0 0 3px var(--accent-outline);
 }
 
 .route-stop__remove {
@@ -2568,52 +2574,141 @@ body {
   align-self: stretch;
 }
 
-.settings-anchorNav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: clamp(-16px, -2vw, -8px) 0 clamp(28px, 5vw, 40px);
-  padding: clamp(6px, 1.5vw, 10px);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--sheet-bg) 88%, transparent);
-  border: 1px solid var(--theme-border);
-  box-shadow: 0 18px 36px rgba(14, 42, 80, 0.16);
-  backdrop-filter: saturate(1.15) blur(18px);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
+.settings-content {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: clamp(24px, 5vw, 48px);
+  align-items: start;
 }
 
-.settings-anchorNav::-webkit-scrollbar {
-  display: none;
+.settings-sidebar {
+  position: sticky;
+  top: clamp(110px, 12vh, 160px);
+  display: grid;
+  gap: clamp(18px, 4vw, 28px);
+  align-self: start;
+}
+
+.settings-anchorNav {
+  display: grid;
+  gap: clamp(10px, 1.8vw, 16px);
+  padding: clamp(18px, 3vw, 24px);
+  border-radius: clamp(22px, 3vw, 28px);
+  background: color-mix(in srgb, var(--sheet-bg) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
+  box-shadow: 0 22px 44px rgba(6, 24, 42, 0.28);
+  backdrop-filter: saturate(1.1) blur(18px);
 }
 
 .settings-anchorNav__item {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
   align-items: center;
-  gap: 6px;
-  padding: 10px 18px;
-  border-radius: 999px;
+  padding: 12px 14px;
+  border-radius: clamp(16px, 2.4vw, 20px);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--sheet-text);
   text-decoration: none;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  scroll-snap-align: start;
-  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  color: var(--sheet-text);
+  transition: border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease, transform 0.2s ease;
 }
 
 .settings-anchorNav__item:hover,
 .settings-anchorNav__item:focus-visible {
-  border-color: var(--accent);
-  background: rgba(61, 214, 193, 0.12);
-  color: var(--accent-dark);
+  border-color: rgba(61, 214, 193, 0.55);
+  background: linear-gradient(120deg, rgba(61, 214, 193, 0.16), rgba(49, 133, 242, 0.16));
+  box-shadow: 0 16px 32px rgba(6, 24, 42, 0.28);
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(14, 42, 80, 0.16);
   outline: none;
+}
+
+.settings-anchorNav__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(61, 214, 193, 0.12);
+  font-size: 1.2rem;
+}
+
+.settings-anchorNav__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.3;
+}
+
+.settings-anchorNav__title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+}
+
+.settings-anchorNav__hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.settings-sidebar__card {
+  display: grid;
+  gap: 12px;
+  padding: clamp(20px, 3vw, 24px);
+  border-radius: clamp(20px, 3vw, 26px);
+  background: linear-gradient(150deg, rgba(61, 214, 193, 0.22), rgba(49, 133, 242, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 22px 38px rgba(6, 24, 42, 0.28);
+  color: var(--sheet-text);
+}
+
+.settings-sidebar__title {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.settings-sidebar__lead {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.settings-sidebar__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: #0f1f2e;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 24px rgba(6, 24, 42, 0.32);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.settings-sidebar__action:hover,
+.settings-sidebar__action:focus-visible {
+  background: rgba(3, 12, 22, 0.92);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(6, 24, 42, 0.36);
+  outline: none;
+}
+
+.settings-mainWrap {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 5vw, 40px);
 }
 
 .settings-overview {
@@ -2928,6 +3023,22 @@ body {
   gap: 12px;
 }
 
+.settings-emojiInput {
+  width: clamp(48px, 3vw + 36px, 56px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(6, 12, 22, 0.72);
+  color: var(--text-strong);
+  font-size: 1.1rem;
+  text-align: center;
+  padding: 10px 12px;
+}
+
+.settings-emojiInput:focus {
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 2px;
+}
+
 .settings-field__controls input,
 .settings-form select {
   flex: 1 1 220px;
@@ -3019,6 +3130,11 @@ body {
   flex-direction: column;
   gap: 2px;
   font-size: 0.86rem;
+}
+
+.settings-favoriteIcon {
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .settings-favoriteList button {
@@ -3335,8 +3451,29 @@ body {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
 
+  .settings-content {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(24px, 6vw, 32px);
+  }
+
+  .settings-sidebar {
+    position: static;
+    gap: clamp(20px, 6vw, 28px);
+  }
+
   .settings-anchorNav {
-    flex-wrap: nowrap;
+    display: flex;
+    gap: clamp(10px, 4vw, 16px);
+    padding: clamp(12px, 4vw, 16px);
+    border-radius: 999px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-anchorNav__item {
+    min-width: max(200px, 48vw);
+    grid-template-columns: auto 1fr;
   }
 }
 
@@ -3361,13 +3498,8 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .settings-anchorNav {
-    margin: clamp(-12px, -2vh, -4px) 0 clamp(24px, 5vw, 32px);
-  }
-
   .settings-anchorNav__item {
-    padding: 10px 16px;
-    letter-spacing: 0.1em;
+    min-width: max(180px, 58vw);
   }
 
   .settings-overview {

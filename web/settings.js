@@ -47,6 +47,9 @@ const workAddressInput = document.getElementById('workAddress');
 const savedPlacesForm = document.getElementById('savedPlacesForm');
 const favoriteNameInput = document.getElementById('favoriteName');
 const favoriteAddressInput = document.getElementById('favoriteAddress');
+const homeIconInput = document.getElementById('homeIcon');
+const workIconInput = document.getElementById('workIcon');
+const favoriteIconInput = document.getElementById('favoriteIcon');
 const addFavoriteButton = document.getElementById('addFavoriteButton');
 const favoriteList = document.getElementById('favoriteList');
 const savedPlacesStatus = document.getElementById('savedPlacesStatus');
@@ -71,6 +74,7 @@ const commuteStatus = document.getElementById('commuteStatus');
 const themeOverview = document.getElementById('settingsThemeSummary');
 const accessibilityOverview = document.getElementById('settingsAccessibilitySummary');
 const commuteOverview = document.getElementById('settingsCommuteSummary');
+const placesOverview = document.getElementById('settingsPlacesSummary');
 
 const accessibilityControls = new Map();
 const featureMeta = new Map(ACCESSIBILITY_FEATURES.map((feature) => [feature.id, feature]));
@@ -90,6 +94,7 @@ const DAY_LABELS = {
   sun: 'Sun',
 };
 const COMMUTE_DEFAULT_SUMMARY = 'Commute reminders are off.';
+const SAVED_PLACES_DEFAULT_SUMMARY = 'Add home and work to jump back faster.';
 
 function titleCase(value) {
   if (!value) return '';
@@ -97,14 +102,6 @@ function titleCase(value) {
 }
 
 function formatTime(date) {
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-function formatClockTime(value) {
-  if (!value || typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) return value || '';
-  const [hours, minutes] = value.split(':').map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
@@ -180,6 +177,19 @@ function summarizeCommutePlan(plan) {
   if (!parts.length) return COMMUTE_DEFAULT_SUMMARY;
   const daySummary = formatDaySummary(plan.days || []);
   return daySummary ? `${daySummary} · ${parts.join(' | ')}` : parts.join(' | ');
+}
+
+function summarizeSavedPlaces(savedPlaces) {
+  if (!savedPlaces) return SAVED_PLACES_DEFAULT_SUMMARY;
+  const { home, work, favorites } = savedPlaces;
+  const pieces = [];
+  pieces.push(home?.address ? 'Home saved' : 'Add home');
+  pieces.push(work?.address ? 'Work saved' : 'Add work');
+  const favoriteCount = Array.isArray(favorites) ? favorites.length : 0;
+  if (favoriteCount) {
+    pieces.push(`${favoriteCount} favorite${favoriteCount > 1 ? 's' : ''}`);
+  }
+  return pieces.join(' • ');
 }
 
 function updateThemeStatus({ mode, theme }) {
@@ -381,7 +391,7 @@ function showStatus(element, message, type = 'info') {
 }
 
 function setSavedPlacesDisabled(disabled) {
-  [homeAddressInput, workAddressInput, favoriteNameInput, favoriteAddressInput, addFavoriteButton]
+  [homeIconInput, homeAddressInput, workIconInput, workAddressInput, favoriteIconInput, favoriteNameInput, favoriteAddressInput, addFavoriteButton]
     .filter(Boolean)
     .forEach((el) => {
       el.disabled = disabled;
@@ -474,6 +484,10 @@ function renderFavoriteList(favorites) {
     title.textContent = fav.label || 'Favorite';
     const address = document.createElement('small');
     address.textContent = fav.address || '';
+    const icon = document.createElement('span');
+    icon.className = 'settings-favoriteIcon';
+    icon.textContent = fav.icon || '⭐';
+    meta.appendChild(icon);
     meta.appendChild(title);
     meta.appendChild(address);
     const remove = document.createElement('button');
@@ -569,6 +583,9 @@ function renderAccountSettings(snapshot) {
   if (!signedIn) {
     if (homeAddressInput) homeAddressInput.value = '';
     if (workAddressInput) workAddressInput.value = '';
+    if (homeIconInput) homeIconInput.value = '';
+    if (workIconInput) workIconInput.value = '';
+    if (favoriteIconInput) favoriteIconInput.value = '';
     renderFavoriteList([]);
     if (defaultTravelModeSelect) defaultTravelModeSelect.value = 'drive';
     if (mapStylePreferenceSelect) mapStylePreferenceSelect.value = 'auto';
@@ -577,11 +594,15 @@ function renderAccountSettings(snapshot) {
     if (commuteStatus) showStatus(commuteStatus, 'Sign in to schedule your commute.');
     renderCommutePlan(null);
     if (commuteOverview) setSummary(commuteOverview, 'Sign in to schedule your commute.');
+    if (placesOverview) setSummary(placesOverview, 'Sign in to sync your entrances.');
     return;
   }
 
   if (homeAddressInput) homeAddressInput.value = user.savedPlaces?.home?.address || '';
   if (workAddressInput) workAddressInput.value = user.savedPlaces?.work?.address || '';
+  if (homeIconInput) homeIconInput.value = user.savedPlaces?.home?.icon || '';
+  if (workIconInput) workIconInput.value = user.savedPlaces?.work?.icon || '';
+  if (favoriteIconInput) favoriteIconInput.value = '';
   renderFavoriteList(user.savedPlaces?.favorites || []);
   renderPreferences(user.preferences || {});
   renderCommutePlan(user.commutePlan || {});
@@ -595,6 +616,9 @@ function renderAccountSettings(snapshot) {
       : 'Set a time and destination to unlock commute reminders.';
     showStatus(commuteStatus, message);
   }
+  if (placesOverview) {
+    setSummary(placesOverview, summarizeSavedPlaces(user.savedPlaces));
+  }
 }
 
 async function handleSavedPlaceAction(action) {
@@ -603,8 +627,11 @@ async function handleSavedPlaceAction(action) {
     return;
   }
   let input;
+  let iconInput;
   if (action === 'save-home') input = homeAddressInput;
   if (action === 'save-work') input = workAddressInput;
+  if (action === 'save-home') iconInput = homeIconInput;
+  if (action === 'save-work') iconInput = workIconInput;
   if (!input) return;
   const query = input.value.trim();
   if (!query) {
@@ -618,6 +645,10 @@ async function handleSavedPlaceAction(action) {
     const result = await lookupPlace(query);
     const payload = buildPlacePayload(result, query);
     if (!payload) throw new Error('invalid_location');
+    if (iconInput) {
+      const fallbackIcon = action === 'save-home' ? '🏠' : '🏢';
+      payload.icon = iconInput.value.trim() || fallbackIcon;
+    }
     if (action === 'save-home') {
       await setHome(payload);
       showStatus(savedPlacesStatus, 'Home updated with this entrance.', 'success');
@@ -642,10 +673,12 @@ async function handleSavedPlaceClear(action) {
     if (action === 'clear-home') {
       await clearHome();
       if (homeAddressInput) homeAddressInput.value = '';
+      if (homeIconInput) homeIconInput.value = '';
       showStatus(savedPlacesStatus, 'Home cleared.', 'success');
     } else if (action === 'clear-work') {
       await clearWork();
       if (workAddressInput) workAddressInput.value = '';
+      if (workIconInput) workIconInput.value = '';
       showStatus(savedPlacesStatus, 'Work cleared.', 'success');
     }
   } catch (error) {
@@ -661,6 +694,7 @@ async function handleAddFavorite() {
   }
   const label = favoriteNameInput?.value.trim();
   const query = favoriteAddressInput?.value.trim();
+  const icon = favoriteIconInput?.value.trim() || '⭐';
   if (!label || !query) {
     showStatus(savedPlacesStatus, 'Provide both a label and address.', 'error');
     return;
@@ -672,9 +706,11 @@ async function handleAddFavorite() {
     const payload = buildPlacePayload(result, label);
     if (!payload) throw new Error('invalid_location');
     payload.category = 'favorite';
+    payload.icon = icon;
     await saveFavorite(payload);
     favoriteNameInput.value = '';
     favoriteAddressInput.value = '';
+    if (favoriteIconInput) favoriteIconInput.value = '';
     showStatus(savedPlacesStatus, 'Favorite added.', 'success');
   } catch (error) {
     console.warn('Failed to add favorite', error);

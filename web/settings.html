@@ -84,30 +84,73 @@
         </div>
       </section>
 
-      <nav class="settings-anchorNav" aria-label="Settings sections">
-        <a class="settings-anchorNav__item" href="#themeCardTitle">Appearance</a>
-        <a class="settings-anchorNav__item" href="#accessibilityTitle">Assistive profiles</a>
-        <a class="settings-anchorNav__item" href="#accountSectionTitle">Saved places</a>
-        <a class="settings-anchorNav__item" href="#travelPreferencesTitle">Travel preferences</a>
-        <a class="settings-anchorNav__item" href="#commuteSectionTitle">Commute</a>
-      </nav>
+      <div class="settings-content">
+        <aside class="settings-sidebar" aria-label="Settings navigation">
+          <nav class="settings-anchorNav" aria-label="Settings sections">
+            <a class="settings-anchorNav__item" href="#themeCardTitle">
+              <span class="settings-anchorNav__icon" aria-hidden="true">🎨</span>
+              <span class="settings-anchorNav__text">
+                <span class="settings-anchorNav__title">Appearance</span>
+                <span class="settings-anchorNav__hint">Theme &amp; mode</span>
+              </span>
+            </a>
+            <a class="settings-anchorNav__item" href="#accessibilityTitle">
+              <span class="settings-anchorNav__icon" aria-hidden="true">✨</span>
+              <span class="settings-anchorNav__text">
+                <span class="settings-anchorNav__title">Assistive profiles</span>
+                <span class="settings-anchorNav__hint">Visual boosts</span>
+              </span>
+            </a>
+            <a class="settings-anchorNav__item" href="#accountSectionTitle">
+              <span class="settings-anchorNav__icon" aria-hidden="true">📍</span>
+              <span class="settings-anchorNav__text">
+                <span class="settings-anchorNav__title">Saved places</span>
+                <span class="settings-anchorNav__hint">Home &amp; favorites</span>
+              </span>
+            </a>
+            <a class="settings-anchorNav__item" href="#travelPreferencesTitle">
+              <span class="settings-anchorNav__icon" aria-hidden="true">🧭</span>
+              <span class="settings-anchorNav__text">
+                <span class="settings-anchorNav__title">Preferences</span>
+                <span class="settings-anchorNav__hint">Modes &amp; alerts</span>
+              </span>
+            </a>
+            <a class="settings-anchorNav__item" href="#commuteSectionTitle">
+              <span class="settings-anchorNav__icon" aria-hidden="true">⏰</span>
+              <span class="settings-anchorNav__text">
+                <span class="settings-anchorNav__title">Commute</span>
+                <span class="settings-anchorNav__hint">Routine reminders</span>
+              </span>
+            </a>
+          </nav>
+          <section class="settings-sidebar__card" aria-label="Sync status">
+            <h2 class="settings-sidebar__title">Stay in sync</h2>
+            <p class="settings-sidebar__lead">Sign in so entrances, preferences, and commutes follow you on every device.</p>
+            <a class="settings-sidebar__action" href="/">Open ClearPath</a>
+          </section>
+        </aside>
 
-      <section class="settings-overview" aria-label="Personalization status">
-        <article class="settings-overview__card">
-          <span class="settings-overview__label">Theme</span>
-          <p id="settingsThemeSummary" class="settings-overview__value">Loading current theme…</p>
-        </article>
-        <article class="settings-overview__card">
-          <span class="settings-overview__label">Assistive profiles</span>
-          <p id="settingsAccessibilitySummary" class="settings-overview__value">Pick the boosts you need.</p>
-        </article>
-        <article class="settings-overview__card">
-          <span class="settings-overview__label">Commute</span>
-          <p id="settingsCommuteSummary" class="settings-overview__value">Commute reminders are off.</p>
-        </article>
-      </section>
+        <div class="settings-mainWrap">
+          <section class="settings-overview" aria-label="Personalization status">
+            <article class="settings-overview__card">
+              <span class="settings-overview__label">Theme</span>
+              <p id="settingsThemeSummary" class="settings-overview__value">Loading current theme…</p>
+            </article>
+            <article class="settings-overview__card">
+              <span class="settings-overview__label">Assistive profiles</span>
+              <p id="settingsAccessibilitySummary" class="settings-overview__value">Pick the boosts you need.</p>
+            </article>
+            <article class="settings-overview__card">
+              <span class="settings-overview__label">Commute</span>
+              <p id="settingsCommuteSummary" class="settings-overview__value">Commute reminders are off.</p>
+            </article>
+            <article class="settings-overview__card">
+              <span class="settings-overview__label">Saved places</span>
+              <p id="settingsPlacesSummary" class="settings-overview__value">Keep entrances synced across devices.</p>
+            </article>
+          </section>
 
-      <main class="settings-main" aria-labelledby="settingsTitle">
+          <main class="settings-main" aria-labelledby="settingsTitle">
         <section class="settings-card settings-card--theme" aria-labelledby="themeCardTitle">
           <div class="settings-card__header">
             <div class="settings-card__heading">
@@ -186,6 +229,7 @@
               <div class="settings-field">
                 <label class="settings-field__label" for="homeAddress">Home</label>
                 <div class="settings-field__controls">
+                  <input id="homeIcon" name="homeIcon" class="settings-emojiInput" type="text" inputmode="text" autocomplete="off" maxlength="2" placeholder="🏠" aria-label="Home icon" />
                   <input id="homeAddress" name="homeAddress" type="text" placeholder="Add home address" />
                   <button class="settings-field__button" type="button" data-action="save-home">Save</button>
                   <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-home">Clear</button>
@@ -194,6 +238,7 @@
               <div class="settings-field">
                 <label class="settings-field__label" for="workAddress">Work</label>
                 <div class="settings-field__controls">
+                  <input id="workIcon" name="workIcon" class="settings-emojiInput" type="text" inputmode="text" autocomplete="off" maxlength="2" placeholder="🏢" aria-label="Work icon" />
                   <input id="workAddress" name="workAddress" type="text" placeholder="Add work address" />
                   <button class="settings-field__button" type="button" data-action="save-work">Save</button>
                   <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-work">Clear</button>
@@ -205,6 +250,7 @@
               <div class="settings-field settings-field--stacked">
                 <label class="settings-field__label" for="favoriteName">Add favorite</label>
                 <div class="settings-favorite__inputs">
+                  <input id="favoriteIcon" name="favoriteIcon" class="settings-emojiInput" type="text" inputmode="text" autocomplete="off" maxlength="2" placeholder="⭐" aria-label="Favorite icon" />
                   <input id="favoriteName" name="favoriteName" type="text" placeholder="Label (e.g., Gym)" />
                   <input id="favoriteAddress" name="favoriteAddress" type="text" placeholder="Address or place" />
                   <button id="addFavoriteButton" class="settings-field__button" type="button">Add</button>
@@ -373,7 +419,9 @@
           </form>
           <p id="commuteStatus" class="settings-status" role="status" aria-live="polite"></p>
         </section>
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
     <script type="module" src="/settings.js"></script>
   </body>

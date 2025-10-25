@@ -1975,6 +1975,22 @@ function updateSheetVisualState(index) {
   dom.infoSheet.classList.toggle('sheet--expanded', index === snapPoints.length - 1);
 }
 
+function evaluateSheetOverlap() {
+  if (!dom.infoSheet) return;
+  const sheetRect = dom.infoSheet.getBoundingClientRect();
+  const margin = 12;
+  if (dom.topShell) {
+    const shellRect = dom.topShell.getBoundingClientRect();
+    const overlapsShell = sheetRect.top <= shellRect.bottom - margin;
+    dom.topShell.classList.toggle('top-shell--sheet-covered', overlapsShell);
+  }
+  if (dom.installBanner && !dom.installBanner.hidden) {
+    const bannerRect = dom.installBanner.getBoundingClientRect();
+    const overlapsBanner = sheetRect.top <= bannerRect.bottom - margin;
+    dom.installBanner.classList.toggle('install-banner--sheet-covered', overlapsBanner);
+  }
+}
+
 function applySheetSnap(index, { animate = true } = {}) {
   if (!dom.infoSheet) return;
   const snapPoints = state.sheet?.snapPoints || [0.3, 0.6, 0.9];
@@ -2003,6 +2019,9 @@ function applySheetSnap(index, { animate = true } = {}) {
   }
   if (!animate) {
     window.setTimeout(() => dom.infoSheet?.classList.remove('sheet--dragging'), 0);
+  }
+  if (dom.sheetContent) {
+    scheduleSheetCornerUpdate(dom.sheetContent.scrollTop || 0, 0);
   }
 }
 
