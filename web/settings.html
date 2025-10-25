@@ -254,6 +254,102 @@
           </form>
           <p id="preferencesStatus" class="settings-status" role="status" aria-live="polite"></p>
         </section>
+
+        <section id="commuteSection" class="settings-card settings-card--wide settings-card--commute" aria-labelledby="commuteSectionTitle">
+          <div class="settings-card__header">
+            <div class="settings-card__heading">
+              <p class="settings-card__eyebrow">Smart commute</p>
+              <h2 id="commuteSectionTitle" class="settings-card__title">Schedule your departures</h2>
+              <p class="settings-card__subtitle">Set morning and evening reminders so ClearPath surfaces the right entrance before you head out.</p>
+            </div>
+          </div>
+          <form id="commuteForm" class="settings-form" autocomplete="off">
+            <fieldset class="settings-fieldset">
+              <legend class="settings-fieldset__legend">Morning departure</legend>
+              <div class="settings-field settings-field--inline">
+                <div class="settings-field__group">
+                  <label class="settings-field__label" for="morningTime">Time</label>
+                  <input id="morningTime" name="morningTime" type="time" />
+                </div>
+                <div class="settings-field__group">
+                  <label class="settings-field__label" for="morningDestination">Destination</label>
+                  <select id="morningDestination" name="morningDestination">
+                    <option value="work">Work</option>
+                    <option value="home">Home</option>
+                    <option value="off">None</option>
+                  </select>
+                </div>
+                <div class="settings-field__group">
+                  <label class="settings-field__label" for="morningMode">Travel mode</label>
+                  <select id="morningMode" name="morningMode">
+                    <option value="drive">Drive</option>
+                    <option value="walk">Walk</option>
+                    <option value="transit">Transit</option>
+                    <option value="bike">Bike</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset class="settings-fieldset">
+              <legend class="settings-fieldset__legend">Evening return</legend>
+              <div class="settings-field settings-field--inline">
+                <div class="settings-field__group">
+                  <label class="settings-field__label" for="eveningTime">Time</label>
+                  <input id="eveningTime" name="eveningTime" type="time" />
+                </div>
+                <div class="settings-field__group">
+                  <label class="settings-field__label" for="eveningDestination">Destination</label>
+                  <select id="eveningDestination" name="eveningDestination">
+                    <option value="home">Home</option>
+                    <option value="work">Work</option>
+                    <option value="off">None</option>
+                  </select>
+                </div>
+                <div class="settings-field__group">
+                  <label class="settings-field__label" for="eveningMode">Travel mode</label>
+                  <select id="eveningMode" name="eveningMode">
+                    <option value="drive">Drive</option>
+                    <option value="walk">Walk</option>
+                    <option value="transit">Transit</option>
+                    <option value="bike">Bike</option>
+                  </select>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset class="settings-fieldset settings-fieldset--inline">
+              <legend class="settings-fieldset__legend">Active days</legend>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="mon" />
+                <span>Mon</span>
+              </label>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="tue" />
+                <span>Tue</span>
+              </label>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="wed" />
+                <span>Wed</span>
+              </label>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="thu" />
+                <span>Thu</span>
+              </label>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="fri" />
+                <span>Fri</span>
+              </label>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="sat" />
+                <span>Sat</span>
+              </label>
+              <label class="settings-toggle settings-toggle--pill">
+                <input type="checkbox" name="commuteDays" value="sun" />
+                <span>Sun</span>
+              </label>
+            </fieldset>
+          </form>
+          <p id="commuteStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
       </main>
     </div>
     <script type="module" src="/settings.js"></script>

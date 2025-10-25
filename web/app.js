@@ -2050,7 +2050,7 @@ function clearDestinationView() {
 
 function updateRouteOverview() {
   if (!dom.routeOverview) return;
-  if (!state.lastResult || !state.routeStops.length) {
+  if (!state.routeStops.length) {
     dom.routeOverview.textContent = 'Search to plan your route';
     return;
   }
@@ -3831,6 +3831,25 @@ function updateNavigationLinks() {
 
 function wireSearch() {
   if (!dom.searchInput || !dom.searchForm) return;
+  let hideFocusActionsTimer = null;
+
+  const showFocusActions = () => {
+    if (!dom.searchFocusActions) return;
+    if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
+    dom.searchFocusActions.hidden = false;
+  };
+
+  const scheduleHideFocusActions = () => {
+    if (!dom.searchFocusActions) return;
+    if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
+    hideFocusActionsTimer = window.setTimeout(() => {
+      const active = document.activeElement;
+      if (active === dom.searchInput) return;
+      if (dom.searchFocusActions?.contains(active)) return;
+      dom.searchFocusActions.hidden = true;
+    }, 120);
+  };
+
   dom.searchInput.addEventListener('input', () => {
     const value = dom.searchInput.value.trim();
     dom.clearSearch.hidden = !value;
@@ -3841,6 +3860,10 @@ function wireSearch() {
     state.searchInputFocused = true;
     updatePersonalizationVisibility();
     requestSuggestions();
+    showFocusActions();
+  });
+  dom.searchInput.addEventListener('pointerdown', () => {
+    showFocusActions();
   });
   dom.searchInput.addEventListener('blur', () => {
     state.searchInputFocused = false;
@@ -3848,6 +3871,7 @@ function wireSearch() {
       updatePersonalizationVisibility();
     }, 0);
     setTimeout(() => renderSuggestions([]), 150);
+    scheduleHideFocusActions();
   });
   dom.searchInput.addEventListener('keydown', (evt) => {
     if (!state.suggestions.length) return;
@@ -3877,11 +3901,25 @@ function wireSearch() {
       clearDestinationView();
     });
   }
+  if (dom.searchFocusActions) {
+    dom.searchFocusActions.addEventListener('pointerdown', () => {
+      if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
+      dom.searchFocusActions.hidden = false;
+    });
+    dom.searchFocusActions.addEventListener('focusin', () => {
+      if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
+      dom.searchFocusActions.hidden = false;
+    });
+    dom.searchFocusActions.addEventListener('focusout', () => {
+      scheduleHideFocusActions();
+    });
+  }
   dom.searchForm.addEventListener('submit', (evt) => {
     evt.preventDefault();
     if (!dom.searchInput) return;
     const query = dom.searchInput.value.trim();
     performSearch(query);
+    scheduleHideFocusActions();
   });
 }
 
