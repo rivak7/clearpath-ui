@@ -130,11 +130,13 @@ const dom = {
   splashProgress: document.getElementById('splashProgress'),
   splashProgressBar: document.getElementById('splashProgressBar'),
   map: document.getElementById('map'),
+  brandHome: document.getElementById('brandHome'),
   searchForm: document.getElementById('searchForm'),
   searchInput: document.getElementById('searchInput'),
   clearSearch: document.getElementById('clearSearch'),
   suggestions: document.getElementById('suggestions'),
   searchFocusActions: document.getElementById('searchFocusActions'),
+  searchRoutePlannerSlot: document.getElementById('searchRoutePlannerSlot'),
   infoSheet: document.getElementById('infoSheet'),
   insights: document.getElementById('insights'),
   directions: document.getElementById('directions'),
@@ -147,10 +149,10 @@ const dom = {
   installBanner: document.getElementById('installBanner'),
   installBannerConfirm: document.getElementById('installBannerConfirm'),
   installBannerDismiss: document.getElementById('installBannerDismiss'),
-  sheetLauncher: document.getElementById('openSheet'),
   sheetHandle: document.getElementById('sheetHandle'),
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
+  routePlannerDock: document.getElementById('routePlannerDock'),
   routePlanner: document.getElementById('routePlanner'),
   routeOverview: document.getElementById('routeOverview'),
   routeEditorToggle: document.getElementById('routeEditorToggle'),
@@ -709,6 +711,90 @@ function handleBootstrapError(error) {
   hideSplash({ delay: 0 });
 }
 
+function resetToHomeExperience({ focusSearch = true } = {}) {
+  if (state.bootstrapFailed) {
+    window.location.assign('/');
+    return;
+  }
+
+  if (state.pendingSearch) {
+    try {
+      state.pendingSearch.abort();
+    } catch {}
+    state.pendingSearch = null;
+  }
+  state.searchInFlight = false;
+
+  if (state.pendingSuggest) {
+    try {
+      state.pendingSuggest.abort();
+    } catch {}
+    state.pendingSuggest = null;
+  }
+
+  if (dom.searchInput) {
+    dom.searchInput.value = '';
+    dom.searchInput.disabled = false;
+    dom.searchInput.removeAttribute('aria-busy');
+  }
+  if (dom.clearSearch) {
+    dom.clearSearch.hidden = true;
+  }
+
+  state.suggestions = [];
+  state.activeSuggestion = -1;
+  renderSuggestions([]);
+
+  state.searchCount = 0;
+  state.lastRecordedResultKey = null;
+  state.pendingPlaceTarget = null;
+  state.locateInFlight = null;
+  if (state.locateFeedbackTimer) {
+    window.clearTimeout(state.locateFeedbackTimer);
+    state.locateFeedbackTimer = null;
+  }
+  state.confirmationHistory?.clear?.();
+  state.lastConfirmationPromptAt = 0;
+  hideEntranceConfirmation({ mark: false });
+
+  clearDestinationView();
+
+  if (state.map) {
+    const target = [DEFAULT_VIEW.lat, DEFAULT_VIEW.lon];
+    const reduceMotion = shouldReduceMotion();
+    const animate = !reduceMotion;
+    if (typeof state.map.flyTo === 'function' && animate) {
+      state.map.flyTo(target, DEFAULT_VIEW.zoom, { duration: 0.6, easeLinearity: 0.18 });
+    } else if (typeof state.map.setView === 'function') {
+      state.map.setView(target, DEFAULT_VIEW.zoom, { animate });
+    }
+  }
+
+  updateNavigationLinks();
+
+  if (dom.personalizationRail) {
+    state.searchInputFocused = false;
+    state.personalizationRailFocused = false;
+    state.personalizationRailHovered = false;
+    updatePersonalizationVisibility();
+  }
+
+  closeAccountMenu();
+  if (dom.authDialog && !dom.authDialog.hidden) {
+    closeAuthDialog({ delay: 0 });
+  }
+
+  if (focusSearch && dom.searchInput) {
+    window.requestAnimationFrame(() => {
+      try {
+        dom.searchInput.focus({ preventScroll: true });
+      } catch {
+        dom.searchInput.focus?.();
+      }
+    });
+  }
+}
+
 function setStatus(message, type = 'info') {
   if (!dom.statusMessage) return;
   dom.statusMessage.textContent = message || '';
@@ -746,6 +832,14 @@ function derivePlaceLabel(result) {
   }
   if (dom.searchInput && dom.searchInput.value.trim()) return dom.searchInput.value.trim();
   return 'Saved place';
+}
+
+function formatClock(value) {
+  if (!value || typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) return value || '';
+  const [hours, minutes] = value.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function derivePlaceAddress(result) {
@@ -1136,6 +1230,17 @@ function renderPreferenceSummary(preferences) {
     const count = preferences.accessibilityProfiles.length;
     pieces.push(`${count} accessibility boost${count > 1 ? 's' : ''}`);
   }
+  const commutePlan = state.account?.user?.commutePlan;
+  if (commutePlan) {
+    const morningEnabled = commutePlan.morning?.enabled !== false && (commutePlan.morning?.destinationKey || '').toLowerCase() !== 'off';
+    const eveningEnabled = commutePlan.evening?.enabled !== false && (commutePlan.evening?.destinationKey || '').toLowerCase() !== 'off';
+    if (morningEnabled && commutePlan.morning?.time) {
+      pieces.push(`AM commute · ${formatClock(commutePlan.morning.time)} → ${commutePlan.morning.destinationLabel || 'Work'}`);
+    }
+    if (eveningEnabled && commutePlan.evening?.time) {
+      pieces.push(`PM commute · ${formatClock(commutePlan.evening.time)} → ${commutePlan.evening.destinationLabel || 'Home'}`);
+    }
+  }
   dom.accountPreferenceSummary.textContent = pieces.length
     ? pieces.join(' · ')
     : 'Tailor your commute, map appearance, and accessibility boosts.';
@@ -1240,6 +1345,81 @@ function renderPersonalizationRecents(recents) {
   dom.personalizationRecents.hidden = false;
 }
 
+function computeMinutesUntil(time, reference) {
+  if (!time || typeof time !== 'string' || !/^\d{2}:\d{2}$/.test(time)) return Number.POSITIVE_INFINITY;
+  const [hours, minutes] = time.split(':').map((value) => Number.parseInt(value, 10));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number.POSITIVE_INFINITY;
+  const scheduled = hours * 60 + minutes;
+  const nowMinutes = reference.getHours() * 60 + reference.getMinutes();
+  return scheduled - nowMinutes;
+}
+
+function travelModeIcon(mode) {
+  switch (mode) {
+    case 'walk':
+      return '🚶';
+    case 'transit':
+      return '🚆';
+    case 'bike':
+      return '🚲';
+    default:
+      return '🚗';
+  }
+}
+
+function computeCommuteSuggestions(user) {
+  const plan = user?.commutePlan;
+  if (!plan) return [];
+  const days = Array.isArray(plan.days) ? plan.days : [];
+  if (!days.length) return [];
+  const saved = user.savedPlaces || {};
+  const now = new Date();
+  const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const currentKey = dayKeys[now.getDay()];
+  if (!days.includes(currentKey)) return [];
+
+  const legs = [
+    { slot: 'morning', leg: plan.morning, fallback: 'work' },
+    { slot: 'evening', leg: plan.evening, fallback: 'home' },
+  ];
+  const out = [];
+  legs.forEach(({ slot, leg, fallback }) => {
+    if (!leg || leg.enabled === false) return;
+    const destinationKey = (leg.destinationKey || leg.placeId || fallback || '').toLowerCase();
+    if (!['home', 'work'].includes(destinationKey)) return;
+    const place = destinationKey === 'home' ? saved.home : saved.work;
+    if (!place) return;
+    const diff = computeMinutesUntil(leg.time, now);
+    if (diff < -45 || diff > 120) return;
+    const icon = travelModeIcon(leg.travelMode);
+    const label = slot === 'morning'
+      ? `${icon} Leave for ${leg.destinationLabel || 'Work'}`
+      : `${icon} Head to ${leg.destinationLabel || 'Home'}`;
+    const timeLabel = formatClock(leg.time);
+    const meta = Number.isFinite(diff)
+      ? diff > 0
+        ? `${timeLabel} · in ${diff} min`
+        : diff >= -15
+          ? `${timeLabel} · ready now`
+          : `${timeLabel} · ${Math.abs(diff)} min ago`
+      : timeLabel || '';
+    out.push({
+      type: 'commute',
+      label,
+      icon,
+      place,
+      subtitle: meta,
+      commute: {
+        slot,
+        destinationKey,
+        travelMode: leg.travelMode || 'drive',
+        meta,
+      },
+    });
+  });
+  return out;
+}
+
 function updatePersonalizationVisibility() {
   if (!dom.personalizationRail) return;
   const engaged = state.searchInputFocused || state.personalizationRailFocused || state.personalizationRailHovered;
@@ -1283,6 +1463,13 @@ function handlePersonalizationChipClick(event) {
   if (!target.classList.contains('personalization__chip')) return;
   const type = target.dataset.placeType;
   const placeId = target.dataset.placeId;
+  if (type === 'commute') {
+    const destinationKey = target.dataset.destinationKey || placeId;
+    const travelMode = target.dataset.travelMode || 'drive';
+    handleCommuteQuickAction(destinationKey, travelMode);
+    toggleAccountMenu(false);
+    return;
+  }
   const place = resolvePlaceFromType(type, placeId);
   if (place) {
     openSavedPlace(place);
@@ -1332,6 +1519,28 @@ function openRecentEntry(entry) {
   if (Number.isFinite(entry.lat) && Number.isFinite(entry.lon) && state.map) {
     state.map.setView([Number(entry.lat), Number(entry.lon)], 18, { animate: true });
   }
+}
+
+function handleCommuteQuickAction(destinationKey, travelMode) {
+  const user = state.account?.user;
+  if (!user) {
+    openAuthDialog('login');
+    return;
+  }
+  const saved = user.savedPlaces || {};
+  let place = null;
+  if (destinationKey === 'home') place = saved.home;
+  else if (destinationKey === 'work') place = saved.work;
+  if (!place) {
+    setStatus('Save that destination in settings to use commute reminders.', 'error');
+    return;
+  }
+  openSavedPlace(place);
+  if (travelMode && travelMode !== state.routeMode) {
+    setRouteMode(travelMode);
+  }
+  const label = place.label || (destinationKey === 'home' ? 'Home' : destinationKey === 'work' ? 'Work' : 'Saved place');
+  setStatus(`Commute to ${label} ready. Adjust stops if you need a detour.`, 'success');
 }
 
 function handleAccountButtonClick() {
@@ -1764,9 +1973,6 @@ function updateSheetVisualState(index) {
   const snapPoints = state.sheet?.snapPoints || [];
   dom.infoSheet.classList.toggle('sheet--peek', index === 0);
   dom.infoSheet.classList.toggle('sheet--expanded', index === snapPoints.length - 1);
-  if (dom.sheetLauncher) {
-    dom.sheetLauncher.hidden = index !== 0;
-  }
 }
 
 function applySheetSnap(index, { animate = true } = {}) {
@@ -2034,6 +2240,7 @@ function clearRoutePlanner() {
   if (dom.sheetReset) dom.sheetReset.hidden = true;
   updateRouteOverview();
   updateRoutePlannerVisibility();
+  restoreRoutePlannerToDock();
 }
 
 function clearDestinationView() {
@@ -2106,6 +2313,18 @@ function updateRoutePlannerVisibility() {
     dom.routeEditorToggle.textContent = expanded ? 'Done' : 'Edit route';
     dom.routeEditorToggle.setAttribute('aria-expanded', String(expanded));
   }
+}
+
+function mountRoutePlannerInSearch() {
+  if (!dom.routePlanner || !dom.searchRoutePlannerSlot) return;
+  if (dom.searchRoutePlannerSlot.contains(dom.routePlanner)) return;
+  dom.searchRoutePlannerSlot.appendChild(dom.routePlanner);
+}
+
+function restoreRoutePlannerToDock() {
+  if (!dom.routePlanner || !dom.routePlannerDock) return;
+  if (dom.routePlannerDock.contains(dom.routePlanner)) return;
+  dom.routePlannerDock.appendChild(dom.routePlanner);
 }
 
 function setRoutePlannerExpanded(expanded) {
@@ -2269,6 +2488,7 @@ function addRouteStop() {
   const stop = createRouteStop('stop', '');
   state.routeStops.splice(insertIndex, 0, stop);
   renderRouteStops({ preserveFocus: false });
+  updateRouteSummary();
   if (dom.searchFocusActions) {
     dom.searchFocusActions.hidden = true;
   }
@@ -3885,6 +4105,8 @@ function wireSearch() {
     if (!dom.searchFocusActions) return;
     if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
     dom.searchFocusActions.hidden = false;
+    mountRoutePlannerInSearch();
+    setRoutePlannerExpanded(true);
   };
 
   const scheduleHideFocusActions = () => {
@@ -3895,6 +4117,7 @@ function wireSearch() {
       if (active === dom.searchInput) return;
       if (dom.searchFocusActions?.contains(active)) return;
       dom.searchFocusActions.hidden = true;
+      restoreRoutePlannerToDock();
     }, 120);
   };
 
@@ -3953,10 +4176,12 @@ function wireSearch() {
     dom.searchFocusActions.addEventListener('pointerdown', () => {
       if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
       dom.searchFocusActions.hidden = false;
+      mountRoutePlannerInSearch();
     });
     dom.searchFocusActions.addEventListener('focusin', () => {
       if (hideFocusActionsTimer) window.clearTimeout(hideFocusActionsTimer);
       dom.searchFocusActions.hidden = false;
+      mountRoutePlannerInSearch();
     });
     dom.searchFocusActions.addEventListener('focusout', () => {
       scheduleHideFocusActions();
@@ -3971,6 +4196,17 @@ function wireSearch() {
   });
 }
 
+function wireHomeNavigation() {
+  if (!dom.brandHome) return;
+  dom.brandHome.addEventListener('click', (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    resetToHomeExperience({ focusSearch: true });
+  });
+}
+
 function wireLocateButton() {
   if (!dom.locateButton) return;
   dom.locateButton.addEventListener('click', () => {
@@ -3978,17 +4214,6 @@ function wireLocateButton() {
       focusOnUserLocation({ animate: true, useFly: true });
     }
     startGeolocation({ centerOnSuccess: true, userInitiated: true });
-  });
-}
-
-function wireSheetLauncher() {
-  if (!dom.sheetLauncher) return;
-  dom.sheetLauncher.addEventListener('click', () => {
-    if (!dom.infoSheet) return;
-    dom.infoSheet.hidden = false;
-    dom.infoSheet.setAttribute('aria-hidden', 'false');
-    const targetIndex = state.sheet.index > 0 ? state.sheet.index : Math.min(1, (state.sheet?.snapPoints?.length || 2) - 1);
-    applySheetSnap(targetIndex || 1, { animate: true });
   });
 }
 
@@ -4014,8 +4239,18 @@ function wireEntranceConfirmation() {
     });
   }
   if (dom.entranceConfirmNo) {
-    dom.entranceConfirmNo.addEventListener('click', () => {
-      hideEntranceConfirmation({ mark: true });
+    const dismissPrompt = (event) => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      hideEntranceConfirmation({ mark: true, reason: 'dismiss' });
+    };
+    dom.entranceConfirmNo.addEventListener('click', dismissPrompt);
+    dom.entranceConfirmNo.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        dismissPrompt(event);
+      }
     });
   }
 }
@@ -4145,12 +4380,12 @@ function init() {
     initMap();
     advanceSplashProgress(0.28);
     wireSearch();
+    wireHomeNavigation();
     wireLocateButton();
     wireEntranceConfirmation();
     wireCommunityEntranceControls();
-    initSheetInteractions();
-    wireSheetLauncher();
-    initRoutePlanner();
+  initSheetInteractions();
+  initRoutePlanner();
     resetSheetHeadings();
     advanceSplashProgress(0.55);
     if (isStandaloneDisplayMode()) {

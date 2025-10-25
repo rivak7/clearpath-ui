@@ -68,6 +68,9 @@ const eveningTimeInput = document.getElementById('eveningTime');
 const eveningDestinationSelect = document.getElementById('eveningDestination');
 const eveningModeSelect = document.getElementById('eveningMode');
 const commuteStatus = document.getElementById('commuteStatus');
+const themeOverview = document.getElementById('settingsThemeSummary');
+const accessibilityOverview = document.getElementById('settingsAccessibilitySummary');
+const commuteOverview = document.getElementById('settingsCommuteSummary');
 
 const accessibilityControls = new Map();
 const featureMeta = new Map(ACCESSIBILITY_FEATURES.map((feature) => [feature.id, feature]));
@@ -76,6 +79,17 @@ let accountSnapshot = { user: null, ready: false };
 
 const PENDING_AUTH_KEY = 'clearpath-ui:pending-auth-mode';
 let commuteDebounce = null;
+const DAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const DAY_LABELS = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+};
+const COMMUTE_DEFAULT_SUMMARY = 'Commute reminders are off.';
 
 function titleCase(value) {
   if (!value) return '';
@@ -83,6 +97,14 @@ function titleCase(value) {
 }
 
 function formatTime(date) {
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatClockTime(value) {
+  if (!value || typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) return value || '';
+  const [hours, minutes] = value.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
@@ -106,17 +128,76 @@ function getNextAutoBoundary(reference = new Date()) {
   return { next, upcomingTheme };
 }
 
+function formatClock(value) {
+  if (!value || typeof value !== 'string') return '';
+  const [hourString, minuteString = '0'] = value.split(':');
+  const hour = Number.parseInt(hourString, 10);
+  const minute = Number.parseInt(minuteString, 10);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return value;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const normalizedHour = hour % 12 || 12;
+  const paddedMinute = minute.toString().padStart(2, '0');
+  return `${normalizedHour}:${paddedMinute} ${period}`;
+}
+
+function formatDaySummary(days) {
+  if (!Array.isArray(days) || !days.length) return '';
+  const normalized = Array.from(new Set(days.map((day) => (day || '').toLowerCase()))).filter((day) => DAY_ORDER.includes(day));
+  if (!normalized.length) return '';
+  if (normalized.length === DAY_ORDER.length) return 'Every day';
+  const weekdays = DAY_ORDER.slice(0, 5);
+  if (normalized.length === 5 && weekdays.every((day) => normalized.includes(day))) return 'Weekdays';
+  if (normalized.length === 2 && normalized.includes('sat') && normalized.includes('sun')) return 'Weekends';
+  return normalized.map((day) => DAY_LABELS[day] || titleCase(day)).join(' · ');
+}
+
+function describeCommuteLeg(leg, fallbackDestination) {
+  if (!leg) return null;
+  const destinationKey = (leg.destinationKey || leg.placeId || '').toLowerCase();
+  const destinationLabel = leg.destinationLabel || fallbackDestination || '';
+  const enabled = leg.enabled !== false && destinationKey !== 'off' && destinationLabel.toLowerCase() !== 'off';
+  if (!enabled) return null;
+  const destination = destinationKey === 'home'
+    ? 'Home'
+    : destinationKey === 'work'
+      ? 'Work'
+      : destinationLabel
+        ? destinationLabel
+        : 'Destination';
+  const timeFragment = formatClock(leg.time) || 'Any time';
+  const modeFragment = leg.travelMode ? titleCase(String(leg.travelMode)) : '';
+  const descriptor = `${timeFragment} → ${destination}`;
+  return modeFragment ? `${descriptor} (${modeFragment})` : descriptor;
+}
+
+function summarizeCommutePlan(plan) {
+  if (!plan) return COMMUTE_DEFAULT_SUMMARY;
+  const parts = [];
+  const morningPart = describeCommuteLeg(plan.morning, 'Work');
+  if (morningPart) parts.push(morningPart);
+  const eveningPart = describeCommuteLeg(plan.evening, 'Home');
+  if (eveningPart) parts.push(eveningPart);
+  if (!parts.length) return COMMUTE_DEFAULT_SUMMARY;
+  const daySummary = formatDaySummary(plan.days || []);
+  return daySummary ? `${daySummary} · ${parts.join(' | ')}` : parts.join(' | ');
+}
+
 function updateThemeStatus({ mode, theme }) {
-  if (!themeStatusChip) return;
   const readableTheme = titleCase(theme);
+  let chipText = '';
+  let summaryText = '';
   if (mode === ThemeMode.AUTO) {
     const { next, upcomingTheme } = getNextAutoBoundary();
     const formattedTime = formatTime(next);
     const readableUpcoming = titleCase(upcomingTheme);
-    themeStatusChip.textContent = `Auto · ${readableTheme} now → ${readableUpcoming} at ${formattedTime}.`;
+    chipText = `Auto · ${readableTheme} now → ${readableUpcoming} at ${formattedTime}.`;
+    summaryText = `Auto • ${readableTheme} now, ${readableUpcoming} at ${formattedTime}`;
   } else {
-    themeStatusChip.textContent = `Locked to ${readableTheme}.`;
+    chipText = `Locked to ${readableTheme}.`;
+    summaryText = `Locked to ${readableTheme}`;
   }
+  if (themeStatusChip) themeStatusChip.textContent = chipText;
+  if (themeOverview) setSummary(themeOverview, summaryText);
 }
 
 function syncThemeSelection(mode) {
@@ -232,22 +313,26 @@ function syncAccessibilitySelection(state) {
 }
 
 function updateAccessibilityStatus(state) {
-  if (!accessibilityStatusChip) return;
   const active = state?.features || [];
-  if (!active.length) {
-    accessibilityStatusChip.textContent = 'Pick the boosts you need.';
-    return;
+  let chipText = 'Pick the boosts you need.';
+  let summaryText = 'No profiles active.';
+  if (active.length) {
+    const labels = active
+      .map((id) => featureMeta.get(id))
+      .filter(Boolean)
+      .map((feature) => feature.shortLabel || feature.label);
+    if (active.length === ACCESSIBILITY_FEATURES.length) {
+      chipText = `All profiles on: ${labels.join(', ')}.`;
+      summaryText = 'All assistive profiles active.';
+    } else {
+      const readableList = labels.join(', ');
+      const suffix = active.length === 1 ? 'profile active' : 'profiles active';
+      chipText = `${readableList} ${suffix}.`;
+      summaryText = `Active: ${readableList}`;
+    }
   }
-  const labels = active
-    .map((id) => featureMeta.get(id))
-    .filter(Boolean)
-    .map((feature) => feature.shortLabel || feature.label);
-  if (active.length === ACCESSIBILITY_FEATURES.length) {
-    accessibilityStatusChip.textContent = `All profiles on: ${labels.join(', ')}.`;
-    return;
-  }
-  const readableList = labels.join(', ');
-  accessibilityStatusChip.textContent = `${readableList} ${active.length === 1 ? 'profile' : 'profiles'} active.`;
+  if (accessibilityStatusChip) accessibilityStatusChip.textContent = chipText;
+  if (accessibilityOverview) setSummary(accessibilityOverview, summaryText);
 }
 
 function onAccessibilityToggle(event) {
@@ -279,6 +364,11 @@ function applyThemeAccessibilityLocks(activeSetOrState) {
   if (lowVisionActive && lightControl.checked) {
     setThemeMode(ThemeMode.DARK);
   }
+}
+
+function setSummary(element, message) {
+  if (!element) return;
+  element.textContent = message && message.trim() ? message : '—';
 }
 
 function showStatus(element, message, type = 'info') {
@@ -449,6 +539,10 @@ function renderCommutePlan(plan) {
   checkboxes.forEach((box) => {
     box.checked = days.has(box.value);
   });
+
+  if (commuteOverview) {
+    setSummary(commuteOverview, summarizeCommutePlan(plan));
+  }
 }
 
 function renderAccountSettings(snapshot) {
@@ -482,6 +576,7 @@ function renderAccountSettings(snapshot) {
     if (preferencesStatus) showStatus(preferencesStatus, 'Sign in to change travel preferences.');
     if (commuteStatus) showStatus(commuteStatus, 'Sign in to schedule your commute.');
     renderCommutePlan(null);
+    if (commuteOverview) setSummary(commuteOverview, 'Sign in to schedule your commute.');
     return;
   }
 
@@ -492,7 +587,14 @@ function renderAccountSettings(snapshot) {
   renderCommutePlan(user.commutePlan || {});
   if (savedPlacesStatus) showStatus(savedPlacesStatus, '');
   if (preferencesStatus) showStatus(preferencesStatus, '');
-  if (commuteStatus) showStatus(commuteStatus, '');
+  if (commuteStatus) {
+    const morningEnabled = user.commutePlan?.morning?.enabled !== false && (user.commutePlan?.morning?.destinationKey || '').toLowerCase() !== 'off';
+    const eveningEnabled = user.commutePlan?.evening?.enabled !== false && (user.commutePlan?.evening?.destinationKey || '').toLowerCase() !== 'off';
+    const message = morningEnabled || eveningEnabled
+      ? 'Commute reminders will surface before your scheduled departures.'
+      : 'Set a time and destination to unlock commute reminders.';
+    showStatus(commuteStatus, message);
+  }
 }
 
 async function handleSavedPlaceAction(action) {
