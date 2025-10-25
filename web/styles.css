@@ -1597,20 +1597,43 @@ body {
   color: #f7b500 !important;
 }
 
-:root.accessibility-focus *:focus-visible {
-  outline: 3px solid #ffb100 !important;
-  box-shadow: 0 0 0 4px rgba(255, 177, 0, 0.4) !important;
+:root.accessibility-focus {
+  --focus-ring-color: #ffb100;
+  --focus-ring-glow: rgba(255, 177, 0, 0.48);
+  --focus-surface-border: rgba(255, 177, 0, 0.42);
+  --focus-surface-shadow: 0 0 0 3px rgba(255, 177, 0, 0.28), 0 18px 48px rgba(8, 8, 10, 0.45);
+  --focus-map-filter: saturate(0.85) brightness(0.92);
+  --focus-map-overlay: radial-gradient(circle at 50% 35%, rgba(0, 0, 0, 0.55) 0, rgba(0, 0, 0, 0.55) 36%, rgba(0, 0, 0, 0.72) 100%);
+}
+
+:root.accessibility-focus *:focus-visible,
+:root.accessibility-focus *:focus {
+  outline: 3px solid var(--focus-ring-color) !important;
+  box-shadow: 0 0 0 4px var(--focus-ring-glow) !important;
+  transition: box-shadow 0.18s ease, outline 0.18s ease;
 }
 
 :root.accessibility-focus .sheet,
 :root.accessibility-focus .top-shell,
 :root.accessibility-focus .theme-option__body,
-:root.accessibility-focus .accessibility-card__body {
-  box-shadow: var(--sheet-shadow), 0 0 0 2px rgba(255, 177, 0, 0.12);
+:root.accessibility-focus .accessibility-card__body,
+:root.accessibility-focus .direction-step,
+:root.accessibility-focus .insight {
+  box-shadow: var(--focus-surface-shadow);
+  border-color: var(--focus-surface-border);
 }
 
 :root.accessibility-focus .sheet {
   scroll-margin-top: 56px;
+  scroll-snap-type: y proximity;
+  overflow-y: auto;
+}
+
+:root.accessibility-focus .direction-step,
+:root.accessibility-focus .insight,
+:root.accessibility-focus .theme-option__body,
+:root.accessibility-focus .accessibility-card__body {
+  scroll-snap-align: start;
 }
 
 :root.accessibility-focus .map-stage::after {
@@ -1618,7 +1641,40 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 35%, transparent 0%, transparent 35%, rgba(0, 0, 0, 0.25) 80%);
+  background: var(--focus-map-overlay);
+  mix-blend-mode: multiply;
+  z-index: 2;
+}
+
+:root.accessibility-focus .map,
+:root.accessibility-focus .leaflet-control-container {
+  filter: var(--focus-map-filter);
+}
+
+:root.accessibility-focus .fab {
+  box-shadow: 0 0 0 3px var(--focus-surface-border), 0 20px 48px rgba(8, 8, 10, 0.5);
+}
+
+[data-theme='dark'].accessibility-focus {
+  --focus-map-filter: saturate(0.9) brightness(0.85);
+  --focus-map-overlay: radial-gradient(circle at 50% 35%, rgba(0, 0, 0, 0.6) 0, rgba(0, 0, 0, 0.6) 38%, rgba(0, 0, 0, 0.8) 100%);
+}
+
+:root.accessibility-focus.accessibility-colorblind {
+  --focus-ring-color: #ffd147;
+  --focus-ring-glow: rgba(255, 209, 71, 0.5);
+  --focus-surface-border: rgba(255, 209, 71, 0.45);
+  --focus-surface-shadow: 0 0 0 3px rgba(255, 209, 71, 0.25), 0 18px 48px rgba(5, 20, 44, 0.55);
+  --focus-map-filter: saturate(0.95) brightness(0.95);
+}
+
+:root.accessibility-focus.accessibility-lowvision {
+  --focus-ring-color: #ffe066;
+  --focus-ring-glow: rgba(255, 224, 102, 0.7);
+  --focus-surface-border: rgba(255, 224, 102, 0.65);
+  --focus-surface-shadow: 0 0 0 3px rgba(255, 224, 102, 0.6), 0 24px 54px rgba(0, 0, 0, 0.7);
+  --focus-map-filter: none;
+  --focus-map-overlay: radial-gradient(circle at 50% 35%, rgba(0, 0, 0, 0.55) 0, rgba(0, 0, 0, 0.55) 42%, rgba(0, 0, 0, 0.78) 100%);
 }
 
 :root.accessibility-calm *,
