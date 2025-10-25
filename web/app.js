@@ -659,6 +659,54 @@ function hideSplash({ delay = 0 } = {}) {
   }
 }
 
+function handleBootstrapError(error) {
+  console.error('ClearPath failed to initialize', error);
+  state.bootstrapFailed = true;
+  const isLeafletUnavailable = error?.code === 'leaflet_unavailable';
+  const fallbackMessage = isLeafletUnavailable
+    ? 'We could not load the map tiles. Check your connection and refresh to try again.'
+    : 'We hit an unexpected issue while starting ClearPath. Refresh to try again.';
+  updateSplashMessage(fallbackMessage);
+  setSplashProgress(1);
+  if (dom.splashProgressBar) {
+    dom.splashProgressBar.setAttribute('aria-busy', 'false');
+  }
+
+  if (dom.map) {
+    dom.map.classList.add('map--unavailable');
+    dom.map.replaceChildren();
+
+    const container = document.createElement('div');
+    container.className = 'map__fallback';
+    container.setAttribute('role', 'alert');
+
+    const title = document.createElement('h2');
+    title.className = 'map__fallbackTitle';
+    title.textContent = isLeafletUnavailable ? 'Map unavailable' : 'ClearPath is unavailable';
+
+    const hint = document.createElement('p');
+    hint.className = 'map__fallbackHint';
+    hint.textContent = fallbackMessage;
+
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'map__fallbackAction';
+    action.textContent = 'Reload';
+    action.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    container.append(title, hint, action);
+    dom.map.appendChild(container);
+  }
+
+  setStatus(isLeafletUnavailable
+    ? 'Map failed to load. Refresh once you have a connection.'
+    : 'ClearPath could not finish loading. Refresh to try again.', 'error');
+
+  hideSplash({ delay: 0 });
+}
+
 function setStatus(message, type = 'info') {
   if (!dom.statusMessage) return;
   dom.statusMessage.textContent = message || '';
@@ -930,6 +978,18 @@ function renderAccountSnapshot(snapshot) {
   if (!user) {
     state.lastRecordedResultKey = null;
     toggleAccountMenu(false);
+  }
+  if (state.pendingAuthMode) {
+    openAuthDialog(state.pendingAuthMode);
+    state.pendingAuthMode = null;
+  }
+  if (state.pendingAccountOpen) {
+    if (user) {
+      toggleAccountMenu(true);
+      state.pendingAccountOpen = false;
+    } else {
+      openAuthDialog('login');
+    }
   }
 }
 
@@ -1978,6 +2038,8 @@ function clearDestinationView() {
   if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
   setStatus('');
   resetSheetHeadings();
+  updateRouteOverview();
+  updateRoutePlannerVisibility();
   if (dom.infoSheet) {
     window.requestAnimationFrame(() => applySheetSnap(0, { animate: true }));
   }
@@ -3953,25 +4015,29 @@ function setupInstallPrompt() {
 
 function init() {
   showSplash({ mode: 'bootstrap', progress: 0.12 });
-  initMap();
-  advanceSplashProgress(0.28);
-  wireSearch();
-  wireLocateButton();
-  wireEntranceConfirmation();
-  wireCommunityEntranceControls();
-  initSheetInteractions();
-  wireSheetLauncher();
-  initRoutePlanner();
-  resetSheetHeadings();
-  advanceSplashProgress(0.55);
-  if (isStandaloneDisplayMode()) {
-    hideInstallBanner({ persistDismiss: true });
+  try {
+    initMap();
+    advanceSplashProgress(0.28);
+    wireSearch();
+    wireLocateButton();
+    wireEntranceConfirmation();
+    wireCommunityEntranceControls();
+    initSheetInteractions();
+    wireSheetLauncher();
+    initRoutePlanner();
+    resetSheetHeadings();
+    advanceSplashProgress(0.55);
+    if (isStandaloneDisplayMode()) {
+      hideInstallBanner({ persistDismiss: true });
+    }
+    setupInstallPrompt();
+    registerServiceWorker();
+    primeGeolocation();
+    advanceSplashProgress(0.82, 120);
+    hideSplash({ delay: 360 });
+  } catch (error) {
+    handleBootstrapError(error);
   }
-  setupInstallPrompt();
-  registerServiceWorker();
-  primeGeolocation();
-  advanceSplashProgress(0.82, 120);
-  hideSplash({ delay: 360 });
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -374,6 +374,68 @@ body {
   z-index: 0;
 }
 
+.map--unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 6vw, 72px);
+  text-align: center;
+  background: radial-gradient(circle at top, rgba(62, 214, 193, 0.18), transparent 65%), var(--bg);
+}
+
+.map__fallback {
+  max-width: min(420px, 90vw);
+  padding: clamp(18px, 4vw, 32px);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--theme-border);
+  display: grid;
+  gap: clamp(10px, 2vw, 18px);
+  color: var(--text-strong);
+}
+
+.map__fallbackTitle {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.6vw, 1.6rem);
+  font-weight: 600;
+}
+
+.map__fallbackHint {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+
+.map__fallbackAction {
+  justify-self: center;
+  padding: 0.65em 1.6em;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #032229;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.18);
+}
+
+.map__fallbackAction:hover,
+.map__fallbackAction:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.26);
+}
+
+.map__fallbackAction:focus-visible {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
+
+.map__fallbackAction:active {
+  transform: translateY(1px);
+  box-shadow: 0 6px 14px rgba(14, 165, 233, 0.18);
+}
+
 .top-shell {
   position: absolute;
   top: calc(var(--safe-area-top) + clamp(12px, 4vh, 24px));
@@ -873,17 +935,6 @@ body {
 .sheet__handle:focus-visible {
   outline: 2px solid var(--accent-outline);
   outline-offset: 6px;
-}
-
-.sheet__handle::after {
-  content: '\25B2';
-  font-size: clamp(0.85rem, 0.2vw + 0.82rem, 1.05rem);
-  opacity: 0.68;
-  transition: transform 0.25s ease, opacity 0.2s ease;
-}
-
-.sheet:not(.sheet--peek) .sheet__handle::after {
-  transform: rotate(180deg);
 }
 
 .sheet__handleGrip {
@@ -1731,8 +1782,22 @@ body {
   animation: mapLocateSpin 0.9s linear infinite;
 }
 
+.map-locate--active {
+  background: var(--accent);
+  color: var(--text-invert);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.map-locate--active:hover,
+.map-locate--active:focus-visible {
+  background: var(--accent);
+  color: var(--text-invert);
+}
+
 .map-locate--error {
-  animation: mapLocateError 0.45s ease-in-out 0s 2;
+  background: rgba(228, 88, 110, 0.9);
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(228, 88, 110, 0.35);
 }
 
 @keyframes fabSpin {
@@ -1762,18 +1827,6 @@ body {
   }
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes mapLocateError {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-2px);
-  }
-  75% {
-    transform: translateX(2px);
   }
 }
 
@@ -2971,10 +3024,6 @@ body {
   transform: none;
 }
 
-:root.accessibility-calm .map-locate--error {
-  animation: none !important;
-}
-
 :root.accessibility-calm .map-locate--loading::after {
   animation: none !important;
 }
@@ -3006,8 +3055,7 @@ body {
   .splash__glow,
   .splash__progressFill,
   .splash__progressFill::after,
-  .map-locate--loading::after,
-  .map-locate--error {
+  .map-locate--loading::after {
     animation: none !important;
   }
 }
