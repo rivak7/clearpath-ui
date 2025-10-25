@@ -43,6 +43,7 @@ const dom = {
   infoSheet: document.getElementById('infoSheet'),
   insights: document.getElementById('insights'),
   directions: document.getElementById('directions'),
+  navLinks: document.getElementById('navLinks'),
   statusMessage: document.getElementById('statusMessage'),
   sheetTitle: document.getElementById('sheetTitle'),
   sheetSubtitle: document.getElementById('sheetSubtitle'),
@@ -593,6 +594,7 @@ function renderResult(data) {
 
   updateInsights(data);
   updateDirections();
+  updateNavigationLinks();
   updateSheetHeadings(data);
 }
 
@@ -745,12 +747,47 @@ function updateDirections() {
   dom.directions.hidden = false;
 }
 
+function updateNavigationLinks() {
+  if (!dom.navLinks) return;
+  dom.navLinks.innerHTML = '';
+  const hasQuery = Boolean(dom.searchInput?.value.trim());
+  const entrance = state.lastResult?.entrance;
+  if (!hasQuery || !entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon)) {
+    dom.navLinks.hidden = true;
+    return;
+  }
+  const destination = `${entrance.lat},${entrance.lon}`;
+  const links = [
+    {
+      id: 'google',
+      label: 'Open in Google Maps',
+      href: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`,
+    },
+    {
+      id: 'apple',
+      label: 'Open in Apple Maps',
+      href: `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}`,
+    },
+  ];
+  links.forEach((link) => {
+    const anchor = document.createElement('a');
+    anchor.className = 'nav-linkButton';
+    anchor.href = link.href;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener';
+    anchor.textContent = link.label;
+    dom.navLinks.appendChild(anchor);
+  });
+  dom.navLinks.hidden = false;
+}
+
 function wireSearch() {
   if (!dom.searchInput || !dom.searchForm) return;
   dom.searchInput.addEventListener('input', () => {
     const value = dom.searchInput.value.trim();
     dom.clearSearch.hidden = !value;
     requestSuggestions();
+    updateNavigationLinks();
   });
   dom.searchInput.addEventListener('focus', () => {
     requestSuggestions();
@@ -782,6 +819,7 @@ function wireSearch() {
       dom.clearSearch.hidden = true;
       renderSuggestions([]);
       dom.searchInput.focus();
+      updateNavigationLinks();
     });
   }
   dom.searchForm.addEventListener('submit', (evt) => {
