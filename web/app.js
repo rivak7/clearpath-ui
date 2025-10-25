@@ -2912,7 +2912,7 @@ function updateEntranceConfirmationMessage(result) {
   dom.entranceConfirmMessage.textContent = `We’re double-checking the entrance for “${label}”. Does it look right? ${suffix}`;
 }
 
-function hideEntranceConfirmation({ mark = false } = {}) {
+function hideEntranceConfirmation({ mark = false, reason = 'auto' } = {}) {
   const key = state.confirmationPrompt?.key;
   if (mark && key) state.confirmationHistory.add(key);
   state.confirmationPrompt = null;
@@ -2924,6 +2924,16 @@ function hideEntranceConfirmation({ mark = false } = {}) {
   if (dom.entranceConfirmNo) {
     dom.entranceConfirmNo.disabled = false;
     dom.entranceConfirmNo.hidden = true;
+  }
+  if (dom.entranceOptions) {
+    if (reason === 'dismiss') {
+      dom.entranceOptions.classList.add('entrance-options--dismissed');
+    } else {
+      dom.entranceOptions.classList.remove('entrance-options--dismissed');
+    }
+  }
+  if (reason === 'dismiss') {
+    setStatus('Okay, we will keep the current entrance for now.');
   }
 }
 
@@ -2939,6 +2949,9 @@ function showEntranceConfirmation(result) {
   };
   updateEntranceConfirmationMessage(result);
   dom.entranceConfirm.hidden = false;
+  if (dom.entranceOptions) {
+    dom.entranceOptions.classList.remove('entrance-options--dismissed');
+  }
   if (dom.entranceConfirmYes) {
     dom.entranceConfirmYes.hidden = false;
     dom.entranceConfirmYes.disabled = false;
