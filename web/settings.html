@@ -37,7 +37,7 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="settings-body">
-    <div class="settings-shell">
+    <div id="topOfSettings" class="settings-shell">
       <header class="settings-top">
         <a class="settings-brand" href="/" aria-label="Back to ClearPath home">
           <span class="settings-brand__mark" aria-hidden="true">
@@ -51,42 +51,13 @@
         <a class="settings-top__action" href="/">Back to map</a>
       </header>
 
-      <section class="settings-hero" aria-labelledby="settingsTitle">
-        <div class="settings-hero__content">
-          <p class="settings-hero__eyebrow">Personalization hub</p>
-          <h1 id="settingsTitle" class="settings-hero__title">Tune how ClearPath looks and feels</h1>
-          <p class="settings-hero__lead">
-            Pick a mode for the moment, add the boosts that help you focus, and keep your entrances synced everywhere.
-          </p>
-          <div class="settings-hero__chips" role="list">
-            <span class="settings-chip" role="listitem">Appearance</span>
-            <span class="settings-chip" role="listitem">Accessibility</span>
-            <span class="settings-chip" role="listitem">Saved places</span>
-          </div>
-        </div>
-        <div class="settings-hero__preview" aria-hidden="true">
-          <div class="settings-preview settings-preview--light">
-            <span class="settings-preview__label">Light</span>
-            <div class="settings-preview__surface">
-              <span class="settings-preview__bar"></span>
-              <span class="settings-preview__bar"></span>
-              <span class="settings-preview__map"></span>
-            </div>
-          </div>
-          <div class="settings-preview settings-preview--dark">
-            <span class="settings-preview__label">Dark</span>
-            <div class="settings-preview__surface">
-              <span class="settings-preview__bar"></span>
-              <span class="settings-preview__bar"></span>
-              <span class="settings-preview__map"></span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <div class="settings-content">
         <aside class="settings-sidebar" aria-label="Settings navigation">
           <nav class="settings-anchorNav" aria-label="Settings sections">
+            <a class="settings-anchorNav__item settings-anchorNav__item--mini" href="#topOfSettings">
+              <span class="settings-anchorNav__title">Top</span>
+              <span class="settings-anchorNav__hint">Back to start</span>
+            </a>
             <a class="settings-anchorNav__item" href="#themeCardTitle">
               <span class="settings-anchorNav__icon" aria-hidden="true">🎨</span>
               <span class="settings-anchorNav__text">
@@ -115,11 +86,11 @@
                 <span class="settings-anchorNav__hint">Modes &amp; alerts</span>
               </span>
             </a>
-            <a class="settings-anchorNav__item" href="#commuteSectionTitle">
-              <span class="settings-anchorNav__icon" aria-hidden="true">⏰</span>
+            <a class="settings-anchorNav__item" href="#comingSoonTitle">
+              <span class="settings-anchorNav__icon" aria-hidden="true">🆕</span>
               <span class="settings-anchorNav__text">
-                <span class="settings-anchorNav__title">Commute</span>
-                <span class="settings-anchorNav__hint">Routine reminders</span>
+                <span class="settings-anchorNav__title">Coming soon</span>
+                <span class="settings-anchorNav__hint">Feature preview</span>
               </span>
             </a>
           </nav>
@@ -131,20 +102,18 @@
         </aside>
 
         <div class="settings-mainWrap">
-          <section class="settings-overview" aria-label="Personalization status">
+                    <section class="settings-overview" aria-label="Personalization status">
             <article class="settings-overview__card settings-overview__card--theme">
               <a class="settings-overview__link" href="#themeCardTitle">
-                <span class="settings-overview__icon" aria-hidden="true">🎨</span>
                 <div class="settings-overview__content">
                   <span class="settings-overview__label">Theme</span>
-                  <p id="settingsThemeSummary" class="settings-overview__value">Loading current theme…</p>
+                  <p id="settingsThemeSummary" class="settings-overview__value">Loading current theme...</p>
                 </div>
                 <span class="settings-overview__cta" aria-hidden="true">Adjust</span>
               </a>
             </article>
             <article class="settings-overview__card settings-overview__card--accessibility">
               <a class="settings-overview__link" href="#accessibilityTitle">
-                <span class="settings-overview__icon" aria-hidden="true">✨</span>
                 <div class="settings-overview__content">
                   <span class="settings-overview__label">Assistive profiles</span>
                   <p id="settingsAccessibilitySummary" class="settings-overview__value">Pick the boosts you need.</p>
@@ -154,7 +123,6 @@
             </article>
             <article class="settings-overview__card settings-overview__card--places">
               <a class="settings-overview__link" href="#accountSectionTitle">
-                <span class="settings-overview__icon" aria-hidden="true">📍</span>
                 <div class="settings-overview__content">
                   <span class="settings-overview__label">Saved places</span>
                   <p id="settingsPlacesSummary" class="settings-overview__value">Keep entrances synced across devices.</p>
@@ -162,28 +130,27 @@
                 <span class="settings-overview__cta" aria-hidden="true">Manage</span>
               </a>
             </article>
-            <article class="settings-overview__card settings-overview__card--commute">
-              <a class="settings-overview__link" href="#commuteSectionTitle">
-                <span class="settings-overview__icon" aria-hidden="true">⏰</span>
+            <article class="settings-overview__card settings-overview__card--soon">
+              <a class="settings-overview__link" href="#comingSoonTitle">
                 <div class="settings-overview__content">
-                  <span class="settings-overview__label">Commute</span>
-                  <p id="settingsCommuteSummary" class="settings-overview__value">Commute reminders are off.</p>
+                  <span class="settings-overview__label">Coming soon</span>
+                  <p class="settings-overview__value">Smart commute &amp; in-car integrations.</p>
                 </div>
-                <span class="settings-overview__cta" aria-hidden="true">Schedule</span>
+                <span class="settings-overview__cta" aria-hidden="true">See details</span>
               </a>
             </article>
           </section>
 
           <main class="settings-main" aria-labelledby="settingsTitle">
+            <h1 id="settingsTitle" class="settings-pageTitle">ClearPath personalization</h1>
         <section class="settings-card settings-card--theme" aria-labelledby="themeCardTitle">
           <div class="settings-card__header">
             <span class="settings-card__icon" aria-hidden="true">🎨</span>
             <div class="settings-card__heading">
               <p class="settings-card__eyebrow">Appearance</p>
               <h2 id="themeCardTitle" class="settings-card__title">Theme mode</h2>
-              <p class="settings-card__subtitle">Auto mirrors sunrise and sunset so the map stays comfortable day and night.</p>
+              <p class="settings-card__subtitle">Quickly flip between light, dark, or auto so the map stays comfortable.</p>
             </div>
-            <span id="themeStatusChip" class="theme-status__chip">Loading current theme…</span>
           </div>
           <form id="themeForm" class="theme-options" autocomplete="off">
             <div id="themeFormTitle" class="theme-options__title">Modes</div>
@@ -194,7 +161,7 @@
                   <span class="theme-option__icon" aria-hidden="true">&#9728;</span>
                   <div class="theme-option__info">
                     <span class="theme-option__title">Light</span>
-                    <span class="theme-option__description">Bright palette tuned for daytime clarity.</span>
+                    <span class="theme-option__description">Clear, daytime contrast.</span>
                   </div>
                   <span class="theme-option__status" aria-hidden="true">Selected</span>
                 </div>
@@ -205,7 +172,7 @@
                   <span class="theme-option__icon" aria-hidden="true">&#9790;</span>
                   <div class="theme-option__info">
                     <span class="theme-option__title">Dark</span>
-                    <span class="theme-option__description">Low-glare canvas that stays gentle after dark.</span>
+                    <span class="theme-option__description">Soft glow that stays easy at night.</span>
                   </div>
                   <span class="theme-option__status" aria-hidden="true">Selected</span>
                 </div>
@@ -216,7 +183,7 @@
                   <span class="theme-option__icon" aria-hidden="true">&#128339;</span>
                   <div class="theme-option__info">
                     <span class="theme-option__title">Auto</span>
-                    <span class="theme-option__description">Follows sunrise and sunset automatically.</span>
+                    <span class="theme-option__description">Switches with sunrise and sunset.</span>
                   </div>
                   <span class="theme-option__status" aria-hidden="true">Selected</span>
                 </div>
@@ -232,9 +199,8 @@
             <div class="settings-card__heading">
               <p class="settings-card__eyebrow">Assistive profiles</p>
               <h2 id="accessibilityTitle" class="settings-card__title">Boost clarity and focus</h2>
-              <p class="settings-card__subtitle">Mix the profiles that help you most—everything updates instantly.</p>
+              <p class="settings-card__subtitle">Enable only the helpers you need; updates apply instantly.</p>
             </div>
-            <span id="accessibilityStatusChip" class="theme-status__chip">Pick the boosts you need—mix and match freely.</span>
           </div>
           <div id="accessibilityOptions" class="accessibility-grid" role="group" aria-describedby="accessibilityTitle"></div>
           <p class="settings-card__meta theme-status__meta">Profiles sync across signed-in devices.</p>
@@ -246,7 +212,7 @@
             <div class="settings-card__heading">
               <p class="settings-card__eyebrow">Your locations</p>
               <h2 id="accountSectionTitle" class="settings-card__title">Saved places</h2>
-              <p class="settings-card__subtitle">Quickly set entrances for home, work, and favorites so directions launch in one tap.</p>
+              <p class="settings-card__subtitle">Save home, work, and favorites so entrances surface in one tap.</p>
             </div>
             <span class="settings-card__badge">Synced soon</span>
           </div>
@@ -295,7 +261,7 @@
             <div class="settings-card__heading">
               <p class="settings-card__eyebrow">Travel preferences</p>
               <h2 id="travelPreferencesTitle" class="settings-card__title">Plan arrivals your way</h2>
-              <p class="settings-card__subtitle">Tell ClearPath how you move so arrival guidance highlights what matters.</p>
+              <p class="settings-card__subtitle">Set your go-to travel mode, map style, and quick routing toggles.</p>
             </div>
           </div>
           <form id="preferencesForm" class="settings-form" autocomplete="off">
@@ -352,101 +318,28 @@
           <p id="preferencesStatus" class="settings-status" role="status" aria-live="polite"></p>
         </section>
 
-        <section id="commuteSection" class="settings-card settings-card--wide settings-card--commute" aria-labelledby="commuteSectionTitle">
+        <section class="settings-card settings-comingSoon" aria-labelledby="comingSoonTitle">
           <div class="settings-card__header">
-            <span class="settings-card__icon" aria-hidden="true">⏰</span>
             <div class="settings-card__heading">
-              <p class="settings-card__eyebrow">Smart commute</p>
-              <h2 id="commuteSectionTitle" class="settings-card__title">Schedule your departures</h2>
-              <p class="settings-card__subtitle">Set morning and evening reminders so ClearPath surfaces the right entrance before you head out.</p>
+              <p class="settings-card__eyebrow">Coming soon</p>
+              <h2 id="comingSoonTitle" class="settings-card__title">Features on deck</h2>
+              <p class="settings-card__subtitle">These upgrades are in flight and ship next.</p>
             </div>
           </div>
-          <form id="commuteForm" class="settings-form" autocomplete="off">
-            <fieldset class="settings-fieldset">
-              <legend class="settings-fieldset__legend">Morning departure</legend>
-              <div class="settings-field settings-field--inline">
-                <div class="settings-field__group">
-                  <label class="settings-field__label" for="morningTime">Time</label>
-                  <input id="morningTime" name="morningTime" type="time" />
-                </div>
-                <div class="settings-field__group">
-                  <label class="settings-field__label" for="morningDestination">Destination</label>
-                  <select id="morningDestination" name="morningDestination">
-                    <option value="work">Work</option>
-                    <option value="home">Home</option>
-                    <option value="off">None</option>
-                  </select>
-                </div>
-                <div class="settings-field__group">
-                  <label class="settings-field__label" for="morningMode">Travel mode</label>
-                  <select id="morningMode" name="morningMode">
-                    <option value="drive">Drive</option>
-                    <option value="walk">Walk</option>
-                    <option value="transit">Transit</option>
-                    <option value="bike">Bike</option>
-                  </select>
-                </div>
-              </div>
-            </fieldset>
-            <fieldset class="settings-fieldset">
-              <legend class="settings-fieldset__legend">Evening return</legend>
-              <div class="settings-field settings-field--inline">
-                <div class="settings-field__group">
-                  <label class="settings-field__label" for="eveningTime">Time</label>
-                  <input id="eveningTime" name="eveningTime" type="time" />
-                </div>
-                <div class="settings-field__group">
-                  <label class="settings-field__label" for="eveningDestination">Destination</label>
-                  <select id="eveningDestination" name="eveningDestination">
-                    <option value="home">Home</option>
-                    <option value="work">Work</option>
-                    <option value="off">None</option>
-                  </select>
-                </div>
-                <div class="settings-field__group">
-                  <label class="settings-field__label" for="eveningMode">Travel mode</label>
-                  <select id="eveningMode" name="eveningMode">
-                    <option value="drive">Drive</option>
-                    <option value="walk">Walk</option>
-                    <option value="transit">Transit</option>
-                    <option value="bike">Bike</option>
-                  </select>
-                </div>
-              </div>
-            </fieldset>
-            <fieldset class="settings-fieldset settings-fieldset--inline">
-              <legend class="settings-fieldset__legend">Active days</legend>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="mon" />
-                <span>Mon</span>
-              </label>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="tue" />
-                <span>Tue</span>
-              </label>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="wed" />
-                <span>Wed</span>
-              </label>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="thu" />
-                <span>Thu</span>
-              </label>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="fri" />
-                <span>Fri</span>
-              </label>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="sat" />
-                <span>Sat</span>
-              </label>
-              <label class="settings-toggle settings-toggle--pill">
-                <input type="checkbox" name="commuteDays" value="sun" />
-                <span>Sun</span>
-              </label>
-            </fieldset>
-          </form>
-          <p id="commuteStatus" class="settings-status" role="status" aria-live="polite"></p>
+          <ul class="comingSoon-list">
+            <li>
+              <span class="comingSoon-title">Smart commute reminders</span>
+              <span class="comingSoon-subtitle">Schedule departures and arrivals without opening the map.</span>
+            </li>
+            <li>
+              <span class="comingSoon-title">Integrate with Tesla, CarPlay, Android Auto</span>
+              <span class="comingSoon-subtitle">Sync saved entrances directly to the dash display.</span>
+            </li>
+            <li>
+              <span class="comingSoon-title">Guided routines</span>
+              <span class="comingSoon-subtitle">Trigger favorite places, alerts, and profiles with one tap.</span>
+            </li>
+          </ul>
         </section>
           </main>
         </div>
@@ -455,3 +348,9 @@
     <script type="module" src="/settings.js"></script>
   </body>
 </html>
+
+
+
+
+
+

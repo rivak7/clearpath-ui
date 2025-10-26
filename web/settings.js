@@ -35,9 +35,7 @@ initAccessibility();
 initAccount();
 
 const themeForm = document.getElementById('themeForm');
-const themeStatusChip = document.getElementById('themeStatusChip');
 const accessibilityContainer = document.getElementById('accessibilityOptions');
-const accessibilityStatusChip = document.getElementById('accessibilityStatusChip');
 const accountStatusChip = document.getElementById('accountStatusChip');
 const accountStatusDetail = document.getElementById('accountStatusDetail');
 const accountPrimaryAction = document.getElementById('accountPrimaryAction');
@@ -232,6 +230,7 @@ function wireNavigation() {
     item.dataset.targetId = targetId;
     return { item, targetId, section: resolveSectionFromId(targetId) };
   }).filter((entry) => entry.section);
+  const observedSections = sectionMap.filter(({ item }) => !item.classList.contains('settings-anchorNav__item--mini'));
 
   navItems.forEach((item) => {
     item.addEventListener('click', (event) => {
@@ -265,25 +264,24 @@ function wireNavigation() {
 
   sectionMap.forEach(({ section, targetId }) => {
     section.dataset.anchorId = targetId;
+  });
+
+  observedSections.forEach(({ section }) => {
     observer.observe(section);
   });
 }
 
 function updateThemeStatus({ mode, theme }) {
   const readableTheme = titleCase(theme);
-  let chipText = '';
   let summaryText = '';
   if (mode === ThemeMode.AUTO) {
     const { next, upcomingTheme } = getNextAutoBoundary();
     const formattedTime = formatTime(next);
     const readableUpcoming = titleCase(upcomingTheme);
-    chipText = `Auto · ${readableTheme} now → ${readableUpcoming} at ${formattedTime}.`;
-    summaryText = `Auto • ${readableTheme} now, ${readableUpcoming} at ${formattedTime}`;
+    summaryText = `Auto | ${readableTheme} now, ${readableUpcoming} at ${formattedTime}`;
   } else {
-    chipText = `Locked to ${readableTheme}.`;
     summaryText = `Locked to ${readableTheme}`;
   }
-  if (themeStatusChip) themeStatusChip.textContent = chipText;
   if (themeOverview) setSummary(themeOverview, summaryText);
 }
 
@@ -338,11 +336,6 @@ function createAccessibilityCard(feature) {
   const header = document.createElement('div');
   header.className = 'accessibility-card__header';
   body.appendChild(header);
-
-  const icon = document.createElement('span');
-  icon.className = 'accessibility-card__icon';
-  icon.textContent = feature.icon;
-  header.appendChild(icon);
 
   const titles = document.createElement('div');
   titles.className = 'accessibility-card__titles';
@@ -401,7 +394,6 @@ function syncAccessibilitySelection(state) {
 
 function updateAccessibilityStatus(state) {
   const active = state?.features || [];
-  let chipText = 'Pick the boosts you need.';
   let summaryText = 'No profiles active.';
   if (active.length) {
     const labels = active
@@ -409,16 +401,11 @@ function updateAccessibilityStatus(state) {
       .filter(Boolean)
       .map((feature) => feature.shortLabel || feature.label);
     if (active.length === ACCESSIBILITY_FEATURES.length) {
-      chipText = `All profiles on: ${labels.join(', ')}.`;
       summaryText = 'All assistive profiles active.';
     } else {
-      const readableList = labels.join(', ');
-      const suffix = active.length === 1 ? 'profile active' : 'profiles active';
-      chipText = `${readableList} ${suffix}.`;
-      summaryText = `Active: ${readableList}`;
+      summaryText = `Active: ${labels.join(', ')}`;
     }
   }
-  if (accessibilityStatusChip) accessibilityStatusChip.textContent = chipText;
   if (accessibilityOverview) setSummary(accessibilityOverview, summaryText);
 }
 
@@ -455,7 +442,7 @@ function applyThemeAccessibilityLocks(activeSetOrState) {
 
 function setSummary(element, message) {
   if (!element) return;
-  element.textContent = message && message.trim() ? message : '—';
+  element.textContent = message && message.trim() ? message : '--';
 }
 
 function showStatus(element, message, type = 'info') {
