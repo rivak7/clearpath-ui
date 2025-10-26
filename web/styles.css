@@ -73,8 +73,8 @@
   --type-xl: clamp(1.36rem, 0.9vw + 1.18rem, 1.88rem);
   --type-title: clamp(1.6rem, 1.2vw + 1.32rem, 2.4rem);
   --touch-target: clamp(46px, 7vw, 60px);
-  --sheet-padding-x: clamp(18px, 6vw, 32px);
-  --sheet-padding-bottom: calc(var(--safe-area-bottom) + clamp(24px, 6vh, 48px));
+  --sheet-padding-x: clamp(14px, 5vw, 24px);
+  --sheet-padding-bottom: calc(var(--safe-area-bottom) + clamp(16px, 4vh, 32px));
   --sheet-handle-width: clamp(48px, 12vw, 78px);
   --sheet-handle-radius: clamp(12px, 3vw, 18px);
   font-family: "Inter", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -477,121 +477,6 @@ body {
   transform: translate3d(-50%, -18px, 0) scale(0.96);
 }
 
-.install-banner {
-  position: absolute;
-  top: calc(var(--safe-area-top) + clamp(98px, 20vh, 196px));
-  left: 50%;
-  transform: translate3d(-50%, 0, 0);
-  width: min(480px, calc(100vw - var(--safe-area-left) - var(--safe-area-right) - clamp(24px, 8vw, 72px)));
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: clamp(12px, 2.6vw, 18px);
-  padding: clamp(14px, 2vw + 8px, 20px) clamp(16px, 3vw + 8px, 26px);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  backdrop-filter: blur(18px);
-  border: 1px solid var(--theme-border);
-  box-shadow: var(--shadow-soft);
-  color: var(--text-strong);
-  z-index: 100;
-  transition: opacity 0.24s ease, transform 0.24s ease;
-}
-
-.install-banner.install-banner--sheet-covered {
-  opacity: 0;
-  transform: translate3d(-50%, -12px, 0) scale(0.96);
-}
-
-.install-banner[hidden] {
-  display: none;
-}
-
-.install-banner__content {
-  flex: 1 1 240px;
-  display: grid;
-  gap: 6px;
-}
-
-.install-banner__title {
-  font-weight: 600;
-  font-size: clamp(0.85rem, 0.8rem + 0.3vw, 0.95rem);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.install-banner__text {
-  font-size: clamp(0.74rem, 0.7rem + 0.2vw, 0.82rem);
-  color: var(--text-muted);
-  margin: 0;
-  line-height: 1.45;
-}
-
-.install-banner__actions {
-  display: flex;
-  align-items: center;
-  gap: clamp(10px, 2vw, 16px);
-}
-
-.install-banner__primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: var(--accent);
-  color: var(--text-invert);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: clamp(0.68rem, 0.65rem + 0.2vw, 0.74rem);
-  cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-  box-shadow: 0 12px 24px rgba(11, 111, 107, 0.32);
-}
-
-.install-banner__primary:hover,
-.install-banner__primary:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(11, 111, 107, 0.34);
-  outline: none;
-}
-
-.install-banner__primary:active {
-  transform: translateY(0);
-  box-shadow: 0 10px 22px rgba(11, 111, 107, 0.28);
-}
-
-.install-banner__primary[aria-busy='true'] {
-  cursor: wait;
-  opacity: 0.85;
-}
-
-.install-banner__dismiss {
-  padding: 6px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-strong);
-  font-weight: 600;
-  font-size: clamp(0.66rem, 0.64rem + 0.2vw, 0.7rem);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 0.16s ease, color 0.16s ease;
-}
-
-.install-banner__dismiss:hover,
-.install-banner__dismiss:focus-visible {
-  border-color: rgba(12, 34, 56, 0.24);
-  outline: none;
-}
-
-.install-banner__dismiss:active {
-  color: var(--text-muted);
-}
-
 .brand {
   display: flex;
   align-items: center;
@@ -624,40 +509,6 @@ body {
   flex-wrap: wrap;
   margin-left: auto;
   row-gap: clamp(8px, 2vw, 12px);
-}
-
-.brand__install {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(8px, 1.2vw + 6px, 12px) clamp(14px, 3vw + 8px, 20px);
-  border-radius: var(--radius-lg);
-  border: none;
-  background: var(--accent);
-  color: var(--text-invert);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: clamp(0.62rem, 0.58rem + 0.2vw, 0.7rem);
-  cursor: pointer;
-  box-shadow: 0 12px 24px rgba(11, 111, 107, 0.26);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
-}
-
-.brand__install:hover,
-.brand__install:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(11, 111, 107, 0.32);
-  outline: none;
-}
-
-.brand__install:active {
-  transform: translateY(0);
-  box-shadow: 0 10px 20px rgba(11, 111, 107, 0.24);
-}
-
-.brand__install[hidden] {
-  display: none;
 }
 
 .brand__copy {
@@ -1181,7 +1032,7 @@ body {
   box-shadow: var(--sheet-shadow);
   background: var(--sheet-surface, var(--sheet-bg));
   color: var(--sheet-text);
-  padding: clamp(10px, 2.4vh, 18px) 0 var(--sheet-padding-bottom);
+  padding: clamp(8px, 1.8vh, 14px) 0 var(--sheet-padding-bottom);
   max-height: min(92vh, 780px);
   display: flex;
   flex-direction: column;
@@ -1231,21 +1082,29 @@ body {
   align-self: center;
   width: auto;
   min-width: var(--sheet-handle-width);
-  padding: clamp(12px, 3vw, 16px) clamp(18px, 5vw, 22px) clamp(8px, 2vw, 12px);
+  padding: clamp(8px, 2.2vw, 12px) clamp(16px, 4vw, 20px);
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(8px, 2.6vw, 14px);
+  gap: clamp(6px, 2vw, 10px);
   justify-content: center;
   cursor: grab;
   touch-action: none;
   user-select: none;
-  background: transparent;
-  border: 0;
+  background: color-mix(in srgb, var(--sheet-surface, var(--sheet-bg)) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sheet-surface-border, var(--theme-border)) 55%, transparent);
   border-radius: var(--sheet-handle-radius);
   color: var(--sheet-text);
+  box-shadow:
+    0 12px 26px rgba(6, 24, 49, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(18px);
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .sheet__handle:focus-visible {
@@ -1266,13 +1125,16 @@ body {
   background: var(--sheet-surface-peek, var(--sheet-surface, var(--sheet-bg)));
   border-color: var(--sheet-surface-border, var(--theme-border));
   box-shadow: var(--sheet-shadow);
+  padding-top: clamp(6px, 1.5vh, 10px);
+  padding-bottom: clamp(8px, 2vh, 14px);
 }
 
 :root .sheet.sheet--peek .sheet__handle {
-  background: var(--sheet-surface, var(--sheet-bg));
-  border: 1px solid var(--sheet-surface-border, var(--theme-border));
-  box-shadow: var(--sheet-shadow);
-  padding: 14px 22px 12px;
+  background: color-mix(in srgb, var(--sheet-surface, var(--sheet-bg)) 85%, transparent);
+  border-color: var(--sheet-surface-border, var(--theme-border));
+  box-shadow:
+    0 12px 28px rgba(6, 24, 49, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 :root .sheet.sheet--peek .sheet__handle::after {
@@ -1283,11 +1145,20 @@ body {
   width: 56px;
 }
 
+:root .sheet.sheet--peek .sheet__content {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .sheet__content {
   display: flex;
   flex-direction: column;
-  gap: clamp(16px, 5vw, 28px);
-  padding: 0 var(--sheet-padding-x) 0;
+  gap: clamp(12px, 3vw, 18px);
+  padding: 0 var(--sheet-padding-x) clamp(8px, 2vw, 16px);
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -1295,6 +1166,7 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(12, 34, 56, 0.35) transparent;
   scroll-padding-bottom: var(--sheet-padding-bottom);
+  transition: opacity 0.25s ease;
 }
 
 .sheet__content::-webkit-scrollbar {
@@ -1320,17 +1192,17 @@ body {
 }
 
 .sheet__header h1 {
-  margin: clamp(6px, 1.8vw, 12px) 0 clamp(2px, 1vw, 6px);
+  margin: clamp(4px, 1vw, 8px) 0 0;
   font-size: var(--type-xl);
   letter-spacing: 0.02em;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .sheet__subtitle {
-  margin: 0;
+  margin: clamp(2px, 0.8vw, 6px) 0 0;
   color: var(--text-muted);
   font-size: var(--type-sm);
-  line-height: 1.6;
+  line-height: 1.4;
 }
 
 .entrance-confirm {
@@ -2175,23 +2047,70 @@ body {
 
 @media (max-width: 720px) {
   .top-shell {
-    left: clamp(var(--safe-area-left) + 12px, 6vw, 32px);
-    right: clamp(var(--safe-area-right) + 12px, 6vw, 32px);
-    width: auto;
+    top: var(--safe-area-top);
+    left: 0;
+    right: 0;
+    width: 100%;
     transform: none;
     margin: 0;
-    border-radius: clamp(18px, 6vw, 26px);
-    padding: clamp(12px, 4vw, 20px) clamp(18px, 6vw, 28px);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    padding: clamp(10px, 3vw, 16px) clamp(14px, 5vw, 20px);
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid var(--theme-border);
+    backdrop-filter: blur(12px);
+    background: var(--bg-elevated);
+    background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+    gap: clamp(8px, 3vw, 14px);
   }
   .brand {
-    align-items: flex-start;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: clamp(6px, 2vw, 12px);
+  }
+  .brand__identity {
+    gap: clamp(6px, 2vw, 10px);
+  }
+  .brand__logo {
+    width: clamp(34px, 10vw, 44px);
+    height: clamp(34px, 10vw, 44px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.16);
+  }
+  .brand__title {
+    font-size: clamp(0.7rem, 0.64rem + 0.8vw, 0.85rem);
+    letter-spacing: 0.06em;
+  }
+  .brand__actions {
+    gap: clamp(6px, 2vw, 10px);
   }
   .brand__settings {
-    order: 3;
+    width: clamp(36px, 8vw, 44px);
+    min-height: clamp(36px, 8vw, 44px);
     margin-left: 0;
   }
-  .brand__settingsText {
-    display: none;
+  .brand__account {
+    padding: 0 clamp(10px, 4vw, 14px);
+    min-height: clamp(34px, 8vw, 40px);
+    font-size: clamp(0.6rem, 0.56rem + 0.4vw, 0.72rem);
+    letter-spacing: 0.05em;
+  }
+  .brand__accountAvatar {
+    width: clamp(24px, 7vw, 30px);
+    height: clamp(24px, 7vw, 30px);
+  }
+  .search {
+    gap: clamp(4px, 2vw, 8px);
+  }
+  .search__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
   .sheet {
     max-height: min(94vh, 720px);
@@ -2208,43 +2127,14 @@ body {
   .route-planner__modes::-webkit-scrollbar {
     display: none;
   }
-  .install-banner {
-    top: calc(var(--safe-area-top) + clamp(82px, 20vh, 150px));
-    left: clamp(var(--safe-area-left) + 12px, 6vw, 32px);
-    right: clamp(var(--safe-area-right) + 12px, 6vw, 32px);
-    width: auto;
-    gap: clamp(10px, 3vw, 18px);
-  }
-  .install-banner__actions {
-    width: 100%;
-    justify-content: flex-end;
-    gap: clamp(10px, 3vw, 18px);
-  }
-  .brand__actions {
-    justify-content: space-between;
-  }
-  .brand__install {
-    flex: 1 1 100%;
-    max-width: none;
-    justify-content: center;
-    order: 3;
-  }
 }
 
 @media (max-width: 480px) {
-  .install-banner {
-    top: auto;
-    bottom: calc(var(--safe-area-bottom) + clamp(96px, 30vh, 180px));
+  .brand__copy {
+    display: none;
   }
-  .install-banner__actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-  .install-banner__primary {
-    flex: 1 1 100%;
-  }
-  .install-banner__dismiss {
-    flex: 0 0 auto;
+  .brand__actions {
+    margin-left: auto;
   }
 }
 
@@ -3668,37 +3558,10 @@ body {
   border-color: rgba(10, 82, 122, 0.18);
 }
 
-:root.accessibility-senior .brand__install {
-  font-size: 0.78rem;
-  padding: 10px 20px;
-  letter-spacing: 0.06em;
-}
-
 :root.accessibility-senior .map-locate {
   width: 44px !important;
   height: 44px !important;
   font-size: 1.3rem;
-}
-
-:root.accessibility-senior .install-banner {
-  gap: 18px;
-}
-
-:root.accessibility-senior .install-banner__title {
-  font-size: 1rem;
-}
-
-:root.accessibility-senior .install-banner__text {
-  font-size: 0.92rem;
-}
-
-:root.accessibility-senior .install-banner__primary {
-  padding: 10px 20px;
-  font-size: 0.82rem;
-}
-
-:root.accessibility-senior .install-banner__dismiss {
-  font-size: 0.82rem;
 }
 
 :root.accessibility-senior .search input {
@@ -3870,7 +3733,6 @@ body {
 }
 
 :root.accessibility-lowvision .top-shell,
-:root.accessibility-lowvision .install-banner,
 :root.accessibility-lowvision .sheet {
   border: 2px solid rgba(255, 140, 50, 0.45);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
@@ -3943,7 +3805,6 @@ body {
 
 :root.accessibility-focus .sheet,
 :root.accessibility-focus .top-shell,
-:root.accessibility-focus .install-banner,
 :root.accessibility-focus .theme-option__body,
 :root.accessibility-focus .accessibility-card__body,
 :root.accessibility-focus .direction-step,

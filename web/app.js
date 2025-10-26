@@ -44,8 +44,6 @@ const state = {
   suggestionTarget: null,
   suggestionContext: null,
   lastResult: null,
-  installPromptEvent: null,
-  hasShownInstallBanner: false,
   voteLayer: null,
   entranceOptions: [],
   selectedEntranceId: null,
@@ -150,10 +148,6 @@ const dom = {
   sheetTitle: document.getElementById('sheetTitle'),
   sheetSubtitle: document.getElementById('sheetSubtitle'),
   locateButton: document.getElementById('locateMe'),
-  installButton: document.getElementById('openInstall'),
-  installBanner: document.getElementById('installBanner'),
-  installBannerConfirm: document.getElementById('installBannerConfirm'),
-  installBannerDismiss: document.getElementById('installBannerDismiss'),
   sheetHandle: document.getElementById('sheetHandle'),
   sheetContent: document.getElementById('sheetContent'),
   sheetReset: document.getElementById('sheetReset'),
@@ -217,10 +211,6 @@ if (dom.entranceOptions) {
 
 hideEntranceConfirmation();
 
-if (dom.installBanner) {
-  dom.installBanner.setAttribute('aria-hidden', dom.installBanner.hidden ? 'true' : 'false');
-}
-
 if (dom.personalizationRail) {
   dom.personalizationRail.setAttribute('aria-hidden', dom.personalizationRail.hidden ? 'true' : 'false');
   wirePersonalizationRailInteractions();
@@ -241,10 +231,6 @@ if (dom.placeActions) {
 const SPLASH_MESSAGES = {
   bootstrap: 'Preparing your experience...',
   search: 'Finding the best entrance...',
-};
-
-const STORAGE_KEYS = {
-  installBannerDismissed: 'clearpath-ui:install-banner-dismissed',
 };
 
 function collectDesignTokens() {
@@ -281,57 +267,6 @@ function getDesignTokens() {
     state.designTokens = collectDesignTokens();
   }
   return state.designTokens;
-}
-
-function isStandaloneDisplayMode() {
-  try {
-    const matchMedia = window.matchMedia?.('(display-mode: standalone)');
-    return Boolean(matchMedia?.matches || window.navigator?.standalone);
-  } catch (error) {
-    return false;
-  }
-}
-
-function readInstallBannerDismissed() {
-  try {
-    return window.localStorage?.getItem(STORAGE_KEYS.installBannerDismissed) === '1';
-  } catch (error) {
-    return false;
-  }
-}
-
-function rememberInstallBannerDismissed() {
-  try {
-    window.localStorage?.setItem(STORAGE_KEYS.installBannerDismissed, '1');
-  } catch (error) {
-    // noop
-  }
-}
-
-function shouldShowInstallBanner() {
-  if (!dom.installBanner) return false;
-  if (state.hasShownInstallBanner) return false;
-  if (isStandaloneDisplayMode()) return false;
-  return !readInstallBannerDismissed();
-}
-
-function showInstallBanner() {
-  if (!dom.installBanner) return;
-  dom.installBanner.hidden = false;
-  dom.installBanner.setAttribute('aria-hidden', 'false');
-  dom.installBanner.classList.remove('install-banner--sheet-covered');
-  state.hasShownInstallBanner = true;
-  evaluateSheetOverlap();
-}
-
-function hideInstallBanner({ persistDismiss = false } = {}) {
-  if (!dom.installBanner) return;
-  dom.installBanner.hidden = true;
-  dom.installBanner.setAttribute('aria-hidden', 'true');
-  dom.installBanner.classList.remove('install-banner--sheet-covered');
-  if (persistDismiss) {
-    rememberInstallBannerDismissed();
-  }
 }
 
 function shouldReduceMotion() {
@@ -1990,9 +1925,6 @@ function updateSheetVisualState(index) {
   if (dom.topShell) {
     dom.topShell.classList.toggle('top-shell--sheet-covered', index !== 0);
   }
-  if (dom.installBanner && !dom.installBanner.hidden) {
-    dom.installBanner.classList.toggle('install-banner--sheet-covered', index !== 0);
-  }
 }
 
 function evaluateSheetOverlap() {
@@ -2007,15 +1939,6 @@ function evaluateSheetOverlap() {
       const shellRect = dom.topShell.getBoundingClientRect();
       const overlapsShell = sheetRect.top <= shellRect.bottom - margin;
       dom.topShell.classList.toggle('top-shell--sheet-covered', overlapsShell);
-    }
-  }
-  if (dom.installBanner && !dom.installBanner.hidden) {
-    if (forceCover) {
-      dom.installBanner.classList.add('install-banner--sheet-covered');
-    } else {
-      const bannerRect = dom.installBanner.getBoundingClientRect();
-      const overlapsBanner = sheetRect.top <= bannerRect.bottom - margin;
-      dom.installBanner.classList.toggle('install-banner--sheet-covered', overlapsBanner);
     }
   }
 }
@@ -4622,76 +4545,6 @@ function registerServiceWorker() {
   });
 }
 
-async function requestAppInstall(cta) {
-  if (!state.installPromptEvent) return;
-  if (cta) {
-    cta.disabled = true;
-    cta.setAttribute('aria-busy', 'true');
-  }
-  try {
-    await state.installPromptEvent.prompt();
-    const choice = await state.installPromptEvent.userChoice;
-    if (choice?.outcome === 'accepted') {
-      setStatus('ClearPath added to your device.', 'success');
-      hideInstallBanner({ persistDismiss: true });
-      rememberInstallBannerDismissed();
-    } else if (choice?.outcome === 'dismissed' && cta === dom.installBannerConfirm) {
-      hideInstallBanner({ persistDismiss: true });
-    }
-  } catch (error) {
-    console.warn('Install prompt failed', error);
-  } finally {
-    if (cta) {
-      cta.removeAttribute('aria-busy');
-      cta.disabled = false;
-    }
-    if (cta === dom.installButton || cta === dom.installBannerConfirm) {
-      hideInstallBanner({ persistDismiss: true });
-    }
-    dom.installButton.hidden = true;
-    state.installPromptEvent = null;
-  }
-}
-
-function setupInstallPrompt() {
-  if (!dom.installButton) return;
-
-  if (isStandaloneDisplayMode()) {
-    rememberInstallBannerDismissed();
-  }
-
-  window.addEventListener('beforeinstallprompt', (evt) => {
-    evt.preventDefault();
-    state.installPromptEvent = evt;
-    dom.installButton.hidden = false;
-    dom.installButton.disabled = false;
-    if (shouldShowInstallBanner()) {
-      showInstallBanner();
-    }
-  });
-
-  dom.installButton.addEventListener('click', () => {
-    if (!state.installPromptEvent) return;
-    requestAppInstall(dom.installButton);
-  });
-
-  if (dom.installBannerConfirm) {
-    dom.installBannerConfirm.addEventListener('click', () => {
-      if (!state.installPromptEvent) {
-        hideInstallBanner({ persistDismiss: true });
-        return;
-      }
-      requestAppInstall(dom.installBannerConfirm);
-    });
-  }
-
-  if (dom.installBannerDismiss) {
-    dom.installBannerDismiss.addEventListener('click', () => {
-      hideInstallBanner({ persistDismiss: true });
-    });
-  }
-}
-
 function init() {
   showSplash({ mode: 'bootstrap', progress: 0.12 });
   try {
@@ -4706,10 +4559,6 @@ function init() {
   initRoutePlanner();
     resetSheetHeadings();
     advanceSplashProgress(0.55);
-    if (isStandaloneDisplayMode()) {
-      hideInstallBanner({ persistDismiss: true });
-    }
-    setupInstallPrompt();
     registerServiceWorker();
     primeGeolocation();
     advanceSplashProgress(0.82, 120);
