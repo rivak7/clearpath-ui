@@ -74,6 +74,17 @@
       <div class="map-stage" aria-live="polite">
         <div id="map" class="map"></div>
         <header class="top-shell" role="search">
+          <button
+            id="topShellToggle"
+            class="top-shell__toggle"
+            type="button"
+            aria-expanded="true"
+            aria-controls="topShellBody"
+          >
+            <span class="top-shell__toggleIcon" aria-hidden="true"></span>
+            <span id="topShellToggleLabel" class="top-shell__toggleLabel">Hide search</span>
+          </button>
+          <div id="topShellBody" class="top-shell__body">
           <div class="brand">
             <a id="brandHome" class="brand__identity" href="/" aria-label="ClearPath home">
               <picture class="brand__logo">
@@ -115,18 +126,19 @@
               Add stop
             </button>
           </div>
-        </form>
-        <section id="personalizationRail" class="personalization" hidden aria-live="polite">
-          <header class="personalization__header">
-            <h2 class="personalization__title">Personalized shortcuts</h2>
-            <button id="managePersonalization" class="personalization__manage" type="button">Manage</button>
-          </header>
-          <div id="personalizationQuickLinks" class="personalization__chips" role="list"></div>
-          <div id="personalizationRecents" class="personalization__recents" hidden>
-            <h3 class="personalization__subtitle">Recent searches</h3>
-            <ul id="personalizationRecentsList" class="personalization__recentsList" role="list"></ul>
+          </form>
+          <section id="personalizationRail" class="personalization" hidden aria-live="polite">
+            <header class="personalization__header">
+              <h2 class="personalization__title">Personalized shortcuts</h2>
+              <button id="managePersonalization" class="personalization__manage" type="button">Manage</button>
+            </header>
+            <div id="personalizationQuickLinks" class="personalization__chips" role="list"></div>
+            <div id="personalizationRecents" class="personalization__recents" hidden>
+              <h3 class="personalization__subtitle">Recent searches</h3>
+              <ul id="personalizationRecentsList" class="personalization__recentsList" role="list"></ul>
+            </div>
+          </section>
           </div>
-        </section>
       </header>
 
       <div id="accountCard" class="account-card" role="dialog" aria-modal="false" hidden>

@@ -72,20 +72,6 @@
                 <span class="settings-anchorNav__hint">Visual boosts</span>
               </span>
             </a>
-            <a class="settings-anchorNav__item" href="#accountSectionTitle">
-              <span class="settings-anchorNav__icon" aria-hidden="true">📍</span>
-              <span class="settings-anchorNav__text">
-                <span class="settings-anchorNav__title">Saved places</span>
-                <span class="settings-anchorNav__hint">Home &amp; favorites</span>
-              </span>
-            </a>
-            <a class="settings-anchorNav__item" href="#travelPreferencesTitle">
-              <span class="settings-anchorNav__icon" aria-hidden="true">🧭</span>
-              <span class="settings-anchorNav__text">
-                <span class="settings-anchorNav__title">Preferences</span>
-                <span class="settings-anchorNav__hint">Modes &amp; alerts</span>
-              </span>
-            </a>
             <a class="settings-anchorNav__item" href="#comingSoonTitle">
               <span class="settings-anchorNav__icon" aria-hidden="true">🆕</span>
               <span class="settings-anchorNav__text">
@@ -102,7 +88,7 @@
         </aside>
 
         <div class="settings-mainWrap">
-                    <section class="settings-overview" aria-label="Personalization status">
+          <section class="settings-overview" aria-label="Personalization status">
             <article class="settings-overview__card settings-overview__card--theme">
               <a class="settings-overview__link" href="#themeCardTitle">
                 <div class="settings-overview__content">
@@ -121,20 +107,11 @@
                 <span class="settings-overview__cta" aria-hidden="true">Tweak</span>
               </a>
             </article>
-            <article class="settings-overview__card settings-overview__card--places">
-              <a class="settings-overview__link" href="#accountSectionTitle">
-                <div class="settings-overview__content">
-                  <span class="settings-overview__label">Saved places</span>
-                  <p id="settingsPlacesSummary" class="settings-overview__value">Keep entrances synced across devices.</p>
-                </div>
-                <span class="settings-overview__cta" aria-hidden="true">Manage</span>
-              </a>
-            </article>
             <article class="settings-overview__card settings-overview__card--soon">
               <a class="settings-overview__link" href="#comingSoonTitle">
                 <div class="settings-overview__content">
                   <span class="settings-overview__label">Coming soon</span>
-                  <p class="settings-overview__value">Smart commute &amp; in-car integrations.</p>
+                  <p class="settings-overview__value">Saved places and travel preferences return soon.</p>
                 </div>
                 <span class="settings-overview__cta" aria-hidden="true">See details</span>
               </a>
@@ -206,117 +183,7 @@
           <p class="settings-card__meta theme-status__meta">Profiles sync across signed-in devices.</p>
         </section>
 
-        <section id="accountSection" class="settings-card settings-card--wide settings-card--places" aria-labelledby="accountSectionTitle">
-          <div class="settings-card__header">
-            <span class="settings-card__icon" aria-hidden="true">📍</span>
-            <div class="settings-card__heading">
-              <p class="settings-card__eyebrow">Your locations</p>
-              <h2 id="accountSectionTitle" class="settings-card__title">Saved places</h2>
-              <p class="settings-card__subtitle">Save home, work, and favorites so entrances surface in one tap.</p>
-            </div>
-            <span class="settings-card__badge">Synced soon</span>
-          </div>
-          <form id="savedPlacesForm" class="settings-form" autocomplete="off">
-            <fieldset class="settings-fieldset">
-              <legend class="settings-fieldset__legend">Home &amp; work</legend>
-              <div class="settings-field">
-                <label class="settings-field__label" for="homeAddress">Home</label>
-                <div class="settings-field__controls">
-                  <input id="homeIcon" name="homeIcon" class="settings-emojiInput" type="text" inputmode="text" autocomplete="off" maxlength="2" placeholder="🏠" aria-label="Home icon" />
-                  <input id="homeAddress" name="homeAddress" type="text" placeholder="Add home address" />
-                  <button class="settings-field__button" type="button" data-action="save-home">Save</button>
-                  <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-home">Clear</button>
-                </div>
-              </div>
-              <div class="settings-field">
-                <label class="settings-field__label" for="workAddress">Work</label>
-                <div class="settings-field__controls">
-                  <input id="workIcon" name="workIcon" class="settings-emojiInput" type="text" inputmode="text" autocomplete="off" maxlength="2" placeholder="🏢" aria-label="Work icon" />
-                  <input id="workAddress" name="workAddress" type="text" placeholder="Add work address" />
-                  <button class="settings-field__button" type="button" data-action="save-work">Save</button>
-                  <button class="settings-field__button settings-field__button--ghost" type="button" data-action="clear-work">Clear</button>
-                </div>
-              </div>
-            </fieldset>
-            <fieldset class="settings-fieldset">
-              <legend class="settings-fieldset__legend">Favorites</legend>
-              <div class="settings-field settings-field--stacked">
-                <label class="settings-field__label" for="favoriteName">Add favorite</label>
-                <div class="settings-favorite__inputs">
-                  <input id="favoriteIcon" name="favoriteIcon" class="settings-emojiInput" type="text" inputmode="text" autocomplete="off" maxlength="2" placeholder="⭐" aria-label="Favorite icon" />
-                  <input id="favoriteName" name="favoriteName" type="text" placeholder="Label (e.g., Gym)" />
-                  <input id="favoriteAddress" name="favoriteAddress" type="text" placeholder="Address or place" />
-                  <button id="addFavoriteButton" class="settings-field__button" type="button">Add</button>
-                </div>
-              </div>
-              <ul id="favoriteList" class="settings-favoriteList" aria-live="polite"></ul>
-            </fieldset>
-          </form>
-          <p id="savedPlacesStatus" class="settings-status" role="status" aria-live="polite"></p>
-        </section>
-
-        <section id="travelPreferencesSection" class="settings-card settings-card--wide settings-card--preferences" aria-labelledby="travelPreferencesTitle">
-          <div class="settings-card__header">
-            <span class="settings-card__icon" aria-hidden="true">🧭</span>
-            <div class="settings-card__heading">
-              <p class="settings-card__eyebrow">Travel preferences</p>
-              <h2 id="travelPreferencesTitle" class="settings-card__title">Plan arrivals your way</h2>
-              <p class="settings-card__subtitle">Set your go-to travel mode, map style, and quick routing toggles.</p>
-            </div>
-          </div>
-          <form id="preferencesForm" class="settings-form" autocomplete="off">
-            <div class="settings-field">
-              <label class="settings-field__label" for="defaultTravelMode">Default travel mode</label>
-              <select id="defaultTravelMode" name="defaultTravelMode">
-                <option value="drive">Drive</option>
-                <option value="walk">Walk</option>
-                <option value="transit">Transit</option>
-                <option value="bike">Bike</option>
-              </select>
-            </div>
-            <div class="settings-field">
-              <label class="settings-field__label" for="mapStylePreference">Map appearance</label>
-              <select id="mapStylePreference" name="mapStylePreference">
-                <option value="auto">Auto (day/night)</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="satellite">Satellite</option>
-                <option value="terrain">Terrain</option>
-              </select>
-            </div>
-            <fieldset class="settings-fieldset settings-fieldset--inline">
-              <legend class="settings-fieldset__legend">Routing options</legend>
-              <label class="settings-toggle">
-                <input id="avoidTolls" name="avoidTolls" type="checkbox" />
-                <span>Avoid toll roads</span>
-              </label>
-              <label class="settings-toggle">
-                <input id="avoidHighways" name="avoidHighways" type="checkbox" />
-                <span>Avoid highways</span>
-              </label>
-              <label class="settings-toggle">
-                <input id="avoidFerries" name="avoidFerries" type="checkbox" />
-                <span>Avoid ferries</span>
-              </label>
-            </fieldset>
-            <fieldset class="settings-fieldset settings-fieldset--inline">
-              <legend class="settings-fieldset__legend">Notifications</legend>
-              <label class="settings-toggle">
-                <input id="arrivalReminders" name="arrivalReminders" type="checkbox" />
-                <span>Arrival reminders</span>
-              </label>
-              <label class="settings-toggle">
-                <input id="commuteInsights" name="commuteInsights" type="checkbox" />
-                <span>Commute insights</span>
-              </label>
-              <label class="settings-toggle">
-                <input id="savedPlaceUpdates" name="savedPlaceUpdates" type="checkbox" />
-                <span>Saved place updates</span>
-              </label>
-            </fieldset>
-          </form>
-          <p id="preferencesStatus" class="settings-status" role="status" aria-live="polite"></p>
-        </section>
+                
 
         <section class="settings-card settings-comingSoon" aria-labelledby="comingSoonTitle">
           <div class="settings-card__header">
@@ -348,6 +215,12 @@
     <script type="module" src="/settings.js"></script>
   </body>
 </html>
+
+
+
+
+
+
 
 
 

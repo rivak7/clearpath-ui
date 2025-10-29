@@ -18,7 +18,6 @@ src/*.egg-info/
 # Local/cache outputs
 sessions/
 config/cache/
-*.png
 building_bbox.html
 run.log
 .run.log

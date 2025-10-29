@@ -50,8 +50,11 @@ const state = {
   communitySummary: null,
   isVoting: false,
   voteMarker: null,
+  voteDropMarker: null,
   voteHandler: null,
   voteInFlight: false,
+  votePhase: null,
+  voteSelection: null,
   confirmationPrompt: null,
   sheet: {
     snapPoints: [],
@@ -69,6 +72,11 @@ const state = {
   routeMode: 'drive',
   routePlannerExpanded: false,
   draggingStop: null,
+  topShellManualPreference: null,
+  topShellAutoCollapse: {
+    route: false,
+    voting: false,
+  },
   searchInFlight: false,
   pendingSearch: null,
   splashHideTimer: null,
@@ -133,6 +141,9 @@ const dom = {
   splashProgressBar: document.getElementById('splashProgressBar'),
   map: document.getElementById('map'),
   topShell: document.querySelector('.top-shell'),
+  topShellToggle: document.getElementById('topShellToggle'),
+  topShellToggleLabel: document.getElementById('topShellToggleLabel'),
+  topShellBody: document.getElementById('topShellBody'),
   brandHome: document.getElementById('brandHome'),
   searchForm: document.getElementById('searchForm'),
   searchInput: document.getElementById('searchInput'),
@@ -228,10 +239,56 @@ if (dom.placeActions) {
   dom.placeActions.setAttribute('aria-hidden', dom.placeActions.hidden ? 'true' : 'false');
 }
 
+updateTopShellCollapse();
+
 const SPLASH_MESSAGES = {
   bootstrap: 'Preparing your experience...',
   search: 'Finding the best entrance...',
 };
+
+function computeTopShellCollapsed() {
+  const autoCollapsed = Boolean(state.topShellAutoCollapse?.route) || Boolean(state.topShellAutoCollapse?.voting);
+  if (autoCollapsed) return true;
+  if (state.topShellManualPreference === true) return true;
+  if (state.topShellManualPreference === false) return false;
+  return false;
+}
+
+function updateTopShellCollapse() {
+  const autoCollapsed = Boolean(state.topShellAutoCollapse?.route) || Boolean(state.topShellAutoCollapse?.voting);
+  const collapsed = computeTopShellCollapsed();
+  if (dom.topShell) {
+    dom.topShell.classList.toggle('top-shell--collapsed', collapsed);
+    dom.topShell.setAttribute('data-top-shell-auto', autoCollapsed ? 'true' : 'false');
+  }
+  if (dom.topShellBody) {
+    dom.topShellBody.hidden = collapsed;
+    dom.topShellBody.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+  }
+  if (dom.topShellToggle) {
+    dom.topShellToggle.setAttribute('aria-expanded', String(!collapsed));
+    dom.topShellToggle.setAttribute('data-auto', autoCollapsed ? 'true' : 'false');
+  }
+  if (dom.topShellToggleLabel) {
+    dom.topShellToggleLabel.textContent = collapsed ? 'Show search' : 'Hide search';
+  }
+  return collapsed;
+}
+
+function requestTopShellAutoCollapse(reason, value) {
+  if (!state.topShellAutoCollapse) {
+    state.topShellAutoCollapse = { route: false, voting: false };
+  }
+  if (reason in state.topShellAutoCollapse) {
+    state.topShellAutoCollapse[reason] = Boolean(value);
+  }
+  updateTopShellCollapse();
+}
+
+function collapseSheetToPeek({ animate = true } = {}) {
+  if (!dom.infoSheet) return;
+  applySheetSnap(0, { animate });
+}
 
 function collectDesignTokens() {
   const styles = getComputedStyle(document.documentElement);
@@ -312,7 +369,7 @@ const MAX_SATELLITE_ZOOM = 18;
 
 const DEFAULT_VIEW = { lat: 47.6036, lon: -122.3294, zoom: 13 }; // Seattle downtown default
 const SHEET_BASELINE_FALLBACK = 208;
-const SHEET_PEEK_MIN_VISIBLE = 72;
+const SHEET_PEEK_MIN_VISIBLE = 56;
 const SHEET_SNAP_TOLERANCE = 0.005;
 
 function getViewportHeight() {
@@ -338,33 +395,33 @@ function computeSheetBaselineVisible() {
     return SHEET_BASELINE_FALLBACK;
   }
   if (height <= 600) {
-    return Math.max(168, Math.round(height * 0.24));
+    return Math.max(148, Math.round(height * 0.2));
   }
   if (height <= 780) {
-    return Math.max(188, Math.round(height * 0.26));
+    return Math.max(168, Math.round(height * 0.22));
   }
   if (height <= 920) {
-    return Math.round(height * 0.28);
+    return Math.round(height * 0.24);
   }
-  return Math.min(320, Math.round(height * 0.3));
+  return Math.min(280, Math.round(height * 0.26));
 }
 
 function computeSheetSnapPoints() {
   const height = getViewportHeight();
   const isLandscape = typeof window.matchMedia === 'function' && window.matchMedia('(orientation: landscape)').matches;
   if (!Number.isFinite(height)) {
-    return [0.3, 0.62, 0.92];
+    return [0.18, 0.5, 0.88];
   }
   if (height <= 600) {
-    return [0.36, 0.62, 0.92];
+    return [0.2, 0.5, 0.9];
   }
   if (isLandscape && height <= 720) {
-    return [0.32, 0.58, 0.9];
+    return [0.18, 0.48, 0.88];
   }
   if (height >= 960) {
-    return [0.24, 0.6, 0.96];
+    return [0.16, 0.5, 0.94];
   }
-  return [0.3, 0.62, 0.92];
+  return [0.18, 0.5, 0.9];
 }
 
 function syncSheetSnapPoints() {
@@ -1903,7 +1960,7 @@ function getSheetPeekVisibleHeight() {
   if (!rect || !Number.isFinite(rect.height) || rect.height <= 0) {
     return SHEET_PEEK_MIN_VISIBLE;
   }
-  return Math.max(SHEET_PEEK_MIN_VISIBLE, Math.round(rect.height + 24));
+  return Math.max(SHEET_PEEK_MIN_VISIBLE, Math.round(rect.height + 12));
 }
 
 function clampSheetTranslate(value) {
@@ -2409,12 +2466,33 @@ function restoreRoutePlannerToDock() {
 function setRoutePlannerExpanded(expanded) {
   state.routePlannerExpanded = Boolean(expanded);
   updateRoutePlannerVisibility();
+  if (state.routePlannerExpanded) {
+    collapseSheetToPeek({ animate: true });
+    requestTopShellAutoCollapse('route', true);
+  } else {
+    requestTopShellAutoCollapse('route', false);
+  }
 }
 
 function toggleRoutePlannerExpanded() {
-  setRoutePlannerExpanded(!state.routePlannerExpanded);
-  if (state.routePlannerExpanded) {
+  const next = !state.routePlannerExpanded;
+  setRoutePlannerExpanded(next);
+  if (!next) {
     applySheetSnap(Math.max(1, state.sheet.index || 1), { animate: true });
+  }
+}
+
+function updateEntranceVoteHint() {
+  if (!dom.entranceVoteHint) return;
+  if (!state.isVoting) {
+    dom.entranceVoteHint.hidden = true;
+    return;
+  }
+  dom.entranceVoteHint.hidden = false;
+  if (state.votePhase === 'dropoff') {
+    dom.entranceVoteHint.textContent = 'Now tap the curb or lane where drivers should drop off.';
+  } else {
+    dom.entranceVoteHint.textContent = 'Tap the building entrance, then choose a drop-off.';
   }
 }
 
@@ -2786,7 +2864,7 @@ function updateRouteSummary() {
   if (!detailParts.length) {
     detailParts.push('Optimized for the verified entrance');
   }
-  detail.textContent = detailParts.join(' • ');
+  detail.textContent = detailParts.join(' | ');
 
   meta.appendChild(title);
   meta.appendChild(detail);
@@ -3741,6 +3819,9 @@ function buildEntranceOptions(result) {
         votes: candidate.votes || null,
         clusterId: candidate.communityClusterId || null,
         score: candidate.score || null,
+        dropLat: Number.isFinite(candidate.dropLat) ? candidate.dropLat : null,
+        dropLon: Number.isFinite(candidate.dropLon) ? candidate.dropLon : null,
+        dropCount: Number(candidate.dropCount) || 0,
       });
     });
   } else if (result?.entrance && Number.isFinite(result.entrance.lat) && Number.isFinite(result.entrance.lon)) {
@@ -3771,6 +3852,9 @@ function buildEntranceOptions(result) {
         votes: cluster.count,
         clusterId: cluster.id,
         updatedAt: cluster.updatedAt || null,
+        dropLat: Number.isFinite(cluster.dropLat) ? cluster.dropLat : null,
+        dropLon: Number.isFinite(cluster.dropLon) ? cluster.dropLon : null,
+        dropCount: Number(cluster.dropCount) || 0,
       });
     });
   }
@@ -3799,35 +3883,35 @@ function renderEntranceOptions(result) {
     dom.entranceOptions.setAttribute('aria-hidden', 'true');
     if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
     if (dom.entranceAssurance) {
-      dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
-    }
-    if (dom.startEntranceVote) {
-      dom.startEntranceVote.hidden = true;
-      dom.startEntranceVote.disabled = false;
-    }
-    if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
-    dom.entranceOptions.classList.remove('entrance-options--voting');
-    hideEntranceConfirmation({ mark: false });
-    return;
+    dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
   }
+  if (dom.startEntranceVote) {
+    dom.startEntranceVote.hidden = true;
+    dom.startEntranceVote.disabled = false;
+  }
+  updateEntranceVoteHint();
+  dom.entranceOptions.classList.remove('entrance-options--voting');
+  hideEntranceConfirmation({ mark: false });
+  return;
+}
 
   if (!options.length) {
     dom.entranceOptionList.innerHTML = '';
     dom.entranceOptions.hidden = true;
     dom.entranceOptions.setAttribute('aria-hidden', 'true');
     if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
-    if (dom.entranceAssurance) {
-      dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
-    }
-    if (dom.startEntranceVote) {
-      dom.startEntranceVote.hidden = true;
-      dom.startEntranceVote.disabled = false;
-    }
-    if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
-    dom.entranceOptions.classList.remove('entrance-options--voting');
-    hideEntranceConfirmation({ mark: false });
-    return;
+  if (dom.entranceAssurance) {
+    dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
   }
+  if (dom.startEntranceVote) {
+    dom.startEntranceVote.hidden = true;
+    dom.startEntranceVote.disabled = false;
+  }
+  updateEntranceVoteHint();
+  dom.entranceOptions.classList.remove('entrance-options--voting');
+  hideEntranceConfirmation({ mark: false });
+  return;
+}
 
   dom.entranceOptions.hidden = false;
   dom.entranceOptions.setAttribute('aria-hidden', 'false');
@@ -3867,7 +3951,16 @@ function renderEntranceOptions(result) {
 
     const detailNode = document.createElement('span');
     detailNode.className = 'entrance-option__detail';
-    detailNode.textContent = option.detail || '';
+    const detailParts = [];
+    if (option.detail) detailParts.push(option.detail);
+    if (Number.isFinite(option.dropLat) && Number.isFinite(option.dropLon)) {
+      if (Number(option.dropCount) > 0) {
+        detailParts.push(`${option.dropCount} drop-off vote${option.dropCount === 1 ? '' : 's'}`);
+      } else {
+        detailParts.push('Includes drop-off');
+      }
+    }
+    detailNode.textContent = detailParts.filter(Boolean).join(' | ');
     textWrap.appendChild(detailNode);
 
     button.appendChild(textWrap);
@@ -3906,11 +3999,9 @@ function renderEntranceOptions(result) {
   if (dom.startEntranceVote) {
     dom.startEntranceVote.hidden = false;
     dom.startEntranceVote.disabled = state.voteInFlight;
-    dom.startEntranceVote.textContent = state.isVoting ? 'Finish placement' : 'Suggest another entrance';
+    dom.startEntranceVote.textContent = state.isVoting ? 'Cancel placement' : 'Suggest another entrance';
   }
-  if (dom.entranceVoteHint) {
-    dom.entranceVoteHint.hidden = !state.isVoting;
-  }
+  updateEntranceVoteHint();
   dom.entranceOptions.classList.toggle('entrance-options--voting', state.isVoting);
 }
 
@@ -3944,10 +4035,28 @@ function applyEntranceSelection(option, { silent = false } = {}) {
   } else if (Number.isFinite(result.entrance?.distance_m)) {
     entrance.distance_m = result.entrance.distance_m;
   }
+  let dropPoint = null;
+  if (Number.isFinite(option.dropLat) && Number.isFinite(option.dropLon)) {
+    dropPoint = {
+      lat: option.dropLat,
+      lon: option.dropLon,
+      source: option.source || null,
+      communityClusterId: option.clusterId || null,
+      method: 'community_dropoff',
+      userSelected: option.source === 'community',
+    };
+    if (entrance) {
+      const dropWalk = haversine(dropPoint, entrance);
+      if (Number.isFinite(dropWalk)) dropPoint.distance_m = dropWalk;
+    }
+  }
   if (result.entrance && !result.baseEntrance) {
     result.baseEntrance = { ...result.entrance };
   }
   result.entrance = entrance;
+  if (dropPoint) {
+    result.roadPoint = dropPoint;
+  }
   state.selectedEntranceId = option.id;
   state.lastResult = result;
   renderResult(state.lastResult, { preserveView: true, skipStateUpdate: true });
@@ -3963,13 +4072,18 @@ function startEntranceVoting() {
   state.isVoting = true;
   if (state.voteLayer) state.voteLayer.clearLayers();
   state.voteMarker = null;
+  state.voteDropMarker = null;
+  state.votePhase = 'entrance';
+  state.voteSelection = { entrance: null, dropoff: null };
   if (state.voteHandler) {
     state.map.off('click', state.voteHandler);
   }
   state.voteHandler = (evt) => handleVoteMapClick(evt);
   state.map.on('click', state.voteHandler);
-  if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = false;
-  setStatus('Tap the entrance on the map to share it with others.', 'info');
+  requestTopShellAutoCollapse('voting', true);
+  collapseSheetToPeek({ animate: true });
+  updateEntranceVoteHint();
+  setStatus('Tap the entrance on the map, then choose a curbside drop-off.', 'info');
   renderEntranceOptions(state.lastResult || {});
 }
 
@@ -3980,8 +4094,12 @@ function stopEntranceVoting({ clearMarker = true } = {}) {
   }
   if (clearMarker && state.voteLayer) state.voteLayer.clearLayers();
   state.voteMarker = null;
+  state.voteDropMarker = null;
+  state.votePhase = null;
+  state.voteSelection = null;
   state.isVoting = false;
-  if (dom.entranceVoteHint) dom.entranceVoteHint.hidden = true;
+  requestTopShellAutoCollapse('voting', false);
+  updateEntranceVoteHint();
   renderEntranceOptions(state.lastResult || {});
 }
 
@@ -3994,24 +4112,60 @@ function handleVoteMapClick(evt) {
   if (!state.voteLayer) {
     state.voteLayer = L.layerGroup().addTo(state.map);
   }
-  if (!state.voteMarker) {
-    state.voteMarker = L.circleMarker([lat, lon], {
+  const selection = state.voteSelection || { entrance: null, dropoff: null };
+  if (!state.votePhase || state.votePhase === 'entrance') {
+    if (!state.voteMarker) {
+      state.voteMarker = L.circleMarker([lat, lon], {
+        radius: 7,
+        color: tokens.markerSelectedBorder,
+        fillColor: tokens.markerSelectedFill,
+        fillOpacity: 0.92,
+        weight: 3,
+      }).addTo(state.voteLayer);
+    } else {
+      state.voteMarker.setLatLng([lat, lon]);
+      state.voteMarker.setStyle({
+        color: tokens.markerSelectedBorder,
+        fillColor: tokens.markerSelectedFill,
+      });
+    }
+    selection.entrance = { lat, lon };
+    selection.dropoff = null;
+    state.voteSelection = selection;
+    state.votePhase = 'dropoff';
+    updateEntranceVoteHint();
+    setStatus('Great! Now tap the curb or lane where drivers should stop.', 'info');
+    if (state.voteDropMarker) {
+      state.voteLayer.removeLayer(state.voteDropMarker);
+      state.voteDropMarker = null;
+    }
+    return;
+  }
+
+  if (!selection.entrance) return;
+  if (!state.voteDropMarker) {
+    state.voteDropMarker = L.circleMarker([lat, lon], {
       radius: 7,
-      color: tokens.markerSelectedBorder,
-      fillColor: tokens.markerSelectedFill,
-      fillOpacity: 0.92,
+      color: tokens.markerDropoffBorder,
+      fillColor: tokens.markerDropoffFill,
+      fillOpacity: 0.9,
       weight: 3,
     }).addTo(state.voteLayer);
   } else {
-    state.voteMarker.setLatLng([lat, lon]);
-    state.voteMarker.setStyle({
-      color: tokens.markerSelectedBorder,
-      fillColor: tokens.markerSelectedFill,
+    state.voteDropMarker.setLatLng([lat, lon]);
+    state.voteDropMarker.setStyle({
+      color: tokens.markerDropoffBorder,
+      fillColor: tokens.markerDropoffFill,
     });
   }
-  const confirmPlacement = window.confirm('Use this location as a community entrance?');
+  selection.dropoff = { lat, lon };
+  state.voteSelection = selection;
+  const confirmPlacement = window.confirm('Use this entrance and drop-off for the community?');
   if (!confirmPlacement) return;
-  submitCommunityVote(lat, lon);
+  submitCommunityVote(selection.entrance.lat, selection.entrance.lon, {
+    dropLat: selection.dropoff.lat,
+    dropLon: selection.dropoff.lon,
+  });
 }
 
 async function submitCommunityVote(lat, lon, options = {}) {
@@ -4025,15 +4179,22 @@ async function submitCommunityVote(lat, lon, options = {}) {
   if (dom.startEntranceVote) dom.startEntranceVote.disabled = true;
   const statusMessage = typeof options.statusMessage === 'string' && options.statusMessage.trim()
     ? options.statusMessage.trim()
-    : 'Recording your entrance...';
+    : options.dropLat != null && options.dropLon != null
+      ? 'Recording the entrance and drop-off...'
+      : 'Recording your entrance...';
   setStatus(statusMessage, 'info');
   const labelInput = typeof options.label === 'string' ? options.label.trim() : '';
   const label = labelInput ? labelInput.slice(0, 120) : 'Community entrance';
+  const payloadBody = { query, lat, lon, label };
+  if (Number.isFinite(options.dropLat) && Number.isFinite(options.dropLon)) {
+    payloadBody.dropLat = options.dropLat;
+    payloadBody.dropLon = options.dropLon;
+  }
   try {
     const resp = await fetch('/entrance/community', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, lat, lon, label }),
+      body: JSON.stringify(payloadBody),
     });
     const payload = await resp.json();
     if (!resp.ok) {
@@ -4055,6 +4216,9 @@ async function submitCommunityVote(lat, lon, options = {}) {
             source: 'community',
             communityClusterId: top.id,
             votes: top.count,
+            dropLat: Number.isFinite(top.dropLat) ? top.dropLat : null,
+            dropLon: Number.isFinite(top.dropLon) ? top.dropLon : null,
+            dropCount: Number(top.dropCount) || 0,
           });
         }
       }
@@ -4068,6 +4232,9 @@ async function submitCommunityVote(lat, lon, options = {}) {
           source: 'community',
           votes: payload.cluster.count,
           clusterId: payload.cluster.id,
+          dropLat: Number.isFinite(payload.cluster.dropLat) ? payload.cluster.dropLat : null,
+          dropLon: Number.isFinite(payload.cluster.dropLon) ? payload.cluster.dropLon : null,
+          dropCount: Number(payload.cluster.dropCount) || 0,
         };
         applyEntranceSelection(option, { silent: true });
       } else {
@@ -4119,7 +4286,7 @@ function updateInsights(data) {
     if (entrance.methodLabel) meta.push(entrance.methodLabel);
     if (Number.isFinite(entrance.distance_m)) meta.push(`${formatDistance(entrance.distance_m)} from center`);
     if (entrance.votes) meta.push(`${entrance.votes} community vote${entrance.votes === 1 ? '' : 's'}`);
-    if (meta.length) lines.push(meta.join(' • '));
+    if (meta.length) lines.push(meta.join(' | '));
     items.push({
       title: 'Selected entrance',
       lines,
@@ -4507,6 +4674,21 @@ function wireCommunityEntranceControls() {
   });
 }
 
+function wireTopShellToggle() {
+  if (!dom.topShellToggle) return;
+  dom.topShellToggle.addEventListener('click', () => {
+    const collapsed = computeTopShellCollapsed();
+    if (collapsed) {
+      state.topShellManualPreference = null;
+      requestTopShellAutoCollapse('route', false);
+      requestTopShellAutoCollapse('voting', false);
+      return;
+    }
+    state.topShellManualPreference = true;
+    updateTopShellCollapse();
+  });
+}
+
 async function primeGeolocation() {
   if (!('geolocation' in navigator)) {
     setStatus('Geolocation unavailable in this browser.', 'error');
@@ -4555,7 +4737,8 @@ function init() {
     wireLocateButton();
     wireEntranceConfirmation();
     wireCommunityEntranceControls();
-  initSheetInteractions();
+    wireTopShellToggle();
+    initSheetInteractions();
   initRoutePlanner();
     resetSheetHeadings();
     advanceSplashProgress(0.55);

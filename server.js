@@ -1393,6 +1393,9 @@ function buildCommunitySummaryFromStore(store, key) {
       lon: cluster.lon,
       count: cluster.count,
       label: cluster.label || null,
+      dropLat: Number.isFinite(cluster.dropLat) && Number(cluster.dropCount) > 0 ? cluster.dropLat : null,
+      dropLon: Number.isFinite(cluster.dropLon) && Number(cluster.dropCount) > 0 ? cluster.dropLon : null,
+      dropCount: Number(cluster.dropCount) || 0,
       createdAt: cluster.createdAt || null,
       updatedAt: cluster.updatedAt || entry.updatedAt || store.updatedAt || null,
     }))
@@ -1423,7 +1426,7 @@ function summarizeCommunityEntrances(query) {
   return buildCommunitySummaryFromStore(store, key);
 }
 
-function recordCommunityVote({ query, lat, lon, label }) {
+function recordCommunityVote({ query, lat, lon, label, dropLat, dropLon }) {
   const key = normalizeQueryKey(query);
   if (!key) throw new Error('invalid_query_key');
   const store = readCommunityStore();
@@ -1454,6 +1457,18 @@ function recordCommunityVote({ query, lat, lon, label }) {
     target.lat = ((target.lat * existingCount) + lat) / newCount;
     target.lon = ((target.lon * existingCount) + lon) / newCount;
     target.count = newCount;
+    if (Number.isFinite(dropLat) && Number.isFinite(dropLon)) {
+      const existingDropCount = Number(target.dropCount) || 0;
+      const newDropCount = existingDropCount + 1;
+      if (existingDropCount === 0) {
+        target.dropLat = dropLat;
+        target.dropLon = dropLon;
+      } else {
+        target.dropLat = ((target.dropLat || dropLat) * existingDropCount + dropLat) / newDropCount;
+        target.dropLon = ((target.dropLon || dropLon) * existingDropCount + dropLon) / newDropCount;
+      }
+      target.dropCount = newDropCount;
+    }
     if (label && typeof label === 'string' && label.trim()) {
       target.label = label.trim().slice(0, 120);
     }
@@ -1468,6 +1483,13 @@ function recordCommunityVote({ query, lat, lon, label }) {
       createdAt: now,
       updatedAt: now,
     };
+    if (Number.isFinite(dropLat) && Number.isFinite(dropLon)) {
+      cluster.dropLat = dropLat;
+      cluster.dropLon = dropLon;
+      cluster.dropCount = 1;
+    } else {
+      cluster.dropCount = 0;
+    }
     if (label && typeof label === 'string' && label.trim()) {
       cluster.label = label.trim().slice(0, 120);
     }
@@ -1721,8 +1743,21 @@ app.post('/entrance/community', (req, res) => {
     if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'invalid_lon' });
     }
+    const hasDrop = req.body?.dropLat !== undefined || req.body?.dropLon !== undefined;
+    let dropLat = null;
+    let dropLon = null;
+    if (hasDrop) {
+      dropLat = Number(req.body?.dropLat);
+      dropLon = Number(req.body?.dropLon);
+      if (!Number.isFinite(dropLat) || dropLat < -90 || dropLat > 90) {
+        return res.status(400).json({ error: 'invalid_drop_lat' });
+      }
+      if (!Number.isFinite(dropLon) || dropLon < -180 || dropLon > 180) {
+        return res.status(400).json({ error: 'invalid_drop_lon' });
+      }
+    }
     const label = typeof req.body?.label === 'string' ? req.body.label.trim() : '';
-    const result = recordCommunityVote({ query, lat, lon, label });
+    const result = recordCommunityVote({ query, lat, lon, label, dropLat, dropLon });
     return res.status(200).json({ ok: true, cluster: result.cluster, summary: result.summary });
   } catch (error) {
     console.warn('Failed to record community entrance vote', error);
