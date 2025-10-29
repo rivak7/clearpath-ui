@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="logoTitle">
-  <title id="logoTitle">ClearPath arc route icon</title>
-  <rect width="512" height="512" rx="132" fill="#081a2c" />
-  <path d="M144 388c52-92 120-144 196-200 48-36 84-68 100-108" fill="none" stroke="#f7fbff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" />
-  <path d="M216 148c44-40 112-52 172-40" fill="none" stroke="#15b8a5" stroke-width="32" stroke-linecap="round" />
-  <circle cx="144" cy="388" r="44" fill="#0caea0" />
-  <path d="M356 124l80 20-36 72" fill="none" stroke="#f7fbff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
-</svg>
