@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2025-10-29T06:07:02.441Z",
+  "updatedAt": "2025-10-29T16:30:41.427Z",
   "entries": {
     "interlake high school, bellevue, washington, united states": {
       "query": "Interlake High School, Bellevue, Washington, United States",
@@ -14,6 +14,25 @@
           "count": 1,
           "createdAt": "2025-10-29T06:07:02.441Z",
           "updatedAt": "2025-10-29T06:07:02.441Z",
+          "label": "Community entrance"
+        }
+      ]
+    },
+    "bill & melinda gates center, seattle, washington, united states": {
+      "query": "Bill & Melinda Gates Center, Seattle, Washington, United States",
+      "createdAt": "2025-10-29T16:30:41.427Z",
+      "updatedAt": "2025-10-29T16:30:41.427Z",
+      "clusters": [
+        {
+          "id": "0498406d-1492-44fe-96ca-7b0cb115f5c7",
+          "lat": 47.65310315772118,
+          "lon": -122.30458974838257,
+          "count": 1,
+          "createdAt": "2025-10-29T16:30:41.427Z",
+          "updatedAt": "2025-10-29T16:30:41.427Z",
+          "dropLat": 47.653200675047486,
+          "dropLon": -122.30529248714448,
+          "dropCount": 1,
           "label": "Community entrance"
         }
       ]

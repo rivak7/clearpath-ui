@@ -539,13 +539,42 @@ body {
 }
 
 .top-shell--collapsed {
-  padding: clamp(6px, 1.2vh, 10px) clamp(12px, 4vw, 18px);
-  gap: 4px;
-  width: auto;
-  min-width: clamp(160px, 48vw, 320px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(3px, 0.8vh, 6px) clamp(18px, 5vw, 28px);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 88%, rgba(255, 255, 255, 0.48));
+  border: 1px solid color-mix(in srgb, var(--theme-border) 62%, transparent);
+  box-shadow: 0 12px 24px rgba(12, 34, 56, 0.14);
+  gap: 0;
   right: auto;
   left: 50%;
   transform: translate3d(-50%, 0, 0);
+}
+
+.top-shell--collapsed .top-shell__toggle {
+  width: 100%;
+  justify-content: center;
+  padding: 4px clamp(18px, 4vw, 26px);
+  min-height: 28px;
+  font-size: clamp(0.58rem, 0.5rem + 0.12vw, 0.68rem);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--text-strong) 68%, var(--text-muted) 32%);
+}
+
+.top-shell--collapsed .top-shell__toggle:hover,
+.top-shell--collapsed .top-shell__toggle:focus-visible {
+  transform: translateY(-1px);
+  color: var(--text-strong);
+  background: transparent;
+}
+
+.top-shell--collapsed .top-shell__toggleIcon {
+  width: 10px;
+  height: 10px;
 }
 
 .top-shell.top-shell--sheet-covered {
