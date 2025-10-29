@@ -3710,7 +3710,7 @@ function renderResult(data, options = {}) {
       }
       const isSelected = state.selectedEntranceId === `community-${cluster.id}`;
       const voteText = `${cluster.count} community vote${cluster.count === 1 ? '' : 's'}`;
-      const tooltip = cluster.label ? `${cluster.label} • ${voteText}` : voteText;
+      const tooltip = cluster.label ? `${cluster.label} | ${voteText}` : voteText;
       L.circleMarker([cluster.lat, cluster.lon], {
         radius: isSelected ? 7.5 : 6,
         color: tokens.markerCommunityBorder,
@@ -3877,41 +3877,33 @@ function renderEntranceOptions(result) {
   const options = buildEntranceOptions(result);
   state.entranceOptions = options;
 
-  if (state.searchInFlight) {
+  const resetVotingUi = () => {
     dom.entranceOptionList.innerHTML = '';
     dom.entranceOptions.hidden = true;
     dom.entranceOptions.setAttribute('aria-hidden', 'true');
     if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
     if (dom.entranceAssurance) {
-    dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
+      dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
+    }
+    if (dom.startEntranceVote) {
+      dom.startEntranceVote.hidden = true;
+      dom.startEntranceVote.disabled = false;
+    }
+    updateEntranceVoteHint();
+    dom.entranceOptions.classList.remove('entrance-options--voting');
+  };
+
+  if (state.searchInFlight) {
+    resetVotingUi();
+    hideEntranceConfirmation({ mark: false });
+    return;
   }
-  if (dom.startEntranceVote) {
-    dom.startEntranceVote.hidden = true;
-    dom.startEntranceVote.disabled = false;
-  }
-  updateEntranceVoteHint();
-  dom.entranceOptions.classList.remove('entrance-options--voting');
-  hideEntranceConfirmation({ mark: false });
-  return;
-}
 
   if (!options.length) {
-    dom.entranceOptionList.innerHTML = '';
-    dom.entranceOptions.hidden = true;
-    dom.entranceOptions.setAttribute('aria-hidden', 'true');
-    if (dom.entranceOptionsMeta) dom.entranceOptionsMeta.textContent = '';
-  if (dom.entranceAssurance) {
-    dom.entranceAssurance.textContent = 'Confirmations and suggestions are saved so the next driver sees the best door.';
+    resetVotingUi();
+    hideEntranceConfirmation({ mark: false });
+    return;
   }
-  if (dom.startEntranceVote) {
-    dom.startEntranceVote.hidden = true;
-    dom.startEntranceVote.disabled = false;
-  }
-  updateEntranceVoteHint();
-  dom.entranceOptions.classList.remove('entrance-options--voting');
-  hideEntranceConfirmation({ mark: false });
-  return;
-}
 
   dom.entranceOptions.hidden = false;
   dom.entranceOptions.setAttribute('aria-hidden', 'false');
@@ -4299,7 +4291,7 @@ function updateInsights(data) {
       className: 'insight--cnn',
       lines: [
         `Lat: ${formatCoord(cnn.lat)}, Lon: ${formatCoord(cnn.lon)}`,
-        `∆ heuristic: ${formatDistance(cnn.difference_from_heuristic_m)} • ∆ center: ${formatDistance(cnn.distance_from_center_m)}`,
+        `∆ heuristic: ${formatDistance(cnn.difference_from_heuristic_m)} | ∆ center: ${formatDistance(cnn.distance_from_center_m)}`,
         cnn.image_url ? { text: 'Open inference tile', href: cnn.image_url } : null,
       ].filter(Boolean),
     });

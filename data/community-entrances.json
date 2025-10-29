@@ -1,5 +1,22 @@
 {
   "version": 1,
-  "updatedAt": null,
-  "entries": {}
+  "updatedAt": "2025-10-29T06:07:02.441Z",
+  "entries": {
+    "interlake high school, bellevue, washington, united states": {
+      "query": "Interlake High School, Bellevue, Washington, United States",
+      "createdAt": "2025-10-29T06:07:02.441Z",
+      "updatedAt": "2025-10-29T06:07:02.441Z",
+      "clusters": [
+        {
+          "id": "08ac1708-988b-4ac0-aa36-1598514f1350",
+          "lat": 47.62957427624103,
+          "lon": -122.1239483356476,
+          "count": 1,
+          "createdAt": "2025-10-29T06:07:02.441Z",
+          "updatedAt": "2025-10-29T06:07:02.441Z",
+          "label": "Community entrance"
+        }
+      ]
+    }
+  }
 }
