@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2025-10-29T16:30:41.427Z",
+  "updatedAt": "2025-10-29T19:23:04.328Z",
   "entries": {
     "interlake high school, bellevue, washington, united states": {
       "query": "Interlake High School, Bellevue, Washington, United States",
@@ -32,6 +32,25 @@
           "updatedAt": "2025-10-29T16:30:41.427Z",
           "dropLat": 47.653200675047486,
           "dropLon": -122.30529248714448,
+          "dropCount": 1,
+          "label": "Community entrance"
+        }
+      ]
+    },
+    "husky union building, seattle, washington, united states": {
+      "query": "Husky Union Building, Seattle, Washington, United States",
+      "createdAt": "2025-10-29T19:23:04.328Z",
+      "updatedAt": "2025-10-29T19:23:04.328Z",
+      "clusters": [
+        {
+          "id": "668e2458-c525-477c-93a4-5faf1cdaa304",
+          "lat": 47.65559615332416,
+          "lon": -122.30556070804597,
+          "count": 1,
+          "createdAt": "2025-10-29T19:23:04.328Z",
+          "updatedAt": "2025-10-29T19:23:04.328Z",
+          "dropLat": 47.65530000261501,
+          "dropLon": -122.30459511280061,
           "dropCount": 1,
           "label": "Community entrance"
         }
