@@ -74,19 +74,8 @@
       <div class="map-stage" aria-live="polite">
         <div id="map" class="map"></div>
         <header class="top-shell" role="search">
-          <button
-            id="topShellToggle"
-            class="top-shell__toggle"
-            type="button"
-            aria-expanded="true"
-            aria-controls="topShellBody"
-          >
-            <span class="top-shell__toggleIcon" aria-hidden="true"></span>
-            <span id="topShellToggleLabel" class="top-shell__toggleLabel">Hide search</span>
-          </button>
           <div id="topShellBody" class="top-shell__body">
-          <div class="brand">
-            <a id="brandHome" class="brand__identity" href="/" aria-label="ClearPath home">
+            <a id="brandHome" class="brand__identity top-shell__brand" href="/" aria-label="ClearPath home">
               <picture class="brand__logo">
                 <source srcset="/logo.png" media="(min-width: 768px)" />
                 <source srcset="/logo.png" media="(min-width: 480px)" />
@@ -96,7 +85,30 @@
                 <span class="brand__title">ClearPath</span>
               </div>
             </a>
-            <div class="brand__actions">
+            <form id="searchForm" class="search top-shell__search" autocomplete="off">
+              <label class="search__label" for="searchInput">Destination</label>
+              <div class="search__inputWrap">
+                <input
+                  id="searchInput"
+                  name="q"
+                  type="text"
+                  inputmode="search"
+                  placeholder="Search address, place, or building"
+                  aria-autocomplete="list"
+                  aria-expanded="false"
+                  aria-controls="suggestions"
+                />
+                <button id="clearSearch" class="search__clear" type="button" aria-label="Clear search" hidden>×</button>
+                <div id="suggestions" class="suggestions" role="listbox" aria-label="Address suggestions" hidden></div>
+              </div>
+              <div id="searchFocusActions" class="search__focusActions" hidden aria-live="polite">
+                <button id="addRouteStop" class="search__addStop" type="button">
+                  <span class="search__addStopIcon" aria-hidden="true">＋</span>
+                  Add stop
+                </button>
+              </div>
+            </form>
+            <div class="brand__actions top-shell__actions">
               <a class="brand__settings" href="/settings.html" aria-label="Open settings">
                 <span class="brand__settingsIcon" aria-hidden="true">&#9881;</span>
               </a>
@@ -112,32 +124,6 @@
                 <span id="accountLabel" class="brand__accountLabel">Sign in</span>
               </button>
             </div>
-          </div>
-          <form id="searchForm" class="search" autocomplete="off">
-            <label class="search__label" for="searchInput">Destination</label>
-          <div class="search__inputWrap">
-            <input id="searchInput" name="q" type="text" inputmode="search" placeholder="Search address, place, or building" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" />
-            <button id="clearSearch" class="search__clear" type="button" aria-label="Clear search" hidden>×</button>
-            <div id="suggestions" class="suggestions" role="listbox" aria-label="Address suggestions" hidden></div>
-          </div>
-          <div id="searchFocusActions" class="search__focusActions" hidden aria-live="polite">
-            <button id="addRouteStop" class="search__addStop" type="button">
-              <span class="search__addStopIcon" aria-hidden="true">＋</span>
-              Add stop
-            </button>
-          </div>
-          </form>
-          <section id="personalizationRail" class="personalization" hidden aria-live="polite">
-            <header class="personalization__header">
-              <h2 class="personalization__title">Personalized shortcuts</h2>
-              <button id="managePersonalization" class="personalization__manage" type="button">Manage</button>
-            </header>
-            <div id="personalizationQuickLinks" class="personalization__chips" role="list"></div>
-            <div id="personalizationRecents" class="personalization__recents" hidden>
-              <h3 class="personalization__subtitle">Recent searches</h3>
-              <ul id="personalizationRecentsList" class="personalization__recentsList" role="list"></ul>
-            </div>
-          </section>
           </div>
       </header>
 

@@ -247,32 +247,19 @@ const SPLASH_MESSAGES = {
 };
 
 function computeTopShellCollapsed() {
-  const autoCollapsed = Boolean(state.topShellAutoCollapse?.route) || Boolean(state.topShellAutoCollapse?.voting);
-  if (autoCollapsed) return true;
-  if (state.topShellManualPreference === true) return true;
-  if (state.topShellManualPreference === false) return false;
   return false;
 }
 
 function updateTopShellCollapse() {
-  const autoCollapsed = Boolean(state.topShellAutoCollapse?.route) || Boolean(state.topShellAutoCollapse?.voting);
-  const collapsed = computeTopShellCollapsed();
   if (dom.topShell) {
-    dom.topShell.classList.toggle('top-shell--collapsed', collapsed);
-    dom.topShell.setAttribute('data-top-shell-auto', autoCollapsed ? 'true' : 'false');
+    dom.topShell.classList.remove('top-shell--collapsed');
+    dom.topShell.removeAttribute('data-top-shell-auto');
   }
   if (dom.topShellBody) {
-    dom.topShellBody.hidden = collapsed;
-    dom.topShellBody.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+    dom.topShellBody.hidden = false;
+    dom.topShellBody.setAttribute('aria-hidden', 'false');
   }
-  if (dom.topShellToggle) {
-    dom.topShellToggle.setAttribute('aria-expanded', String(!collapsed));
-    dom.topShellToggle.setAttribute('data-auto', autoCollapsed ? 'true' : 'false');
-  }
-  if (dom.topShellToggleLabel) {
-    dom.topShellToggleLabel.textContent = collapsed ? 'Show search' : 'Hide search';
-  }
-  return collapsed;
+  return false;
 }
 
 function requestTopShellAutoCollapse(reason, value) {
@@ -2069,26 +2056,32 @@ function onSheetHandleKeydown(evt) {
   }
 }
 
-function startSheetDrag(evt) {
-  if (!dom.sheetHandle || !dom.infoSheet) return;
+function startSheetDrag(evt, captureTarget) {
+  if (!dom.infoSheet) return;
   if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+  if (state.sheet?.drag) return;
   evt.preventDefault();
+  const target =
+    captureTarget ||
+    (evt.currentTarget instanceof Element ? evt.currentTarget : null) ||
+    dom.sheetHandle ||
+    dom.infoSheet;
   const drag = {
     pointerId: evt.pointerId,
     startY: evt.clientY,
     startTranslate: state.sheet.translate || 0,
     moved: false,
+    captureTarget: target,
   };
   drag.maxTranslate = clampSheetTranslate(Number.MAX_SAFE_INTEGER);
   drag.moveTarget = null;
   drag.usingPointerCapture = false;
   state.sheet.drag = drag;
   dom.infoSheet.classList.add('sheet--dragging');
-  const handle = dom.sheetHandle;
-  let moveTarget = handle;
-  if (handle?.setPointerCapture) {
+  let moveTarget = target;
+  if (target?.setPointerCapture) {
     try {
-      handle.setPointerCapture(evt.pointerId);
+      target.setPointerCapture(evt.pointerId);
       drag.usingPointerCapture = true;
     } catch (error) {
       drag.usingPointerCapture = false;
@@ -2119,15 +2112,15 @@ function handleSheetDragMove(evt) {
 function finishSheetDrag(evt) {
   const drag = state.sheet.drag;
   if (!drag || evt.pointerId !== drag.pointerId) return;
-  const handle = dom.sheetHandle;
+  const captureTarget = drag.captureTarget;
   if (drag.moveTarget) {
     drag.moveTarget.removeEventListener('pointermove', handleSheetDragMove);
     drag.moveTarget.removeEventListener('pointerup', finishSheetDrag);
     drag.moveTarget.removeEventListener('pointercancel', finishSheetDrag);
   }
-  if (drag.usingPointerCapture && handle?.releasePointerCapture) {
+  if (drag.usingPointerCapture && captureTarget?.releasePointerCapture) {
     try {
-      handle.releasePointerCapture(evt.pointerId);
+      captureTarget.releasePointerCapture(evt.pointerId);
     } catch (error) {
       // Ignore release failures; the pointer is already done.
     }
@@ -2154,6 +2147,17 @@ function finishSheetDrag(evt) {
     }
   });
   applySheetSnap(bestIndex);
+}
+
+function handleSheetSurfacePointerDown(evt) {
+  if (!dom.infoSheet) return;
+  const currentIndex = typeof state.sheet?.index === 'number' ? state.sheet.index : 0;
+  if (currentIndex !== 0) return;
+  if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+  if (evt.target instanceof Element && dom.sheetHandle && dom.sheetHandle.contains(evt.target)) {
+    return;
+  }
+  startSheetDrag(evt, dom.infoSheet);
 }
 
 function ensureSheetRadiusState() {
@@ -2279,6 +2283,7 @@ function initSheetInteractions() {
     dom.sheetHandle.addEventListener('pointerdown', startSheetDrag, { passive: false });
     dom.sheetHandle.addEventListener('keydown', onSheetHandleKeydown);
   }
+  dom.infoSheet.addEventListener('pointerdown', handleSheetSurfacePointerDown, { passive: false });
   if ('ResizeObserver' in window && dom.sheetContent) {
     state.sheet.observer = new ResizeObserver(() => scheduleSheetRefresh());
     state.sheet.observer.observe(dom.sheetContent);

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2025-10-29T19:23:04.328Z",
+  "updatedAt": "2025-10-30T20:50:59.180Z",
   "entries": {
     "interlake high school, bellevue, washington, united states": {
       "query": "Interlake High School, Bellevue, Washington, United States",
@@ -51,6 +51,25 @@
           "updatedAt": "2025-10-29T19:23:04.328Z",
           "dropLat": 47.65530000261501,
           "dropLon": -122.30459511280061,
+          "dropCount": 1,
+          "label": "Community entrance"
+        }
+      ]
+    },
+    "microsoft building 18, redmond, wa, united states": {
+      "query": "Microsoft Building 18, Redmond, WA, United States",
+      "createdAt": "2025-10-30T20:50:59.180Z",
+      "updatedAt": "2025-10-30T20:50:59.180Z",
+      "clusters": [
+        {
+          "id": "35e3467d-d7cd-4863-a86c-6efe9d01a192",
+          "lat": 47.64418724392598,
+          "lon": -122.12951123714448,
+          "count": 1,
+          "createdAt": "2025-10-30T20:50:59.180Z",
+          "updatedAt": "2025-10-30T20:50:59.180Z",
+          "dropLat": 47.64431374020374,
+          "dropLon": -122.12977409362794,
           "dropCount": 1,
           "label": "Community entrance"
         }
