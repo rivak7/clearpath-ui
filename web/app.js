@@ -116,6 +116,7 @@ state.splashFrames = new Set();
 
 const PENDING_AUTH_KEY = 'clearpath-ui:pending-auth-mode';
 const PENDING_ACCOUNT_KEY = 'clearpath-ui:pending-account-open';
+const COMMUNITY_LOCATION_ACCURACY_THRESHOLD = 75;
 
 try {
   const pendingMode = window.localStorage.getItem(PENDING_AUTH_KEY);
@@ -178,6 +179,7 @@ const dom = {
   entranceConfirm: document.getElementById('entranceConfirm'),
   entranceConfirmMessage: document.getElementById('entranceConfirmMessage'),
   entranceConfirmYes: document.getElementById('entranceConfirmYes'),
+  entranceConfirmYesInline: document.getElementById('entranceConfirmYesInline'),
   entranceConfirmNo: document.getElementById('entranceConfirmNo'),
   entranceAssurance: document.getElementById('entranceAssurance'),
   accountButton: document.getElementById('accountButton'),
@@ -2849,7 +2851,7 @@ function updateRouteSummary() {
   } else if (state.routeMode === 'transit') {
     title.textContent = 'Transit handoff';
   } else {
-    title.textContent = 'Smart arrival';
+    title.textContent = 'Deep links to your preferred routing app';
   }
 
   const detail = document.createElement('div');
@@ -2875,15 +2877,21 @@ function updateRouteSummary() {
   meta.appendChild(detail);
   card.appendChild(meta);
 
-  const cta = document.createElement('button');
-  cta.type = 'button';
-  cta.className = 'route-summary__cta';
-  cta.textContent = 'Go';
-  cta.addEventListener('click', () => {
-    focusOnRouteHighlights();
-    cycleSheetSnap(-1);
-  });
-  card.appendChild(cta);
+  const navLinks = buildNavigationLinkDescriptors({ requireQuery: false });
+  if (navLinks.length) {
+    const linkGroup = document.createElement('div');
+    linkGroup.className = 'route-summary__links';
+    navLinks.forEach((link) => {
+      const anchor = document.createElement('a');
+      anchor.className = 'nav-linkButton';
+      anchor.href = link.href;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener';
+      anchor.textContent = link.label;
+      linkGroup.appendChild(anchor);
+    });
+    card.appendChild(linkGroup);
+  }
 
   dom.routeSummary.appendChild(card);
   dom.routeSummary.hidden = false;
@@ -3472,6 +3480,10 @@ function hideEntranceConfirmation({ mark = false, reason = 'auto' } = {}) {
     dom.entranceConfirmYes.disabled = false;
     dom.entranceConfirmYes.hidden = true;
   }
+  if (dom.entranceConfirmYesInline) {
+    dom.entranceConfirmYesInline.disabled = false;
+    dom.entranceConfirmYesInline.hidden = true;
+  }
   if (dom.entranceConfirmNo) {
     dom.entranceConfirmNo.disabled = false;
     dom.entranceConfirmNo.hidden = true;
@@ -3506,6 +3518,10 @@ function showEntranceConfirmation(result) {
   if (dom.entranceConfirmYes) {
     dom.entranceConfirmYes.hidden = false;
     dom.entranceConfirmYes.disabled = false;
+  }
+  if (dom.entranceConfirmYesInline) {
+    dom.entranceConfirmYesInline.hidden = false;
+    dom.entranceConfirmYesInline.disabled = false;
   }
   if (dom.entranceConfirmNo) {
     dom.entranceConfirmNo.hidden = false;
@@ -3864,7 +3880,7 @@ function buildEntranceOptions(result) {
     });
   }
 
-  const priority = { heuristic: 0, community: 1, cnn: 2, candidate: 3 };
+  const priority = { community: 0, heuristic: 1, cnn: 2, candidate: 3 };
   options.sort((a, b) => {
     const diff = (priority[a.source] ?? 5) - (priority[b.source] ?? 5);
     if (diff !== 0) return diff;
@@ -3875,6 +3891,48 @@ function buildEntranceOptions(result) {
   });
 
   return options;
+}
+
+function pickPreferredCommunityOption(options) {
+  const communityOptions = options.filter((option) => option.source === 'community');
+  if (!communityOptions.length) return null;
+  if (communityOptions.length === 1) return communityOptions[0];
+
+  const user = state.userLocation;
+  const hasPreciseLocation = user
+    && Number.isFinite(user.lat)
+    && Number.isFinite(user.lon)
+    && Number.isFinite(user.accuracy)
+    && user.accuracy <= COMMUNITY_LOCATION_ACCURACY_THRESHOLD;
+
+  if (hasPreciseLocation) {
+    let bestOption = null;
+    let bestDistance = Infinity;
+    communityOptions.forEach((option) => {
+      const distance = haversine({ lat: option.lat, lon: option.lon }, user);
+      if (!Number.isFinite(distance)) return;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestOption = option;
+      }
+    });
+    if (bestOption) return bestOption;
+  }
+
+  const toTimestamp = (value) => {
+    if (!value) return 0;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const sortedCommunity = [...communityOptions].sort((a, b) => {
+    const voteDiff = (b.votes || 0) - (a.votes || 0);
+    if (voteDiff !== 0) return voteDiff;
+    const timeDiff = toTimestamp(b.updatedAt) - toTimestamp(a.updatedAt);
+    if (timeDiff !== 0) return timeDiff;
+    return (b.dropCount || 0) - (a.dropCount || 0);
+  });
+  return sortedCommunity[0] || communityOptions[0];
 }
 
 function renderEntranceOptions(result) {
@@ -3922,6 +3980,12 @@ function renderEntranceOptions(result) {
     });
     if (match) {
       state.selectedEntranceId = match.id;
+    }
+  }
+  if (!state.selectedEntranceId) {
+    const preferredCommunity = pickPreferredCommunityOption(options);
+    if (preferredCommunity) {
+      state.selectedEntranceId = preferredCommunity.id;
     }
   }
   if (!state.selectedEntranceId && options[0]) {
@@ -4470,20 +4534,22 @@ function getNavigationOrigin() {
   return '';
 }
 
-function updateNavigationLinks() {
-  if (!dom.navLinks) return;
-  dom.navLinks.innerHTML = '';
-  const hasQuery = Boolean(dom.searchInput?.value.trim());
-  const entrance = state.lastResult?.entrance;
-  if (!hasQuery || !entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon)) {
-    dom.navLinks.hidden = true;
-    return;
+function buildNavigationLinkDescriptors({ requireQuery = true } = {}) {
+  if (requireQuery) {
+    const hasQuery = Boolean(dom.searchInput?.value.trim());
+    if (!hasQuery) return [];
   }
+  const entrance = state.lastResult?.entrance;
+  if (!entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon)) {
+    return [];
+  }
+
   const destination = `${entrance.lat},${entrance.lon}`;
   const origin = getNavigationOrigin();
   const encodedDestination = encodeURIComponent(destination);
   const encodedOrigin = origin ? encodeURIComponent(origin) : '';
-  const links = [
+
+  return [
     {
       id: 'google',
       label: 'Open in Google Maps',
@@ -4497,6 +4563,16 @@ function updateNavigationLinks() {
         : `https://maps.apple.com/?daddr=${encodedDestination}`,
     },
   ];
+}
+
+function updateNavigationLinks() {
+  if (!dom.navLinks) return;
+  dom.navLinks.innerHTML = '';
+  const links = buildNavigationLinkDescriptors();
+  if (!links.length) {
+    dom.navLinks.hidden = true;
+    return;
+  }
   links.forEach((link) => {
     const anchor = document.createElement('a');
     anchor.className = 'nav-linkButton';
@@ -4623,8 +4699,9 @@ function wireLocateButton() {
 }
 
 function wireEntranceConfirmation() {
-  if (dom.entranceConfirmYes) {
-    dom.entranceConfirmYes.addEventListener('click', () => {
+  const attachConfirmHandler = (element) => {
+    if (!element) return;
+    element.addEventListener('click', () => {
       if (state.voteInFlight) return;
       const prompt = state.confirmationPrompt;
       if (!prompt || !prompt.entrance) {
@@ -4633,6 +4710,7 @@ function wireEntranceConfirmation() {
       }
       const { entrance } = prompt;
       if (dom.entranceConfirmYes) dom.entranceConfirmYes.disabled = true;
+      if (dom.entranceConfirmYesInline) dom.entranceConfirmYesInline.disabled = true;
       if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = true;
       hideEntranceConfirmation({ mark: true });
       if (Number.isFinite(entrance.lat) && Number.isFinite(entrance.lon)) {
@@ -4642,7 +4720,9 @@ function wireEntranceConfirmation() {
         });
       }
     });
-  }
+  };
+  attachConfirmHandler(dom.entranceConfirmYes);
+  attachConfirmHandler(dom.entranceConfirmYesInline);
   if (dom.entranceConfirmNo) {
     const dismissPrompt = (event) => {
       if (event) {
