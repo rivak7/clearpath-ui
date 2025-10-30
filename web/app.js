@@ -3504,20 +3504,11 @@ function showEntranceConfirmation(result) {
   if (!dom.entranceConfirm) return;
   const key = normalizePromptKey(result?.query);
   const entrance = result?.entrance;
-  const selectedOption = getSelectedEntranceOption();
-  const promptEntrance = selectedOption || entrance;
-  if (!key || !promptEntrance || !Number.isFinite(promptEntrance.lat) || !Number.isFinite(promptEntrance.lon)) return;
+  if (!key || !entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon)) return;
   state.confirmationPrompt = {
     key,
     query: result.query,
-    optionId: selectedOption?.id || null,
-    entrance: {
-      lat: promptEntrance.lat,
-      lon: promptEntrance.lon,
-      label: selectedOption?.label || entrance?.label || null,
-      source: selectedOption?.source || entrance?.source || null,
-      clusterId: selectedOption?.clusterId || entrance?.communityClusterId || null,
-    },
+    entrance: { lat: entrance.lat, lon: entrance.lon },
   };
   updateEntranceConfirmationMessage(result);
   dom.entranceConfirm.hidden = false;
@@ -3546,19 +3537,15 @@ function maybePromptEntranceConfirmation(result, { allowRandom = false } = {}) {
     return;
   }
   const entrance = result?.entrance;
-  const selectedOption = getSelectedEntranceOption();
   const query = result?.query;
-  const hasEntrance = entrance && Number.isFinite(entrance.lat) && Number.isFinite(entrance.lon);
-  if ((!selectedOption && !hasEntrance) || !query) {
+  if (!entrance || !Number.isFinite(entrance.lat) || !Number.isFinite(entrance.lon) || !query) {
     hideEntranceConfirmation({ mark: false });
     return;
   }
-  if (hasEntrance) {
-    const methodKey = String(entrance.method || '').toLowerCase();
-    if (!methodKey || methodKey === 'center_fallback') {
-      hideEntranceConfirmation({ mark: false });
-      return;
-    }
+  const methodKey = String(entrance.method || '').toLowerCase();
+  if (!methodKey || methodKey === 'center_fallback') {
+    hideEntranceConfirmation({ mark: false });
+    return;
   }
   if (state.isVoting || state.voteInFlight) {
     hideEntranceConfirmation({ mark: false });
@@ -3946,15 +3933,6 @@ function pickPreferredCommunityOption(options) {
     return (b.dropCount || 0) - (a.dropCount || 0);
   });
   return sortedCommunity[0] || communityOptions[0];
-}
-
-function getEntranceOptionById(id) {
-  if (!id || !Array.isArray(state.entranceOptions)) return null;
-  return state.entranceOptions.find((option) => option.id === id) || null;
-}
-
-function getSelectedEntranceOption() {
-  return getEntranceOptionById(state.selectedEntranceId);
 }
 
 function renderEntranceOptions(result) {
@@ -4726,7 +4704,6 @@ function wireEntranceConfirmation() {
     element.addEventListener('click', () => {
       if (state.voteInFlight) return;
       const prompt = state.confirmationPrompt;
-      const option = prompt?.optionId ? getEntranceOptionById(prompt.optionId) : getSelectedEntranceOption();
       if (!prompt || !prompt.entrance) {
         hideEntranceConfirmation({ mark: true });
         return;
@@ -4737,9 +4714,8 @@ function wireEntranceConfirmation() {
       if (dom.entranceConfirmNo) dom.entranceConfirmNo.disabled = true;
       hideEntranceConfirmation({ mark: true });
       if (Number.isFinite(entrance.lat) && Number.isFinite(entrance.lon)) {
-        const label = (option?.label || entrance.label || '').trim();
         submitCommunityVote(entrance.lat, entrance.lon, {
-          label: label || 'Community entrance',
+          label: 'Entrance confirmation',
           statusMessage: 'Thanks for confirming! Saving your check-in...',
         });
       }
